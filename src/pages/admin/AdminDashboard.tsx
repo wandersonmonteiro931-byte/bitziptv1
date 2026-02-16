@@ -1,26 +1,36 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion } from "framer-motion";
-import { Users, Target, Wallet, TrendingUp, Activity } from "lucide-react";
+import { Users, Target, Wallet, TrendingUp, Activity, DollarSign, Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState({ users: 0, missions: 0, pendingWithdrawals: 0, totalEarned: 0 });
+  const [stats, setStats] = useState({ users: 0, missions: 0, pendingWithdrawals: 0, totalDistributed: 0, totalBalance: 0, pendingAmount: 0 });
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
     const load = async () => {
-      const [users, missions, withdrawals, auditLogs] = await Promise.all([
+      const [users, missions, withdrawals, auditLogs, profiles, pendingW] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact" }),
         supabase.from("missions").select("id", { count: "exact" }),
         supabase.from("withdrawals").select("id", { count: "exact" }).eq("status", "pending"),
         supabase.from("admin_audit_logs").select("*, admin:profiles!admin_audit_logs_admin_id_fkey(name)").order("created_at", { ascending: false }).limit(10),
+        supabase.from("profiles").select("balance, total_earned"),
+        supabase.from("withdrawals").select("amount").eq("status", "pending"),
       ]);
+
+      const allProfiles = profiles.data || [];
+      const totalDistributed = allProfiles.reduce((s, p) => s + Number(p.total_earned), 0);
+      const totalBalance = allProfiles.reduce((s, p) => s + Number(p.balance), 0);
+      const pendingAmount = (pendingW.data || []).reduce((s, w) => s + Number(w.amount), 0);
+
       setStats({
         users: users.count || 0,
         missions: missions.count || 0,
         pendingWithdrawals: withdrawals.count || 0,
-        totalEarned: 0,
+        totalDistributed,
+        totalBalance,
+        pendingAmount,
       });
       setLogs(auditLogs.data || []);
     };
@@ -29,9 +39,9 @@ const AdminDashboard = () => {
 
   const statCards = [
     { label: "Usuários", value: String(stats.users), icon: Users, color: "text-primary" },
-    { label: "Missões", value: String(stats.missions), icon: Target, color: "text-secondary" },
-    { label: "Saques Pendentes", value: String(stats.pendingWithdrawals), icon: Wallet, color: "text-warning" },
-    { label: "Total Distribuído", value: `R$ ${stats.totalEarned.toFixed(2)}`, icon: TrendingUp, color: "text-success" },
+    { label: "Total Distribuído", value: `R$ ${stats.totalDistributed.toFixed(2)}`, icon: TrendingUp, color: "text-success" },
+    { label: "Saldo Acumulado", value: `R$ ${stats.totalBalance.toFixed(2)}`, icon: DollarSign, color: "text-secondary" },
+    { label: "Saques Pendentes", value: `${stats.pendingWithdrawals} (R$ ${stats.pendingAmount.toFixed(2)})`, icon: Wallet, color: "text-warning" },
   ];
 
   return (
@@ -47,7 +57,7 @@ const AdminDashboard = () => {
         {statCards.map((stat, i) => (
           <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="stat-card rounded-xl p-4">
             <div className="mb-2"><stat.icon size={20} className={stat.color} /></div>
-            <p className="text-xl font-bold text-foreground md:text-2xl">{stat.value}</p>
+            <p className="text-lg font-bold text-foreground md:text-xl">{stat.value}</p>
             <p className="text-xs text-muted-foreground">{stat.label}</p>
           </motion.div>
         ))}

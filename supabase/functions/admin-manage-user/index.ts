@@ -105,26 +105,29 @@ Deno.serve(async (req) => {
         const { data: withdrawal } = await supabaseAdmin.from("withdrawals").select("*").eq("id", withdrawal_id).single();
         if (!withdrawal) throw new Error("Saque não encontrado");
 
+        // Check if user balance is frozen
+        const { data: wProfile } = await supabaseAdmin.from("profiles").select("balance, balance_frozen").eq("id", withdrawal.user_id).single();
+        if (status === "approved" && wProfile?.balance_frozen) {
+          throw new Error("Saldo do usuário está congelado. Descongele antes de aprovar.");
+        }
+
         await supabaseAdmin.from("withdrawals").update({
           status,
           admin_notes: admin_notes || "",
           processed_at: new Date().toISOString(),
         }).eq("id", withdrawal_id);
 
-        if (status === "approved") {
-          const { data: profile } = await supabaseAdmin.from("profiles").select("balance").eq("id", withdrawal.user_id).single();
-          if (profile) {
-            await supabaseAdmin.from("profiles").update({
-              balance: Number(profile.balance) - Number(withdrawal.amount),
-            }).eq("id", withdrawal.user_id);
-            await supabaseAdmin.from("balance_history").insert({
-              user_id: withdrawal.user_id,
-              type: "withdrawal",
-              amount: Number(withdrawal.amount),
-              description: `Saque aprovado - PIX: ${withdrawal.pix_key}`,
-              admin_id: caller.id,
-            });
-          }
+        if (status === "approved" && wProfile) {
+          await supabaseAdmin.from("profiles").update({
+            balance: Number(wProfile.balance) - Number(withdrawal.amount),
+          }).eq("id", withdrawal.user_id);
+          await supabaseAdmin.from("balance_history").insert({
+            user_id: withdrawal.user_id,
+            type: "withdrawal",
+            amount: Number(withdrawal.amount),
+            description: `Saque aprovado - PIX: ${withdrawal.pix_key}`,
+            admin_id: caller.id,
+          });
         }
 
         result = { success: true };

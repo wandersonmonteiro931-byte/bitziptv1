@@ -30,6 +30,10 @@ const WithdrawalsPage = () => {
 
   const handleSubmit = async () => {
     if (!user) return;
+    if (user.balance_frozen) {
+      toast({ title: "Erro", description: "Seu saldo está congelado. Saques bloqueados.", variant: "destructive" });
+      return;
+    }
     const val = parseFloat(amount);
     if (!pixKey || isNaN(val) || val < 30) {
       toast({ title: "Erro", description: "Informe a chave PIX e valor mínimo de R$ 30,00", variant: "destructive" });
@@ -85,9 +89,9 @@ const WithdrawalsPage = () => {
               <label className="mb-1.5 block text-sm text-muted-foreground">Valor (mínimo R$ 30,00)</label>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" placeholder="30.00" min={30} />
             </div>
-            <button onClick={handleSubmit} disabled={submitting || Number(user?.balance || 0) < 30} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={handleSubmit} disabled={submitting || Number(user?.balance || 0) < 30 || user?.balance_frozen} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
               {submitting ? <Loader2 size={18} className="animate-spin" /> : null}
-              {Number(user?.balance || 0) < 30 ? "Saldo mínimo: R$ 30,00" : submitting ? "Enviando..." : "Solicitar Saque"}
+              {user?.balance_frozen ? "🔒 Saldo Congelado" : Number(user?.balance || 0) < 30 ? "Saldo mínimo: R$ 30,00" : submitting ? "Enviando..." : "Solicitar Saque"}
             </button>
           </div>
         </motion.div>
