@@ -3,24 +3,30 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo-bitz.jpg";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
 
 const LoginPage = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
-  const { login } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const { login, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (login(username, password)) {
-      const user = JSON.parse(localStorage.getItem("bitz_user") || "{}");
-      navigate(user.role === "admin" ? "/admin" : "/dashboard");
+    setSubmitting(true);
+    const err = await login(email, password);
+    setSubmitting(false);
+    if (err) {
+      setError("Credenciais inválidas. Contate o administrador.");
     } else {
-      setError("Usuário ou senha inválidos");
+      // Wait briefly for profile to load
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
     }
   };
 
@@ -41,13 +47,13 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-muted-foreground">Usuário IPTV</label>
+              <label className="mb-1.5 block text-sm font-medium text-muted-foreground">E-mail</label>
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Digite seu usuário"
+                placeholder="seu@email.com"
                 required
               />
             </div>
@@ -85,22 +91,17 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]"
+              disabled={submitting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
             >
-              <LogIn size={18} />
-              Entrar
+              {submitting ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
+              {submitting ? "Entrando..." : "Entrar"}
             </button>
           </form>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Acesso exclusivo para clientes Bitz IPTV
           </p>
-
-          <div className="mt-4 rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground/80 mb-1">Demo:</p>
-            <p>Admin: admin / admin123</p>
-            <p>Cliente: cliente1 / 123456</p>
-          </div>
         </div>
       </motion.div>
     </div>
