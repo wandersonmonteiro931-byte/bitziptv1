@@ -2,8 +2,25 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+
+import LoginPage from "./pages/LoginPage";
+import ClientDashboard from "./pages/ClientDashboard";
+import MissionsPage from "./pages/MissionsPage";
+import ReferralsPage from "./pages/ReferralsPage";
+import WithdrawalsPage from "./pages/WithdrawalsPage";
+import HistoryPage from "./pages/HistoryPage";
+import IptvInfoPage from "./pages/IptvInfoPage";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminMissionsPage from "./pages/admin/AdminMissionsPage";
+import AdminWithdrawalsPage from "./pages/admin/AdminWithdrawalsPage";
+import AdminReferralsPage from "./pages/admin/AdminReferralsPage";
+import AdminContentPage from "./pages/admin/AdminContentPage";
+import AdminReportsPage from "./pages/admin/AdminReportsPage";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -11,15 +28,36 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+
+            {/* Client Routes */}
+            <Route path="/dashboard" element={<ProtectedRoute><ClientDashboard /></ProtectedRoute>} />
+            <Route path="/missions" element={<ProtectedRoute><MissionsPage /></ProtectedRoute>} />
+            <Route path="/referrals" element={<ProtectedRoute><ReferralsPage /></ProtectedRoute>} />
+            <Route path="/withdrawals" element={<ProtectedRoute><WithdrawalsPage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+            <Route path="/iptv-info" element={<ProtectedRoute><IptvInfoPage /></ProtectedRoute>} />
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute>} />
+            <Route path="/admin/missions" element={<ProtectedRoute requireAdmin><AdminMissionsPage /></ProtectedRoute>} />
+            <Route path="/admin/withdrawals" element={<ProtectedRoute requireAdmin><AdminWithdrawalsPage /></ProtectedRoute>} />
+            <Route path="/admin/referrals" element={<ProtectedRoute requireAdmin><AdminReferralsPage /></ProtectedRoute>} />
+            <Route path="/admin/content" element={<ProtectedRoute requireAdmin><AdminContentPage /></ProtectedRoute>} />
+            <Route path="/admin/reports" element={<ProtectedRoute requireAdmin><AdminReportsPage /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettingsPage /></ProtectedRoute>} />
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
