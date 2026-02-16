@@ -238,6 +238,7 @@ export type Database = {
       profiles: {
         Row: {
           balance: number
+          balance_frozen: boolean
           created_at: string
           id: string
           iptv_app: string
@@ -255,6 +256,7 @@ export type Database = {
         }
         Insert: {
           balance?: number
+          balance_frozen?: boolean
           created_at?: string
           id: string
           iptv_app?: string
@@ -272,6 +274,7 @@ export type Database = {
         }
         Update: {
           balance?: number
+          balance_frozen?: boolean
           created_at?: string
           id?: string
           iptv_app?: string

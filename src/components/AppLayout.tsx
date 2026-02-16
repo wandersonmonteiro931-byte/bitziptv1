@@ -45,7 +45,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const balance = Number(user?.balance || 0);
-  const canWithdraw = balance >= 30;
+  const isFrozen = user?.balance_frozen;
+  const canWithdraw = balance >= 30 && !isFrozen;
   const links = isAdmin ? adminLinks : clientLinks;
 
   return (

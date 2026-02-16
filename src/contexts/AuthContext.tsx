@@ -18,6 +18,7 @@ export interface Profile {
   status: string;
   pix_key: string;
   created_at: string;
+  balance_frozen: boolean;
 }
 
 interface AuthContextType {
