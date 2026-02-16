@@ -1,18 +1,20 @@
 import { AppLayout } from "@/components/AppLayout";
 import { History, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { motion } from "framer-motion";
-
-const history = [
-  { action: "Missão: Assistir 2h", type: "credit" as const, amount: 2.0, date: "2025-02-16 14:30" },
-  { action: "Indicação: Maria Santos", type: "credit" as const, amount: 5.0, date: "2025-02-15 10:15" },
-  { action: "Missão: Avaliar app", type: "credit" as const, amount: 3.0, date: "2025-02-12 09:00" },
-  { action: "Saque aprovado", type: "debit" as const, amount: 30.0, date: "2025-02-10 16:45" },
-  { action: "Missão: Assistir 1h", type: "credit" as const, amount: 1.5, date: "2025-02-08 20:00" },
-  { action: "Indicação: Carlos Oliveira", type: "credit" as const, amount: 5.0, date: "2025-02-05 11:30" },
-  { action: "Missão: Seguir Instagram", type: "credit" as const, amount: 2.0, date: "2025-02-01 08:45" },
-];
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const HistoryPage = () => {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => setHistory(data || []));
+  }, [user]);
+
   return (
     <AppLayout>
       <div className="mb-6">
@@ -24,30 +26,24 @@ const HistoryPage = () => {
 
       <div className="glass-card rounded-xl p-5">
         <div className="space-y-2">
-          {history.map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04 }}
-              className="flex items-center justify-between rounded-lg bg-muted/30 p-3"
-            >
-              <div className="flex items-center gap-3">
-                {item.type === "credit" ? (
-                  <ArrowUpRight size={18} className="text-success" />
-                ) : (
-                  <ArrowDownRight size={18} className="text-destructive" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-foreground">{item.action}</p>
-                  <p className="text-xs text-muted-foreground">{item.date}</p>
+          {history.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma transação registrada.</p>}
+          {history.map((item, i) => {
+            const isDebit = item.type === "debit" || item.type === "withdrawal";
+            return (
+              <motion.div key={item.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }} className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
+                <div className="flex items-center gap-3">
+                  {isDebit ? <ArrowDownRight size={18} className="text-destructive" /> : <ArrowUpRight size={18} className="text-success" />}
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{item.description}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
                 </div>
-              </div>
-              <span className={`text-sm font-semibold ${item.type === "credit" ? "text-success" : "text-destructive"}`}>
-                {item.type === "credit" ? "+" : "-"}R$ {item.amount.toFixed(2)}
-              </span>
-            </motion.div>
-          ))}
+                <span className={`text-sm font-semibold ${isDebit ? "text-destructive" : "text-success"}`}>
+                  {isDebit ? "-" : "+"}R$ {Number(item.amount).toFixed(2)}
+                </span>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </AppLayout>

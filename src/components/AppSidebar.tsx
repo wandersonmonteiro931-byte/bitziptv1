@@ -2,20 +2,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo-bitz.jpg";
 import {
-  LayoutDashboard,
-  Target,
-  Users,
-  Wallet,
-  History,
-  Tv,
-  Settings,
-  LogOut,
-  Shield,
-  Gift,
-  Megaphone,
-  BarChart3,
-  Menu,
-  X,
+  LayoutDashboard, Target, Users, Wallet, History, Tv, Settings, LogOut,
+  Shield, Gift, Megaphone, BarChart3, Menu, X,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -48,7 +36,6 @@ export function AppSidebar() {
 
   return (
     <>
-      {/* Mobile toggle */}
       <button
         onClick={() => setOpen(!open)}
         className="fixed top-4 left-4 z-50 rounded-lg bg-card p-2 text-foreground md:hidden"
@@ -57,19 +44,16 @@ export function AppSidebar() {
         {open ? <X size={22} /> : <Menu size={22} />}
       </button>
 
-      {/* Overlay */}
       {open && (
         <div className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-border bg-sidebar transition-transform duration-300 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {/* Logo */}
         <div className="flex items-center gap-3 border-b border-border px-5 py-5">
           <img src={logo} alt="Bitz IPTV" className="h-10 w-10 rounded-lg object-cover" />
           <div>
@@ -82,7 +66,6 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
             {links.map((link) => {
@@ -108,7 +91,6 @@ export function AppSidebar() {
           </ul>
         </nav>
 
-        {/* User info & logout */}
         <div className="border-t border-border p-4">
           <div className="mb-3 rounded-lg bg-muted/50 p-3">
             <p className="text-sm font-medium text-foreground">{user?.name}</p>

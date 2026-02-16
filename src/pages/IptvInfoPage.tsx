@@ -7,10 +7,10 @@ const IptvInfoPage = () => {
   const { user } = useAuth();
 
   const info = [
-    { label: "Usuário IPTV", value: user?.iptvUser, icon: User },
-    { label: "Servidor", value: user?.iptvServer, icon: Server },
-    { label: "Aplicativo", value: user?.iptvApp, icon: Smartphone },
-    { label: "Vencimento", value: user?.iptvExpiry, icon: Calendar },
+    { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
+    { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
+    { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
+    { label: "Vencimento", value: user?.iptv_expiry ? new Date(user.iptv_expiry).toLocaleDateString("pt-BR") : "-", icon: Calendar },
   ];
 
   return (
@@ -22,19 +22,15 @@ const IptvInfoPage = () => {
         <p className="mt-1 text-sm text-muted-foreground">Informações da sua assinatura</p>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card glow-border rounded-xl p-6"
-      >
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card glow-border rounded-xl p-6">
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
             <Tv size={24} className="text-primary" />
           </div>
           <div>
             <h2 className="font-display text-lg font-bold text-foreground">Bitz IPTV</h2>
-            <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-semibold text-success">
-              Ativo
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${user?.status === "active" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
+              {user?.status === "active" ? "Ativo" : user?.status === "suspended" ? "Suspenso" : "Bloqueado"}
             </span>
           </div>
         </div>

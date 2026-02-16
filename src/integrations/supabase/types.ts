@@ -14,16 +14,408 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_audit_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_table: string | null
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_table?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_table?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_logs_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      balance_history: {
+        Row: {
+          admin_id: string | null
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          amount: number
+          created_at?: string
+          description?: string
+          id?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "balance_history_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content: {
+        Row: {
+          banner_url: string | null
+          body: string | null
+          content_type: string
+          created_at: string
+          id: string
+          is_active: boolean
+          target_audience: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          banner_url?: string | null
+          body?: string | null
+          content_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          target_audience?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          banner_url?: string | null
+          body?: string | null
+          content_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          target_audience?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mission_completions: {
+        Row: {
+          completed_at: string
+          id: string
+          mission_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          mission_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          mission_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_completions_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mission_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      missions: {
+        Row: {
+          created_at: string
+          description: string
+          frequency: string
+          id: string
+          is_active: boolean
+          link: string | null
+          mission_type: string
+          reward_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          mission_type?: string
+          reward_value?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          link?: string | null
+          mission_type?: string
+          reward_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          id: string
+          min_withdrawal: number
+          monthly_limit: number
+          referral_value: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          min_withdrawal?: number
+          monthly_limit?: number
+          referral_value?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          min_withdrawal?: number
+          monthly_limit?: number
+          referral_value?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          iptv_app: string
+          iptv_expiry: string | null
+          iptv_server: string
+          iptv_user: string
+          name: string
+          pix_key: string | null
+          referral_code: string
+          referred_by: string | null
+          status: string
+          total_earned: number
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id: string
+          iptv_app?: string
+          iptv_expiry?: string | null
+          iptv_server?: string
+          iptv_user?: string
+          name?: string
+          pix_key?: string | null
+          referral_code: string
+          referred_by?: string | null
+          status?: string
+          total_earned?: number
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          iptv_app?: string
+          iptv_expiry?: string | null
+          iptv_server?: string
+          iptv_user?: string
+          name?: string
+          pix_key?: string | null
+          referral_code?: string
+          referred_by?: string | null
+          status?: string
+          total_earned?: number
+          updated_at?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          id: string
+          referred_id: string
+          referrer_id: string
+          reward_amount: number
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referred_id: string
+          referrer_id: string
+          reward_amount?: number
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referred_id?: string
+          referrer_id?: string
+          reward_amount?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawals: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          id: string
+          pix_key: string
+          processed_at: string | null
+          receipt_url: string | null
+          requested_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          id?: string
+          pix_key: string
+          processed_at?: string | null
+          receipt_url?: string | null
+          requested_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          id?: string
+          pix_key?: string
+          processed_at?: string | null
+          receipt_url?: string | null
+          requested_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +542,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "client"],
+    },
   },
 } as const
