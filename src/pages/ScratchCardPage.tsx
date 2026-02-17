@@ -3,9 +3,10 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Diamond, Ticket, RotateCcw, Trophy, Flame, Star, TrendingUp, Zap, Crown, Sparkles, Shield } from "lucide-react";
+import { Diamond, Ticket, RotateCcw, Trophy, Flame, Star, TrendingUp, Zap, Crown, Sparkles, Shield, Volume2, VolumeX } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { sfx, setMuted as setSfxMuted, isMuted } from "@/lib/sounds";
 
 // ═══════════════════════════════════════════════
 // PRIZE DEFINITIONS
@@ -396,6 +397,7 @@ function NearMissIndicator({ grid, revealedCells }: { grid: string[]; revealedCe
 // ═══════════════════════════════════════════════
 const ScratchCardPage = () => {
   const { user, refreshProfile } = useAuth();
+  const [muted, setMutedLocal] = useState(false);
   const queryClient = useQueryClient();
   const hasRestoredRef = useRef(false);
   const isPointerDown = useRef(false);
@@ -552,6 +554,7 @@ const ScratchCardPage = () => {
       return data;
     },
     onSuccess: (data) => {
+      sfx.start();
       setBackendResult(data);
       setWonPrizeKey(data.prize_key !== "nada" ? data.prize_key : null);
       setGrid(data.grid || []);
@@ -580,6 +583,7 @@ const ScratchCardPage = () => {
   const handleCellReveal = useCallback(
     (index: number) => {
       if (gameFinished) return;
+      sfx.cellReveal();
 
       setRevealedCells((prev) => {
         const next = [...prev];
@@ -613,6 +617,7 @@ const ScratchCardPage = () => {
         if (foundMatch) {
           setMatchedCells(matchIndices);
           setGameFinished(true);
+          sfx.match();
           setTimeout(async () => {
             setRevealedCells(Array(10).fill(true));
             setGameState("finished");
@@ -621,13 +626,17 @@ const ScratchCardPage = () => {
             await refreshProfile();
             if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
             if (wonPrizeKey) {
+              sfx.celebrate();
               setShowConfetti(true);
               setTimeout(() => setShowConfetti(false), 4000);
+            } else {
+              sfx.lose();
             }
           }, 800);
         } else if (revealedCount >= 10) {
           setGameFinished(true);
           setTimeout(async () => {
+            sfx.lose();
             setGameState("finished");
             setShowResult(true);
             clearGameState();
@@ -661,31 +670,32 @@ const ScratchCardPage = () => {
       <ConfettiEffect active={showConfetti} />
 
       {/* ── Header ── */}
-      <div className="mb-4">
-        <motion.h1
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2.5 text-2xl font-bold"
-          style={{ color: "hsl(var(--foreground))" }}
-        >
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{
-              background:
-                "linear-gradient(135deg, hsl(280 70% 50%), hsl(200 100% 55%))",
-              boxShadow: "0 0 20px hsl(280 70% 50% / 0.5)",
-            }}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <motion.h1
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-2.5 text-2xl font-bold"
+            style={{ color: "hsl(var(--foreground))" }}
           >
-            <Ticket size={20} className="text-white" />
-          </div>
-          Raspadinha
-        </motion.h1>
-        <p
-          className="mt-1 text-sm"
-          style={{ color: "hsl(var(--muted-foreground))" }}
-        >
-          Encontre 3 iguais e ganhe o prêmio! 🎰
-        </p>
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{
+                background: "linear-gradient(135deg, hsl(280 70% 50%), hsl(200 100% 55%))",
+                boxShadow: "0 0 20px hsl(280 70% 50% / 0.5)",
+              }}
+            >
+              <Ticket size={20} className="text-primary-foreground" />
+            </div>
+            Raspadinha
+          </motion.h1>
+          <p className="mt-1 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Encontre 3 iguais e ganhe o prêmio! 🎰
+          </p>
+        </div>
+        <button onClick={() => { setMutedLocal(!muted); setSfxMuted(!muted); }} className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors">
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
       </div>
 
       {/* ── Stats ── */}

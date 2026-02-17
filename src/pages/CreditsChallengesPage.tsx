@@ -24,7 +24,8 @@ const CreditsChallengesPage = () => {
   const { data: challenges = [] } = useQuery({
     queryKey: ["credit-challenges"],
     queryFn: async () => {
-      const { data } = await supabase.from("credit_challenges").select("*").eq("is_active", true);
+      const { data } = await supabase.from("credit_challenges").select("*").eq("is_active", true)
+        .in("challenge_type", ["scratch_card", "prize_box", "cup_game"]);
       return data || [];
     },
   });
@@ -87,9 +88,9 @@ const CreditsChallengesPage = () => {
     <AppLayout>
       <div className="mb-6">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-          <Gamepad2 className="text-primary" /> Desafios
+          <Gamepad2 className="text-primary" /> Jogos
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Use seus créditos em desafios e ganhe recompensas</p>
+        <p className="mt-1 text-sm text-muted-foreground">Use seus créditos nos jogos e ganhe recompensas</p>
       </div>
 
       {/* Balance bar */}
