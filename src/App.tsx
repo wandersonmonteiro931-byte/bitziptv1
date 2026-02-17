@@ -25,6 +25,7 @@ import AdminCreditsPage from "./pages/admin/AdminCreditsPage";
 import CreditsStorePage from "./pages/CreditsStorePage";
 import CreditsChallengesPage from "./pages/CreditsChallengesPage";
 import ScratchCardPage from "./pages/ScratchCardPage";
+import PrizeBoxPage from "./pages/PrizeBoxPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/credits" element={<ProtectedRoute><CreditsStorePage /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><CreditsChallengesPage /></ProtectedRoute>} />
             <Route path="/scratch" element={<ProtectedRoute><ScratchCardPage /></ProtectedRoute>} />
+            <Route path="/prize-box" element={<ProtectedRoute><PrizeBoxPage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
