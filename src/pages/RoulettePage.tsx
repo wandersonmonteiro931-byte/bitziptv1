@@ -40,7 +40,7 @@ const SEGMENT_COLORS = [
 const EMOJI_MAP: Record<string, string> = {
   none: "❌",
   credits: "💎",
-  balance: "💰",
+  balance: "💵",
   multiplier: "✖️",
 };
 
