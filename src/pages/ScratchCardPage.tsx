@@ -104,13 +104,17 @@ function ConfettiEffect({ active }: { active: boolean }) {
 }
 
 // ═══════════════════════════════════════════════
-// SCRATCH CELL – canvas scratch effect, controlled externally
+// SCRATCH CELL – canvas brush-based scratch effect
 // ═══════════════════════════════════════════════
 interface ScratchCellHandle {
   scratchAt: (clientX: number, clientY: number) => void;
+  resetLastPoint: () => void;
 }
 
 const CELL_SIZE = 200;
+const BRUSH_RADIUS = 22; // Medium brush for natural feel
+const REVEAL_THRESHOLD = 0.50; // 50% must be scratched
+const CHECK_INTERVAL = 4; // Only check % every N strokes
 
 const ScratchCell = React.forwardRef<
   ScratchCellHandle,
@@ -125,6 +129,8 @@ const ScratchCell = React.forwardRef<
 >(({ prizeKey, index, revealed, isMatched, onReveal, disabled }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cellRevealed = useRef(false);
+  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const strokeCount = useRef(0);
 
   const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -141,6 +147,7 @@ const ScratchCell = React.forwardRef<
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
 
+    // Sparkle particles
     for (let i = 0; i < 40; i++) {
       ctx.fillStyle = `rgba(${180 + Math.random() * 75}, ${150 + Math.random() * 105}, 255, ${Math.random() * 0.3})`;
       ctx.beginPath();
@@ -148,12 +155,14 @@ const ScratchCell = React.forwardRef<
       ctx.fill();
     }
 
+    // Crosshatch texture
     ctx.strokeStyle = "rgba(100, 200, 255, 0.06)";
     ctx.lineWidth = 0.5;
     for (let i = -CELL_SIZE; i < CELL_SIZE * 2; i += 12) {
       ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + CELL_SIZE, CELL_SIZE); ctx.stroke();
     }
 
+    // Question mark
     ctx.shadowColor = "#00d4ff";
     ctx.shadowBlur = 20;
     ctx.fillStyle = "#00d4ff";
@@ -163,6 +172,7 @@ const ScratchCell = React.forwardRef<
     ctx.fillText("?", CELL_SIZE / 2, CELL_SIZE / 2);
     ctx.shadowBlur = 0;
 
+    // Border
     ctx.strokeStyle = "rgba(0, 200, 255, 0.25)";
     ctx.lineWidth = 3;
     ctx.strokeRect(2, 2, CELL_SIZE - 4, CELL_SIZE - 4);
@@ -170,57 +180,81 @@ const ScratchCell = React.forwardRef<
 
   useEffect(() => {
     cellRevealed.current = false;
+    lastPoint.current = null;
+    strokeCount.current = 0;
     if (!revealed) initCanvas();
   }, [initCanvas, prizeKey, revealed]);
 
-  const scratchXY = useCallback((x: number, y: number) => {
+  const checkRevealPercent = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || cellRevealed.current || disabled) return;
+    if (!canvas || cellRevealed.current) return;
     const ctx = canvas.getContext("2d")!;
-    ctx.globalCompositeOperation = "destination-out";
-
-    // Smaller brush for realistic scratch feel
-    const r = 14 + Math.random() * 6;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    // Small scattered particles for texture
-    for (let i = 0; i < 2; i++) {
-      ctx.beginPath();
-      ctx.arc(x + (Math.random() - 0.5) * 18, y + (Math.random() - 0.5) * 18, 4 + Math.random() * 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Correct percentage calculation: sample every 4th pixel
     const imageData = ctx.getImageData(0, 0, CELL_SIZE, CELL_SIZE);
     let cleared = 0;
     let total = 0;
+    // Sample every 4th pixel for performance
     for (let i = 3; i < imageData.data.length; i += 16) {
       total++;
       if (imageData.data[i] === 0) cleared++;
     }
-    const pct = cleared / total;
-
-    // Require 50% scratched to auto-reveal
-    if (pct > 0.50 && !cellRevealed.current) {
+    if (cleared / total >= REVEAL_THRESHOLD) {
       cellRevealed.current = true;
       ctx.clearRect(0, 0, CELL_SIZE, CELL_SIZE);
       onReveal(index);
       if (navigator.vibrate) navigator.vibrate(15);
     }
-  }, [index, onReveal, disabled]);
+  }, [index, onReveal]);
+
+  // Draw a brush stroke as a thick line from lastPoint to current point
+  const brushStroke = useCallback((x: number, y: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas || cellRevealed.current || disabled) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = BRUSH_RADIUS * 2;
+
+    const prev = lastPoint.current;
+    if (prev) {
+      // Draw a thick line between previous and current position
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    } else {
+      // First touch: just draw a dot
+      ctx.beginPath();
+      ctx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    lastPoint.current = { x, y };
+
+    // Only check percentage every N strokes for performance
+    strokeCount.current++;
+    if (strokeCount.current % CHECK_INTERVAL === 0) {
+      checkRevealPercent();
+    }
+  }, [disabled, checkRevealPercent]);
 
   React.useImperativeHandle(ref, () => ({
     scratchAt(clientX: number, clientY: number) {
       const canvas = canvasRef.current;
       if (!canvas || cellRevealed.current || disabled) return;
       const rect = canvas.getBoundingClientRect();
-      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return;
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+        // Pointer left this cell, reset lastPoint so we don't draw a line across
+        lastPoint.current = null;
+        return;
+      }
       const x = (clientX - rect.left) * (CELL_SIZE / rect.width);
       const y = (clientY - rect.top) * (CELL_SIZE / rect.height);
-      scratchXY(x, y);
+      brushStroke(x, y);
     },
-  }), [scratchXY, disabled]);
+    resetLastPoint() {
+      lastPoint.current = null;
+    },
+  }), [brushStroke, disabled]);
 
   const prize = PRIZE_DATA[prizeKey] || PRIZE_DATA["nada"];
 
@@ -785,6 +819,8 @@ const ScratchCardPage = () => {
                     e.preventDefault();
                     e.currentTarget.setPointerCapture(e.pointerId);
                     isPointerDown.current = true;
+                    // Reset lastPoint on all cells so first touch doesn't draw line from old position
+                    cellRefs.current.forEach((ref) => ref?.resetLastPoint());
                     scratchAllAtPoint(e.clientX, e.clientY);
                   }}
                   onPointerMove={(e) => {
@@ -794,10 +830,12 @@ const ScratchCardPage = () => {
                   }}
                   onPointerUp={(e) => {
                     isPointerDown.current = false;
+                    cellRefs.current.forEach((ref) => ref?.resetLastPoint());
                     e.currentTarget.releasePointerCapture(e.pointerId);
                   }}
                   onPointerCancel={(e) => {
                     isPointerDown.current = false;
+                    cellRefs.current.forEach((ref) => ref?.resetLastPoint());
                     e.currentTarget.releasePointerCapture(e.pointerId);
                   }}
                 >
