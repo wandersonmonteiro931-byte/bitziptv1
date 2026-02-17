@@ -678,6 +678,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_notes: string
+          admin_notes_urgent: boolean
           balance: number
           balance_frozen: boolean
           created_at: string
@@ -687,10 +689,12 @@ export type Database = {
           daily_purchase_date: string | null
           id: string
           iptv_app: string
+          iptv_client_code: string
           iptv_connections: number
           iptv_due_day: number
           iptv_expiry: string | null
           iptv_monthly_value: number
+          iptv_password: string
           iptv_server: string
           iptv_status: string
           iptv_tv_app: string
@@ -708,6 +712,8 @@ export type Database = {
           vip_badge: boolean
         }
         Insert: {
+          admin_notes?: string
+          admin_notes_urgent?: boolean
           balance?: number
           balance_frozen?: boolean
           created_at?: string
@@ -717,10 +723,12 @@ export type Database = {
           daily_purchase_date?: string | null
           id: string
           iptv_app?: string
+          iptv_client_code?: string
           iptv_connections?: number
           iptv_due_day?: number
           iptv_expiry?: string | null
           iptv_monthly_value?: number
+          iptv_password?: string
           iptv_server?: string
           iptv_status?: string
           iptv_tv_app?: string
@@ -738,6 +746,8 @@ export type Database = {
           vip_badge?: boolean
         }
         Update: {
+          admin_notes?: string
+          admin_notes_urgent?: boolean
           balance?: number
           balance_frozen?: boolean
           created_at?: string
@@ -747,10 +757,12 @@ export type Database = {
           daily_purchase_date?: string | null
           id?: string
           iptv_app?: string
+          iptv_client_code?: string
           iptv_connections?: number
           iptv_due_day?: number
           iptv_expiry?: string | null
           iptv_monthly_value?: number
+          iptv_password?: string
           iptv_server?: string
           iptv_status?: string
           iptv_tv_app?: string

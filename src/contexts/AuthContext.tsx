@@ -29,6 +29,10 @@ export interface Profile {
   iptv_tv_app: string;
   iptv_status: string;
   iptv_due_day: number;
+  iptv_client_code: string;
+  iptv_password: string;
+  admin_notes: string;
+  admin_notes_urgent: boolean;
 }
 
 interface AuthContextType {
