@@ -71,14 +71,23 @@ const CupGamePage = () => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     if (!gameResult) return;
     
-    sfx.lose();
-    setRevealedCups([true, true, true]);
-    setCupsDown(false);
-    setPhase("result");
-    // Force loss display
-    setChosenCup(-1); // no cup chosen
-    refreshProfile();
-    queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
+    // Block choosing
+    setPhase("revealing");
+    setChosenCup(-1);
+
+    // Animate reveal: lift all cups
+    sfx.reveal();
+    setTimeout(() => {
+      setRevealedCups([true, true, true]);
+      
+      setTimeout(() => {
+        sfx.lose();
+        try { navigator.vibrate?.(200); } catch {}
+        setPhase("result");
+        refreshProfile();
+        queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
+      }, 1200);
+    }, 500);
   }, [gameResult, refreshProfile, queryClient]);
 
   const startCountdown = useCallback(() => {
