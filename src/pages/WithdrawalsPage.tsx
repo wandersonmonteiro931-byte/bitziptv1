@@ -59,12 +59,13 @@ const WithdrawalsPage = () => {
       return;
     }
 
-    setSubmitting(false);
-    toast({ title: "Solicitação enviada!", description: "O valor foi descontado do seu saldo. Aguarde aprovação." });
     setPixKey("");
     setAmount("");
+    // Refetch immediately to show updated balance
     await refreshProfile();
-    loadWithdrawals();
+    await loadWithdrawals();
+    setSubmitting(false);
+    toast({ title: "Solicitação enviada!", description: "O valor foi descontado do seu saldo. Aguarde aprovação." });
   };
 
   return (

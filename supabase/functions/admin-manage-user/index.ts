@@ -34,12 +34,11 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // request_withdrawal does NOT require admin role — it's called by the user
     const body = await req.json();
     const { action, user_id, data } = body;
 
+    // request_withdrawal does NOT require admin role — it's called by the user
     if (action === "request_withdrawal") {
-      // User-facing: deduct balance immediately and create withdrawal
       const { amount, pix_key } = data;
       if (!amount || !pix_key) throw new Error("amount e pix_key são obrigatórios");
 
@@ -85,9 +84,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body = await req.json();
-    const { action, user_id, data } = body;
-
     if (!action || !user_id) {
       return new Response(JSON.stringify({ error: "action e user_id são obrigatórios" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -105,7 +101,6 @@ Deno.serve(async (req) => {
       }
       case "adjust_balance": {
         const { amount, description } = data;
-        // Get current balance
         const { data: profile } = await supabaseAdmin.from("profiles").select("balance, total_earned").eq("id", user_id).single();
         if (!profile) throw new Error("Usuário não encontrado");
 
@@ -156,7 +151,6 @@ Deno.serve(async (req) => {
         }).eq("id", withdrawal_id);
 
         if (status === "approved") {
-          // Balance already deducted at request time — just log confirmation
           await supabaseAdmin.from("balance_history").insert({
             user_id: withdrawal.user_id,
             type: "withdrawal",
@@ -165,7 +159,6 @@ Deno.serve(async (req) => {
             admin_id: caller.id,
           });
         } else if (status === "rejected") {
-          // Return balance to user
           const { data: wProfile } = await supabaseAdmin.from("profiles").select("balance").eq("id", withdrawal.user_id).single();
           if (wProfile) {
             await supabaseAdmin.from("profiles").update({
