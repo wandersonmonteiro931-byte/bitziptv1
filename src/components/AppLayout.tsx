@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -48,6 +49,7 @@ const clientMenuLinks = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout, isAdmin } = useAuth();
+  useRealtimeBalance();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
