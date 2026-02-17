@@ -17,7 +17,7 @@ function ScratchCard({
 }: {
   width: number;
   height: number;
-  prize: { won: number; label: string } | null;
+  prize: { won: number; label: string; rewardType?: string; balanceWon?: number } | null;
   onComplete: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -165,10 +165,16 @@ function ScratchCard({
                 prize.won > 0 ? "text-yellow-400" : "text-muted-foreground"
               }`}
             >
-              {prize.won > 0 ? `+${prize.won}` : "Sem prêmio"}
+              {prize.won > 0
+                ? prize.rewardType === "balance"
+                  ? `+R$ ${Number(prize.balanceWon).toFixed(2)}`
+                  : `+${prize.won}`
+                : "Sem prêmio"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              {prize.won > 0 ? "créditos!" : "Tente novamente!"}
+              {prize.won > 0
+                ? prize.rewardType === "balance" ? "em saldo real! 💰" : "créditos!"
+                : "Tente novamente!"}
             </p>
           </>
         ) : (
@@ -199,7 +205,7 @@ function ScratchCard({
 const ScratchCardPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
-  const [currentPrize, setCurrentPrize] = useState<{ won: number; label: string } | null>(null);
+  const [currentPrize, setCurrentPrize] = useState<{ won: number; label: string; rewardType: string; balanceWon: number } | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [cardKey, setCardKey] = useState(0);
 
@@ -261,7 +267,8 @@ const ScratchCardPage = () => {
       return data;
     },
     onSuccess: (data) => {
-      setCurrentPrize({ won: data.credits_won, label: data.label });
+      const totalWon = data.reward_type === "balance" ? data.balance_won : data.credits_won;
+      setCurrentPrize({ won: totalWon, label: data.label, rewardType: data.reward_type, balanceWon: data.balance_won || 0 });
       setCardKey((k) => k + 1);
       refreshProfile();
       queryClient.invalidateQueries({ queryKey: ["scratch-results"] });
@@ -275,8 +282,11 @@ const ScratchCardPage = () => {
   const handleReveal = useCallback(() => {
     setShowResult(true);
     if (currentPrize && currentPrize.won > 0) {
+      const prizeText = currentPrize.rewardType === "balance"
+        ? `R$ ${Number(currentPrize.balanceWon).toFixed(2)} em saldo!`
+        : `${currentPrize.won} créditos!`;
       toast({
-        title: `🏆 Você ganhou ${currentPrize.won} créditos!`,
+        title: `🏆 Você ganhou ${prizeText}`,
         description: currentPrize.label,
       });
     }
@@ -288,6 +298,7 @@ const ScratchCardPage = () => {
     result: number;
     weight: number;
     label: string;
+    reward_type?: string;
   }>;
 
   return (
@@ -340,9 +351,9 @@ const ScratchCardPage = () => {
                   <Badge
                     key={i}
                     variant="outline"
-                    className="text-xs border-primary/20 text-primary/80"
+                    className={`text-xs ${p.reward_type === "balance" ? "border-green-500/30 text-green-400" : "border-primary/20 text-primary/80"}`}
                   >
-                    {p.label}
+                    {p.reward_type === "balance" ? "💰" : "💎"} {p.label}
                   </Badge>
                 ))}
             </div>
@@ -378,9 +389,14 @@ const ScratchCardPage = () => {
                   }`}
                 >
                   {currentPrize.won > 0
-                    ? `🎉 Você ganhou ${currentPrize.won} créditos!`
+                    ? currentPrize.rewardType === "balance"
+                      ? `🎉 Você ganhou R$ ${Number(currentPrize.balanceWon).toFixed(2)}!`
+                      : `🎉 Você ganhou ${currentPrize.won} créditos!`
                     : "Sem prêmio desta vez. Tente novamente!"}
                 </p>
+                {currentPrize.rewardType === "balance" && currentPrize.won > 0 && (
+                  <p className="text-sm text-green-400/70 mt-1">💰 Adicionado ao seu saldo real!</p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -438,13 +454,13 @@ const ScratchCardPage = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">-{r.credits_spent} 💎</p>
-                  <p
-                    className={`text-sm font-bold ${
-                      r.credits_won > 0 ? "text-green-400" : "text-muted-foreground"
-                    }`}
-                  >
-                    {r.credits_won > 0 ? `+${r.credits_won} 💎` : "Sem prêmio"}
-                  </p>
+                  {r.metadata?.reward_type === "balance" && r.metadata?.balance_won > 0 ? (
+                    <p className="text-sm font-bold text-green-400">+R$ {Number(r.metadata.balance_won).toFixed(2)} 💰</p>
+                  ) : (
+                    <p className={`text-sm font-bold ${r.credits_won > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                      {r.credits_won > 0 ? `+${r.credits_won} 💎` : "Sem prêmio"}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
