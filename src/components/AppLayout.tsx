@@ -59,7 +59,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* === TOP HEADER BAR === */}
-      <header className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-border bg-sidebar px-3 py-2.5 md:left-64">
+      <header className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-border bg-sidebar px-3 py-2.5 md:left-64" style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top))' }}>
         {/* Mobile: Logo + hamburger */}
         <div className="flex items-center gap-2 md:hidden">
           <img src={logo} alt="Bitz IPTV" className="h-8 w-8 rounded-lg object-cover" />
@@ -149,7 +149,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* === MOBILE BOTTOM NAV === */}
       {!isAdmin && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-sidebar md:hidden">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-sidebar md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           <div className="flex items-stretch">
             {clientBottomNav.map((link) => {
               const isActive = location.pathname === link.to;
@@ -256,7 +256,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* === MAIN CONTENT === */}
-      <main className="pb-16 pt-14 md:ml-64 md:pb-0 md:pt-14">
+      <main className="pb-20 pt-16 md:ml-64 md:pb-0 md:pt-14">
         <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>
