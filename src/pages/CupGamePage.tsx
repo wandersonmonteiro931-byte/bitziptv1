@@ -29,6 +29,7 @@ const CupGamePage = () => {
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<GamePhase>("idle");
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  const gameResultRef = useRef<GameResult | null>(null);
   const [chosenCup, setChosenCup] = useState<number | null>(null);
   const [cupPositions, setCupPositions] = useState([0, 1, 2]);
   const [cupsDown, setCupsDown] = useState(false);
@@ -69,9 +70,9 @@ const CupGamePage = () => {
 
   const handleTimeout = useCallback(() => {
     if (countdownRef.current) clearInterval(countdownRef.current);
-    if (!gameResult) return;
+    if (!gameResultRef.current) return;
     
-    // Block choosing
+    // Block choosing immediately
     setPhase("revealing");
     setChosenCup(-1);
 
@@ -88,7 +89,7 @@ const CupGamePage = () => {
         queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
       }, 1200);
     }, 500);
-  }, [gameResult, refreshProfile, queryClient]);
+  }, [refreshProfile, queryClient]);
 
   const startCountdown = useCallback(() => {
     setCountdown(CHOOSE_TIME);
@@ -119,11 +120,12 @@ const CupGamePage = () => {
     setCupsDown(false);
     setCupPositions([0, 1, 2]);
     setGameResult(null);
+    gameResultRef.current = null;
 
     try {
       const result = await playMutation.mutateAsync();
       setGameResult(result);
-      setPrizePosition(result.winning_position);
+      gameResultRef.current = result;
 
       // Show items (cups UP)
       setPhase("showing");
