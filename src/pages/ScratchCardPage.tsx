@@ -104,144 +104,24 @@ function ConfettiEffect({ active }: { active: boolean }) {
 }
 
 // ═══════════════════════════════════════════════
-// SCRATCH CELL – exposes scratchAt via ref
+// SCRATCH CELL – simple, no pointer events here
 // ═══════════════════════════════════════════════
-interface ScratchCellHandle {
-  scratchAtClientPos: (clientX: number, clientY: number) => void;
-}
-
-const ScratchCell = React.forwardRef<
-  ScratchCellHandle,
-  {
-    prizeKey: string;
-    index: number;
-    revealed: boolean;
-    isMatched: boolean;
-    onReveal: (index: number) => void;
-    disabled: boolean;
-  }
->(({ prizeKey, index, revealed, isMatched, onReveal, disabled }, ref) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cellRevealed = useRef(false);
-  const scratched = useRef(0);
-  const SIZE = 200;
-
-  const initCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.globalCompositeOperation = "source-over";
-
-    const gradient = ctx.createLinearGradient(0, 0, SIZE, SIZE);
-    gradient.addColorStop(0, "#2a1a4e");
-    gradient.addColorStop(0.3, "#1e3a6e");
-    gradient.addColorStop(0.5, "#3d1b69");
-    gradient.addColorStop(0.7, "#1e3a6e");
-    gradient.addColorStop(1, "#2a1a4e");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    for (let i = 0; i < 50; i++) {
-      const sx = Math.random() * SIZE;
-      const sy = Math.random() * SIZE;
-      ctx.fillStyle = `rgba(${180 + Math.random() * 75}, ${150 + Math.random() * 105}, 255, ${Math.random() * 0.35})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, Math.random() * 2 + 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.strokeStyle = "rgba(100, 200, 255, 0.06)";
-    ctx.lineWidth = 0.5;
-    for (let i = -SIZE; i < SIZE * 2; i += 12) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + SIZE, SIZE); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(i + SIZE, 0); ctx.lineTo(i, SIZE); ctx.stroke();
-    }
-
-    ctx.shadowColor = "#00d4ff";
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = "#00d4ff";
-    ctx.font = "bold 48px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("?", SIZE / 2, SIZE / 2);
-    ctx.shadowBlur = 0;
-
-    ctx.strokeStyle = "rgba(0, 200, 255, 0.25)";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(2, 2, SIZE - 4, SIZE - 4);
-  }, []);
-
-  useEffect(() => {
-    cellRevealed.current = false;
-    scratched.current = 0;
-    if (!revealed) {
-      initCanvas();
-    }
-  }, [initCanvas, prizeKey, revealed]);
-
-  const scratchXY = useCallback(
-    (x: number, y: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas || cellRevealed.current || disabled) return;
-      const ctx = canvas.getContext("2d")!;
-      ctx.globalCompositeOperation = "destination-out";
-
-      const radius = 28 + Math.random() * 14;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      for (let i = 0; i < 4; i++) {
-        ctx.beginPath();
-        ctx.arc(
-          x + (Math.random() - 0.5) * 28,
-          y + (Math.random() - 0.5) * 28,
-          8 + Math.random() * 10,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-
-      const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
-      let cleared = 0;
-      for (let i = 3; i < imageData.data.length; i += 16) {
-        if (imageData.data[i] === 0) cleared++;
-      }
-      scratched.current = cleared / (SIZE * SIZE / 16);
-
-      if (scratched.current > 0.25 && !cellRevealed.current) {
-        cellRevealed.current = true;
-        ctx.clearRect(0, 0, SIZE, SIZE);
-        onReveal(index);
-        if (navigator.vibrate) navigator.vibrate(15);
-      }
-    },
-    [index, onReveal, disabled]
-  );
-
-  // Expose imperative method: scratch at a client coordinate
-  React.useImperativeHandle(ref, () => ({
-    scratchAtClientPos(clientX: number, clientY: number) {
-      const canvas = canvasRef.current;
-      if (!canvas || cellRevealed.current || disabled) return;
-      const rect = canvas.getBoundingClientRect();
-      // Check if the point is inside this cell
-      if (
-        clientX < rect.left || clientX > rect.right ||
-        clientY < rect.top || clientY > rect.bottom
-      ) return;
-      const x = (clientX - rect.left) * (SIZE / rect.width);
-      const y = (clientY - rect.top) * (SIZE / rect.height);
-      scratchXY(x, y);
-    },
-  }), [scratchXY, disabled]);
-
+const ScratchCell = React.memo(({
+  prizeKey,
+  index,
+  revealed,
+  isMatched,
+}: {
+  prizeKey: string;
+  index: number;
+  revealed: boolean;
+  isMatched: boolean;
+}) => {
   const prize = PRIZE_DATA[prizeKey] || PRIZE_DATA["nada"];
 
   return (
     <motion.div
-      className="relative overflow-hidden rounded-xl aspect-square"
+      className="relative overflow-hidden rounded-xl aspect-square select-none"
       style={{
         border: isMatched
           ? "2px solid hsl(45 100% 55%)"
@@ -266,6 +146,7 @@ const ScratchCell = React.forwardRef<
       }
       transition={{ duration: 0.8, repeat: isMatched ? 3 : 0, ease: "easeInOut" }}
     >
+      {/* Prize content always rendered underneath */}
       <div
         className="absolute inset-0 flex flex-col items-center justify-center gap-0.5"
         style={{
@@ -289,14 +170,17 @@ const ScratchCell = React.forwardRef<
         </span>
       </div>
 
+      {/* Scratch overlay */}
       {!revealed && (
-        <canvas
-          ref={canvasRef}
-          width={SIZE}
-          height={SIZE}
-          className="relative z-10 w-full h-full cursor-pointer"
-          style={{ touchAction: "none" }}
-        />
+        <div
+          className="absolute inset-0 z-10 flex items-center justify-center"
+          style={{
+            background: "linear-gradient(135deg, #2a1a4e, #1e3a6e, #3d1b69, #1e3a6e, #2a1a4e)",
+            borderRadius: "inherit",
+          }}
+        >
+          <span className="text-3xl sm:text-4xl" style={{ color: "#00d4ff", textShadow: "0 0 20px #00d4ff" }}>?</span>
+        </div>
       )}
     </motion.div>
   );
@@ -377,8 +261,36 @@ const ScratchCardPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const hasRestoredRef = useRef(false);
-  const cellRefs = useRef<(ScratchCellHandle | null)[]>(Array(10).fill(null));
   const isPointerDown = useRef(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const lastRevealedIndex = useRef<number>(-1);
+  const rafId = useRef<number>(0);
+
+  // Use ref for handleCellReveal to avoid stale closures
+  const handleCellRevealRef = useRef<(index: number) => void>(() => {});
+
+  // Detect cell under pointer using grid math
+  const revealCellAtPoint = useCallback((clientX: number, clientY: number) => {
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+    const children = gridEl.children;
+    if (!children.length) return;
+    
+    // Find which child element contains this point
+    for (let i = 0; i < children.length; i++) {
+      const rect = (children[i] as HTMLElement).getBoundingClientRect();
+      if (
+        clientX >= rect.left && clientX <= rect.right &&
+        clientY >= rect.top && clientY <= rect.bottom
+      ) {
+        if (lastRevealedIndex.current === i) return;
+        lastRevealedIndex.current = i;
+        handleCellRevealRef.current(i);
+        if (navigator.vibrate) navigator.vibrate(10);
+        return;
+      }
+    }
+  }, []);
 
   // Game state
   const [gameState, setGameState] = useState<"idle" | "scratching" | "finished">("idle");
@@ -616,6 +528,11 @@ const ScratchCardPage = () => {
     [grid, wonPrizeKey, backendResult, gameFinished]
   );
 
+  // Keep ref in sync
+  useEffect(() => {
+    handleCellRevealRef.current = handleCellReveal;
+  }, [handleCellReveal]);
+
   // ── Derived values ──
   const cost = scratchChallenge?.cost_credits || 1;
   const canBuy = userCredits >= cost;
@@ -795,32 +712,42 @@ const ScratchCardPage = () => {
             {gameState !== "idle" && grid.length === 10 ? (
               <>
                 <div
+                  ref={gridRef}
                   className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-3"
-                  style={{ touchAction: "none" }}
+                  style={{ touchAction: "none", userSelect: "none" }}
                   onPointerDown={(e) => {
                     e.preventDefault();
+                    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
                     isPointerDown.current = true;
-                    cellRefs.current.forEach((ref) => ref?.scratchAtClientPos(e.clientX, e.clientY));
+                    lastRevealedIndex.current = -1;
+                    revealCellAtPoint(e.clientX, e.clientY);
                   }}
                   onPointerMove={(e) => {
-                    e.preventDefault();
                     if (!isPointerDown.current) return;
-                    cellRefs.current.forEach((ref) => ref?.scratchAtClientPos(e.clientX, e.clientY));
+                    e.preventDefault();
+                    cancelAnimationFrame(rafId.current);
+                    rafId.current = requestAnimationFrame(() => {
+                      revealCellAtPoint(e.clientX, e.clientY);
+                    });
                   }}
-                  onPointerUp={() => { isPointerDown.current = false; }}
-                  onPointerCancel={() => { isPointerDown.current = false; }}
-                  onPointerLeave={() => { isPointerDown.current = false; }}
+                  onPointerUp={(e) => {
+                    isPointerDown.current = false;
+                    lastRevealedIndex.current = -1;
+                    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+                  }}
+                  onPointerCancel={(e) => {
+                    isPointerDown.current = false;
+                    lastRevealedIndex.current = -1;
+                    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+                  }}
                 >
                   {grid.map((prizeKey, i) => (
                     <ScratchCell
                       key={`cell-${i}-${grid.join("")}`}
-                      ref={(el) => { cellRefs.current[i] = el; }}
                       prizeKey={prizeKey}
                       index={i}
                       revealed={revealedCells[i]}
                       isMatched={matchedCells.includes(i)}
-                      onReveal={handleCellReveal}
-                      disabled={gameFinished}
                     />
                   ))}
                 </div>
