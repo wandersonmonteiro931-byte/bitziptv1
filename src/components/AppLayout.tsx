@@ -265,7 +265,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* === MAIN CONTENT === */}
-      <main className="pb-24 md:ml-64 md:pb-0" style={{ paddingTop: 'calc(4.5rem + env(safe-area-inset-top, 0px))' }}>
+      <main className="pb-24 md:ml-64 md:pb-0" style={{ paddingTop: 'calc(5.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>
