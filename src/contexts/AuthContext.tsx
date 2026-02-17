@@ -24,6 +24,11 @@ export interface Profile {
   vip_badge: boolean;
   user_level: string;
   level_points: number;
+  iptv_monthly_value: number;
+  iptv_connections: number;
+  iptv_tv_app: string;
+  iptv_status: string;
+  iptv_due_day: number;
 }
 
 interface AuthContextType {

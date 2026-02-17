@@ -30,6 +30,7 @@ import PrizeBoxPage from "./pages/PrizeBoxPage";
 import CupGamePage from "./pages/CupGamePage";
 import RoulettePage from "./pages/RoulettePage";
 import AdminRoulettePage from "./pages/admin/AdminRoulettePage";
+import AdminIptvPage from "./pages/admin/AdminIptvPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettingsPage /></ProtectedRoute>} />
             <Route path="/admin/credits" element={<ProtectedRoute requireAdmin><AdminCreditsPage /></ProtectedRoute>} />
             <Route path="/admin/roulette" element={<ProtectedRoute requireAdmin><AdminRoulettePage /></ProtectedRoute>} />
+            <Route path="/admin/iptv" element={<ProtectedRoute requireAdmin><AdminIptvPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

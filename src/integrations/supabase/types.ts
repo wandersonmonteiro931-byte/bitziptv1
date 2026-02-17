@@ -523,6 +523,57 @@ export type Database = {
         }
         Relationships: []
       }
+      iptv_servers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      iptv_tv_apps: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       mission_completions: {
         Row: {
           completed_at: string
@@ -636,8 +687,13 @@ export type Database = {
           daily_purchase_date: string | null
           id: string
           iptv_app: string
+          iptv_connections: number
+          iptv_due_day: number
           iptv_expiry: string | null
+          iptv_monthly_value: number
           iptv_server: string
+          iptv_status: string
+          iptv_tv_app: string
           iptv_user: string
           level_points: number
           name: string
@@ -661,8 +717,13 @@ export type Database = {
           daily_purchase_date?: string | null
           id: string
           iptv_app?: string
+          iptv_connections?: number
+          iptv_due_day?: number
           iptv_expiry?: string | null
+          iptv_monthly_value?: number
           iptv_server?: string
+          iptv_status?: string
+          iptv_tv_app?: string
           iptv_user?: string
           level_points?: number
           name?: string
@@ -686,8 +747,13 @@ export type Database = {
           daily_purchase_date?: string | null
           id?: string
           iptv_app?: string
+          iptv_connections?: number
+          iptv_due_day?: number
           iptv_expiry?: string | null
+          iptv_monthly_value?: number
           iptv_server?: string
+          iptv_status?: string
+          iptv_tv_app?: string
           iptv_user?: string
           level_points?: number
           name?: string
@@ -752,6 +818,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      support_settings: {
+        Row: {
+          id: string
+          support_name: string
+          support_phone: string
+          support_photo_url: string | null
+          updated_at: string
+          whatsapp_link: string
+        }
+        Insert: {
+          id?: string
+          support_name?: string
+          support_phone?: string
+          support_photo_url?: string | null
+          updated_at?: string
+          whatsapp_link?: string
+        }
+        Update: {
+          id?: string
+          support_name?: string
+          support_phone?: string
+          support_photo_url?: string | null
+          updated_at?: string
+          whatsapp_link?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

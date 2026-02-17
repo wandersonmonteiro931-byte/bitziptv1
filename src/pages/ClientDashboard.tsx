@@ -1,205 +1,287 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, TrendingUp, Target, Users, ArrowUpRight, Clock, Snowflake, ArrowDownRight, RefreshCw } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import {
+  Satellite, Shield, CreditCard, CalendarDays, Link2, Tv, Headphones,
+  RefreshCw, Phone, MessageCircle, Wallet, Gamepad2, History,
+  AlertTriangle, ChevronRight, Zap, Award
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
+const IPTV_STATUS_MAP: Record<string, { label: string; color: string; bgColor: string; pulse?: boolean }> = {
+  active: { label: "ATIVO", color: "text-green-400", bgColor: "bg-green-500/15 border-green-500/30", pulse: true },
+  blocked: { label: "BLOQUEADO", color: "text-red-400", bgColor: "bg-red-500/15 border-red-500/30" },
+  maintenance: { label: "EM MANUTENÇÃO", color: "text-yellow-400", bgColor: "bg-yellow-500/15 border-yellow-500/30" },
+  unstable: { label: "COM INSTABILIDADE", color: "text-orange-400", bgColor: "bg-orange-500/15 border-orange-500/30" },
+  disabled: { label: "DESATIVADO", color: "text-gray-400", bgColor: "bg-gray-500/15 border-gray-500/30" },
+  awaiting_activation: { label: "AGUARDANDO ATIVAÇÃO", color: "text-blue-400", bgColor: "bg-blue-500/15 border-blue-500/30" },
+  awaiting_payment: { label: "AGUARDANDO PAGAMENTO", color: "text-purple-400", bgColor: "bg-purple-500/15 border-purple-500/30" },
+};
 
-function AnimatedNumber({ value }: { value: number }) {
-  const [display, setDisplay] = useState(value);
-  const prev = useRef(value);
-
-  useEffect(() => {
-    const start = prev.current;
-    const end = value;
-    if (start === end) return;
-    const duration = 600;
-    const startTime = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(start + (end - start) * eased);
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    prev.current = end;
-  }, [value]);
-
-  return <>{display.toFixed(2)}</>;
-}
+const TV_APP_ICONS: Record<string, string> = {
+  "Blessed Player": "🎬",
+  "Max Player": "📺",
+  "Assist Plus": "🔧",
+  "Smarters PRO": "⭐",
+};
 
 const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
-  
-
-  const [completionsCount, setCompletionsCount] = useState(0);
-  const [referralsCount, setReferralsCount] = useState(0);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const [activeMissions, setActiveMissions] = useState<any[]>([]);
-  const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
+  const navigate = useNavigate();
+  const [supportInfo, setSupportInfo] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const loadData = async () => {
-    if (!user) return;
-    const [completions, referrals, history, missions, chartData] = await Promise.all([
-      supabase.from("mission_completions").select("id", { count: "exact" }).eq("user_id", user.id).eq("status", "approved"),
-      supabase.from("referrals").select("id", { count: "exact" }).eq("referrer_id", user.id),
-      supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
-      supabase.from("missions").select("*").eq("is_active", true).limit(3),
-      supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: true }).limit(30),
-    ]);
-    setCompletionsCount(completions.count || 0);
-    setReferralsCount(referrals.count || 0);
-    setRecentActivity(history.data || []);
-    setActiveMissions(missions.data || []);
-    setBalanceHistory(chartData.data || []);
-  };
+  const [tvApps, setTvApps] = useState<any[]>([]);
 
   useEffect(() => {
+    const loadData = async () => {
+      const [support, apps] = await Promise.all([
+        supabase.from("support_settings").select("*").limit(1).maybeSingle(),
+        supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
+      ]);
+      setSupportInfo(support.data);
+      setTvApps(apps.data || []);
+    };
     loadData();
-  }, [user]);
+
+    // Realtime profile updates
+    const channel = supabase
+      .channel("iptv-dashboard")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user?.id}` }, () => {
+        refreshProfile();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([refreshProfile(), loadData()]);
+    await refreshProfile();
     setIsRefreshing(false);
   };
 
-  const balance = Number(user?.balance || 0);
-  const isFrozen = user?.balance_frozen;
-
-  const stats = [
-    { label: "Saldo Disponível", value: balance, icon: Wallet, color: "text-primary", prefix: "R$ ", animated: true },
-    { label: "Total Ganho", value: Number(user?.total_earned || 0), icon: TrendingUp, color: "text-secondary", prefix: "R$ ", animated: true },
-    { label: "Missões Completas", value: completionsCount, icon: Target, color: "text-success", prefix: "", animated: false },
-    { label: "Indicações", value: referralsCount, icon: Users, color: "text-accent", prefix: "", animated: false },
-  ];
-
-  // Simple balance evolution from history
-  const chartPoints = balanceHistory.reduce<{ label: string; val: number }[]>((acc, item) => {
-    const prev = acc.length > 0 ? acc[acc.length - 1].val : 0;
-    const delta = item.type === "debit" || item.type === "withdrawal" ? -Number(item.amount) : Number(item.amount);
-    acc.push({ label: new Date(item.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), val: prev + delta });
-    return acc;
-  }, []);
-
-  const maxVal = Math.max(...chartPoints.map((p) => p.val), 1);
+  const status = IPTV_STATUS_MAP[user?.iptv_status || "active"] || IPTV_STATUS_MAP.active;
+  const dueDay = user?.iptv_due_day || 10;
+  const now = new Date();
+  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+  if (dueDate < now && dueDay < now.getDate()) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isDueToday = daysUntilDue === 0 || (now.getDate() === dueDay);
+  const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
+  const isOverdue = daysUntilDue < 0;
+  const monthlyValue = Number(user?.iptv_monthly_value || 0);
+  const connections = user?.iptv_connections || 1;
+  const totalValue = monthlyValue * connections;
 
   return (
     <AppLayout>
-      <div className="mb-6 flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">
-            Olá, <span className="text-gradient-primary">{user?.name?.split(" ")[0]}</span>! 👋
+          <h1 className="text-xl font-bold text-foreground md:text-2xl">
+            Painel <span className="text-gradient-primary">IPTV</span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Confira seu progresso e missões disponíveis</p>
+          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
+              Atualizado ao vivo
+            </span>
+          </div>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary/20 disabled:opacity-50"
-        >
+        <button onClick={handleRefresh} disabled={isRefreshing} className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary/20 disabled:opacity-50">
           <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-          Atualizar
         </button>
       </div>
 
-      {/* Frozen banner */}
-      <AnimatePresence>
-        {isFrozen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/15 px-4 py-3 text-sm font-medium text-destructive">
-            <Snowflake size={16} /> Seu saldo está congelado. Saques e ganhos automáticos estão bloqueados.
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((stat, i) => (
-          <motion.div key={stat.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="stat-card rounded-xl p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <stat.icon size={20} className={stat.color} />
-              <ArrowUpRight size={14} className="text-muted-foreground" />
+      <div className="space-y-4">
+        {/* BLOCK 1 - Server */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="glass-card overflow-hidden rounded-xl p-4">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Satellite size={14} className="text-primary" /> Servidor Contratado
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-4 py-2 font-display text-sm font-bold text-primary shadow-[0_0_15px_hsl(210_100%_55%/0.2)]">
+                <Zap size={14} className="animate-pulse" />
+                {user?.iptv_server || "Não definido"}
+              </span>
             </div>
-            <p className="text-xl font-bold text-foreground md:text-2xl">
-              {stat.prefix}
-              {stat.animated ? <AnimatedNumber value={stat.value} /> : String(stat.value)}
-            </p>
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
-          </motion.div>
-        ))}
-      </div>
+          </div>
+        </motion.div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Balance Evolution Chart */}
-        {chartPoints.length > 1 && (
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="glass-card rounded-xl p-5 lg:col-span-2">
-            <h2 className="mb-4 flex items-center gap-2 font-display text-sm font-semibold tracking-wide text-foreground">
-              <TrendingUp size={18} className="text-primary" /> EVOLUÇÃO DO SALDO
-            </h2>
-            <div className="flex h-32 items-end gap-1">
-              {chartPoints.map((point, i) => (
-                <div key={i} className="group relative flex flex-1 flex-col items-center">
-                  <div className="absolute -top-6 hidden rounded bg-card px-1.5 py-0.5 text-[10px] text-foreground group-hover:block">
-                    R$ {point.val.toFixed(2)}
-                  </div>
-                  <div
-                    className="w-full rounded-t bg-primary/60 transition-all group-hover:bg-primary"
-                    style={{ height: `${Math.max((point.val / maxVal) * 100, 4)}%` }}
-                  />
-                  {i % Math.max(Math.floor(chartPoints.length / 6), 1) === 0 && (
-                    <span className="mt-1 text-[9px] text-muted-foreground">{point.label}</span>
-                  )}
-                </div>
-              ))}
+        {/* BLOCK 2 - Status */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={`overflow-hidden rounded-xl border p-4 ${status.bgColor}`}>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Shield size={14} /> Status do Cliente
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`relative inline-flex items-center gap-2 font-display text-lg font-bold ${status.color}`}>
+              {status.pulse && <span className="absolute -left-1 h-3 w-3 animate-ping rounded-full bg-green-400/60" />}
+              <span className={`h-3 w-3 rounded-full ${status.pulse ? "bg-green-400" : ""}`} style={{ backgroundColor: status.pulse ? undefined : "currentColor" }} />
+              {status.label}
+            </span>
+          </div>
+        </motion.div>
+
+        {/* BLOCK 3 - Financial */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card overflow-hidden rounded-xl p-4">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <CreditCard size={14} className="text-secondary" /> Informações Financeiras
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Mensalidade</p>
+              <p className="font-display text-lg font-bold text-secondary">
+                R$ {monthlyValue.toFixed(2)}
+              </p>
             </div>
-          </motion.div>
-        )}
+            <div className={`rounded-lg p-3 ${isDueSoon || isOverdue ? "bg-destructive/15 border border-destructive/30" : "bg-muted/30"}`}>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Vencimento</p>
+              <p className={`font-display text-lg font-bold ${isDueSoon || isOverdue ? "text-destructive" : "text-foreground"}`}>
+                Dia {dueDay}
+              </p>
+            </div>
+          </div>
+          {connections > 1 && (
+            <div className="mt-2 rounded-lg bg-muted/20 p-2.5">
+              <p className="text-xs text-muted-foreground">
+                Total com {connections} conexões: <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span>
+              </p>
+            </div>
+          )}
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Funciona até às 23:59 do dia do vencimento.
+          </p>
+          <AnimatePresence>
+            {isDueToday && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-2 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs font-medium text-warning">
+                <AlertTriangle size={14} className="animate-pulse" /> Hoje é o último dia para pagamento!
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="glass-card rounded-xl p-5">
-          <h2 className="mb-4 flex items-center gap-2 font-display text-sm font-semibold tracking-wide text-foreground">
-            <Target size={18} className="text-secondary" /> MISSÕES ATIVAS
-          </h2>
-          <div className="space-y-4">
-            {activeMissions.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma missão disponível no momento.</p>}
-            {activeMissions.map((mission) => (
-              <div key={mission.id} className="rounded-lg bg-muted/30 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground">{mission.title}</span>
-                  <span className="text-xs font-semibold text-secondary">R$ {Number(mission.reward_value).toFixed(2)}</span>
+        {/* BLOCK 4 - Connections */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card overflow-hidden rounded-xl p-4">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Link2 size={14} className="text-accent" /> Conexões Ativas
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="font-display text-3xl font-bold text-accent">{connections}</span>
+            <span className="text-xs text-muted-foreground">
+              {connections === 1 ? "tela contratada" : "telas contratadas"}
+            </span>
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            O valor da mensalidade é multiplicado pela quantidade de conexões contratadas.
+          </p>
+        </motion.div>
+
+        {/* BLOCK 5 - TV App */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="glass-card overflow-hidden rounded-xl p-4">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Tv size={14} className="text-primary" /> Aplicativo para TV
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {tvApps.map((app) => {
+              const isActive = user?.iptv_tv_app === app.name;
+              return (
+                <div key={app.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${isActive ? "border-primary/50 bg-primary/10 text-primary shadow-[0_0_10px_hsl(210_100%_55%/0.15)]" : "border-border bg-muted/20 text-muted-foreground opacity-50"}`}>
+                  <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
+                  <span className="font-medium">{app.name}</span>
+                  {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
                 </div>
-                <p className="text-xs text-muted-foreground">{mission.description}</p>
+              );
+            })}
+            {tvApps.length === 0 && user?.iptv_tv_app && (
+              <div className="flex items-center gap-2 rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-sm text-primary">
+                <span className="text-base">📺</span>
+                <span className="font-medium">{user.iptv_tv_app}</span>
               </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* BLOCK 6 - Support */}
+        {supportInfo && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card overflow-hidden rounded-xl p-4">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Headphones size={14} className="text-secondary" /> Suporte
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-accent/30 text-xl font-bold text-foreground">
+                👤
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground">{supportInfo.support_name}</p>
+                <p className="text-xs text-muted-foreground">{supportInfo.support_phone}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <a href={supportInfo.whatsapp_link} target="_blank" rel="noopener noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600/20 px-3 py-2.5 text-sm font-medium text-green-400 transition-all hover:bg-green-600/30">
+                <MessageCircle size={16} /> WhatsApp
+              </a>
+              <a href={`tel:${supportInfo.support_phone.replace(/\D/g, "")}`} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary/15 px-3 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/25">
+                <Phone size={16} /> Ligar
+              </a>
+            </div>
+          </motion.div>
+        )}
+
+        {/* BLOCK 7 - Renewal */}
+        {(isDueSoon || isOverdue || user?.iptv_status === "awaiting_payment") && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.35 }} className="overflow-hidden rounded-xl border border-secondary/30 bg-gradient-to-r from-secondary/10 to-secondary/5 p-4">
+            <button
+              onClick={() => {
+                if (supportInfo?.whatsapp_link) {
+                  window.open(supportInfo.whatsapp_link + "?text=Olá! Gostaria de solicitar a renovação do meu plano IPTV.", "_blank");
+                }
+              }}
+              className="flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-secondary to-secondary/80 px-6 py-4 font-display text-sm font-bold text-secondary-foreground shadow-lg transition-all hover:brightness-110 active:scale-[0.98]"
+            >
+              {isDueToday ? (
+                <><Wallet size={18} /> PAGAR AGORA VIA PIX</>
+              ) : (
+                <><RefreshCw size={18} /> SOLICITAR RENOVAÇÃO</>
+              )}
+            </button>
+          </motion.div>
+        )}
+
+        {/* Quick Access */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card overflow-hidden rounded-xl p-4">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Zap size={14} className="text-warning" /> Acesso Rápido
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Mini Games", icon: Gamepad2, to: "/challenges", color: "text-accent" },
+              { label: "Recompensas", icon: Award, to: "/missions", color: "text-secondary" },
+              { label: "Histórico", icon: History, to: "/history", color: "text-primary" },
+              { label: "Meus Saques", icon: Wallet, to: "/withdrawals", color: "text-success" },
+            ].map((item) => (
+              <button key={item.to} onClick={() => navigate(item.to)} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-3 text-sm font-medium text-foreground transition-all hover:bg-muted/50">
+                <item.icon size={16} className={item.color} />
+                {item.label}
+                <ChevronRight size={14} className="ml-auto text-muted-foreground" />
+              </button>
             ))}
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="glass-card rounded-xl p-5">
-          <h2 className="mb-4 flex items-center gap-2 font-display text-sm font-semibold tracking-wide text-foreground">
-            <Clock size={18} className="text-primary" /> ATIVIDADE RECENTE
-          </h2>
-          <div className="space-y-3">
-            {recentActivity.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma atividade recente.</p>}
-            {recentActivity.map((item) => {
-              const isDebit = item.type === "debit" || item.type === "withdrawal";
-              return (
-                <div key={item.id} className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
-                  <div className="flex items-center gap-2">
-                    {isDebit ? <ArrowDownRight size={14} className="text-destructive" /> : <ArrowUpRight size={14} className="text-success" />}
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString("pt-BR")}</p>
-                    </div>
-                  </div>
-                  <span className={`text-sm font-semibold ${isDebit ? "text-destructive" : "text-success"}`}>
-                    {isDebit ? "-" : "+"}R$ {Number(item.amount).toFixed(2)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+        {/* Security Badge */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.45 }} className="flex items-center justify-center gap-2 py-3 text-[10px] text-muted-foreground/50">
+          <Shield size={12} />
+          <span>Conexão segura · Seus dados estão protegidos</span>
         </motion.div>
+
+        <p className="pb-2 text-center text-[10px] text-muted-foreground/40">
+          Não compartilhe seus dados de login com terceiros. O valor final é cobrado com base no número de telas utilizadas.
+        </p>
       </div>
     </AppLayout>
   );
