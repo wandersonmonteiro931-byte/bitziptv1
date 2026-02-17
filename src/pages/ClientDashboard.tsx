@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, TrendingUp, Target, Users, ArrowUpRight, Clock, Snowflake, ArrowDownRight, RefreshCw } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
+
 
 function AnimatedNumber({ value }: { value: number }) {
   const [display, setDisplay] = useState(value);
@@ -32,7 +32,7 @@ function AnimatedNumber({ value }: { value: number }) {
 
 const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
-  useRealtimeBalance();
+  
 
   const [completionsCount, setCompletionsCount] = useState(0);
   const [referralsCount, setReferralsCount] = useState(0);
