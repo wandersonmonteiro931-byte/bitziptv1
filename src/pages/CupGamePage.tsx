@@ -2,12 +2,14 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Diamond, Zap, Volume2, VolumeX } from "lucide-react";
 
-type GamePhase = "idle" | "shuffling" | "choosing" | "revealing" | "result";
+// Phases:
+// idle → showing (items visible, cups up) → covering (cups come down) → shuffling → choosing → revealing → result
+type GamePhase = "idle" | "showing" | "covering" | "shuffling" | "choosing" | "revealing" | "result";
 
 interface GameResult {
   winning_position: number;
@@ -21,7 +23,6 @@ interface GameResult {
   new_balance: number;
 }
 
-// Simple sound using AudioContext
 const playTone = (freq: number, dur: number, type: OscillatorType = "sine", vol = 0.15) => {
   try {
     const ctx = new AudioContext();
@@ -38,19 +39,20 @@ const playTone = (freq: number, dur: number, type: OscillatorType = "sine", vol 
 };
 
 const playSfx = {
-  shuffle: () => { playTone(300, 0.08, "square", 0.08); },
-  click: () => { playTone(600, 0.1, "sine", 0.12); },
-  reveal: () => { playTone(500, 0.2, "triangle", 0.1); },
-  win: () => { 
+  shuffle: () => playTone(300, 0.08, "square", 0.08),
+  click: () => playTone(600, 0.1, "sine", 0.12),
+  reveal: () => playTone(500, 0.2, "triangle", 0.1),
+  win: () => {
     playTone(523, 0.15, "sine", 0.15);
     setTimeout(() => playTone(659, 0.15, "sine", 0.15), 150);
     setTimeout(() => playTone(784, 0.3, "sine", 0.15), 300);
   },
-  lose: () => { playTone(200, 0.3, "sawtooth", 0.06); },
+  lose: () => playTone(200, 0.3, "sawtooth", 0.06),
   jackpot: () => {
     [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 0.25, "sine", 0.15), i * 120));
   },
   start: () => { playTone(440, 0.15, "sine", 0.1); setTimeout(() => playTone(550, 0.15, "sine", 0.1), 100); },
+  cover: () => playTone(220, 0.25, "triangle", 0.08),
 };
 
 const CupGamePage = () => {
@@ -60,9 +62,12 @@ const CupGamePage = () => {
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [chosenCup, setChosenCup] = useState<number | null>(null);
   const [cupPositions, setCupPositions] = useState([0, 1, 2]);
+  const [cupsDown, setCupsDown] = useState(false);
   const [revealedCups, setRevealedCups] = useState<boolean[]>([false, false, false]);
   const [muted, setMuted] = useState(false);
   const cooldownRef = useRef(false);
+  // Which position has the prize (shown before covering)
+  const [prizePosition, setPrizePosition] = useState<number>(1);
 
   const sfx = useCallback((fn: () => void) => { if (!muted) fn(); }, [muted]);
 
@@ -87,30 +92,61 @@ const CupGamePage = () => {
     },
   });
 
+  const getPrizeLabel = () => {
+    if (!gameResult) return "💰 ???";
+    // The prize shown initially is what the user CAN win
+    const isWin = gameResult.credits_won > 0 || gameResult.balance_won > 0;
+    if (isWin) {
+      return gameResult.reward_type === "balance"
+        ? `💰 R$ ${Number(gameResult.balance_won).toFixed(2)}`
+        : `💎 ${gameResult.credits_won} créditos`;
+    }
+    // If user will lose, show the near-miss prize as the bait
+    if (gameResult.other_cup.value > 0) {
+      return gameResult.other_cup.reward_type === "balance"
+        ? `💰 R$ ${Number(gameResult.other_cup.value).toFixed(2)}`
+        : `💎 ${gameResult.other_cup.value} créditos`;
+    }
+    return "💰 Prêmio";
+  };
+
   const startGame = useCallback(async () => {
     if (cooldownRef.current || phase !== "idle") return;
     cooldownRef.current = true;
-    setTimeout(() => { cooldownRef.current = false; }, 4000);
+    setTimeout(() => { cooldownRef.current = false; }, 6000);
 
     sfx(playSfx.start);
     setChosenCup(null);
     setRevealedCups([false, false, false]);
+    setCupsDown(false);
+    setCupPositions([0, 1, 2]);
     setGameResult(null);
 
-    // Get result from server first
     try {
+      // 1. Get result from server
       const result = await playMutation.mutateAsync();
       setGameResult(result);
+      setPrizePosition(result.winning_position);
 
-      // Start shuffle animation
+      // 2. Show items (cups are UP, items visible underneath)
+      setPhase("showing");
+
+      // 3. After 2s, cups come down to cover items
+      await new Promise(r => setTimeout(r, 2000));
+      sfx(playSfx.cover);
+      setCupsDown(true);
+      setPhase("covering");
+
+      // 4. After cups are down (1s animation), start shuffling
+      await new Promise(r => setTimeout(r, 1000));
       setPhase("shuffling");
       sfx(playSfx.shuffle);
 
       // Shuffle cups visually
       let positions = [0, 1, 2];
-      const shuffleSteps = 12;
+      const shuffleSteps = 14;
       for (let i = 0; i < shuffleSteps; i++) {
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 180));
         const a = Math.floor(Math.random() * 3);
         let b = a;
         while (b === a) b = Math.floor(Math.random() * 3);
@@ -121,11 +157,12 @@ const CupGamePage = () => {
         if (i % 3 === 0) sfx(playSfx.shuffle);
       }
 
-      // Let user choose
+      // 5. Let user choose
       setPhase("choosing");
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
       setPhase("idle");
+      setCupsDown(false);
       cooldownRef.current = false;
     }
   }, [challenge, phase, muted]);
@@ -135,8 +172,6 @@ const CupGamePage = () => {
     sfx(playSfx.click);
     setChosenCup(cupIndex);
     setPhase("revealing");
-
-    // Vibrate on mobile
     try { navigator.vibrate?.(50); } catch {}
 
     // Reveal chosen cup first
@@ -170,6 +205,7 @@ const CupGamePage = () => {
     setChosenCup(null);
     setRevealedCups([false, false, false]);
     setCupPositions([0, 1, 2]);
+    setCupsDown(false);
   };
 
   const userCredits = (user as any)?.credits || 0;
@@ -177,51 +213,74 @@ const CupGamePage = () => {
   const canPlay = userCredits >= cost && phase === "idle";
   const isWin = gameResult && (gameResult.credits_won > 0 || gameResult.balance_won > 0);
 
-  // Cup X positions based on shuffled positions
-  const cupXPositions = [-110, 0, 110]; // mobile-friendly spacing
+  const cupXPositions = [-110, 0, 110];
 
-  const getCupContent = (visualIndex: number) => {
-    if (!gameResult || !revealedCups[visualIndex]) return null;
-    // The winning position from backend
+  // What's under each cup position (based on shuffled positions)
+  const getItemUnderCup = (visualIndex: number) => {
+    if (!gameResult) return null;
+    // The prize is at winning_position initially, then cups shuffle
+    // After shuffling, cupPositions maps visual→slot
+    // The prize followed the cup that started at the prize position
     if (visualIndex === gameResult.winning_position) {
-      if (isWin) {
-        return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, value: gameResult.reward_type === "balance" ? `R$ ${gameResult.balance_won}` : `${gameResult.credits_won}💎` };
-      } else {
-        // Lost but winning position shows near-miss prize
-        return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, value: `${gameResult.other_cup.value}` };
+      const isW = gameResult.credits_won > 0 || gameResult.balance_won > 0;
+      if (isW) {
+        return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
       }
+      // User lost: the "prize" is the near-miss
+      return {
+        emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎",
+        label: gameResult.other_cup.label,
+        won: false,
+        nearMiss: true,
+      };
     }
-    // Non-winning cups
-    if (!isWin && visualIndex === chosenCup) {
-      return { emoji: "❌", label: "Nada", value: "" };
-    }
-    if (isWin && visualIndex === chosenCup) {
-      return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, value: gameResult.reward_type === "balance" ? `R$ ${gameResult.balance_won}` : `${gameResult.credits_won}💎` };
-    }
-    return { emoji: "❌", label: "Vazio", value: "" };
+    return { emoji: "❌", label: "Vazio", won: false };
   };
 
-  // Recalculate: chosen cup gets the result, winning_position gets the "other" side
-  const getCupContentFixed = (visualIndex: number) => {
+  // For reveal phase: what did the user actually get?
+  const getCupRevealContent = (visualIndex: number) => {
     if (!gameResult || !revealedCups[visualIndex]) return null;
-    if (visualIndex === chosenCup) {
-      // This is what the user gets
-      if (isWin) {
-        return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
-      } else {
-        return { emoji: "❌", label: "Nada", won: false };
-      }
-    }
-    // Other cups
-    if (!isWin) {
-      // One of the other cups shows the near-miss prize, the rest show nothing
-      if (visualIndex === ((chosenCup || 0) + 1) % 3) {
+    // The real prize position after shuffle doesn't change — winning_position is fixed
+    if (visualIndex === gameResult.winning_position) {
+      // This cup has the prize
+      if (chosenCup === visualIndex) {
+        // User chose the prize cup
+        if (isWin) {
+          return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
+        }
+        // Backend said loss but prize is here — near miss
         return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, won: false, nearMiss: true };
       }
-      return { emoji: "❌", label: "Vazio", won: false };
+      // User didn't choose this cup — show the prize they missed
+      if (isWin) {
+        return { emoji: "❌", label: "Vazio", won: false };
+      }
+      return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, won: false, nearMiss: true };
     }
-    // Won: other cups are empty
+    // Non-prize cups
+    if (visualIndex === chosenCup && isWin) {
+      return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
+    }
     return { emoji: "❌", label: "Vazio", won: false };
+  };
+
+  // Before shuffle: show what's at each initial position
+  const getPreviewItem = (posIndex: number) => {
+    if (!gameResult) return null;
+    if (posIndex === gameResult.winning_position) {
+      return { emoji: "💰", hasPrice: true };
+    }
+    return { emoji: "❌", hasPrice: false };
+  };
+
+  const phaseText: Record<GamePhase, string> = {
+    idle: "Clique em Jogar para começar!",
+    showing: "👀 Memorize onde está o prêmio!",
+    covering: "⬇️ Cobrindo os itens...",
+    shuffling: "🔄 Embaralhando...",
+    choosing: "👆 Escolha um copo!",
+    revealing: "🔍 Revelando...",
+    result: isWin ? "🎉 Parabéns!" : "😔 Não foi dessa vez...",
   };
 
   return (
@@ -248,11 +307,25 @@ const CupGamePage = () => {
           <span className="text-xs text-muted-foreground">Custo: {cost} 💎</span>
         </div>
 
+        {/* Prize info during showing phase */}
+        <AnimatePresence>
+          {(phase === "showing") && gameResult && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-4 rounded-xl border border-primary/30 bg-primary/10 p-3 text-center"
+            >
+              <p className="text-sm font-bold text-primary">Prêmio em jogo: {getPrizeLabel()}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Game Area */}
         <div className="relative mb-6 overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-muted/20 to-background p-6"
-          style={{ minHeight: 320 }}>
+          style={{ minHeight: 340 }}>
 
-          {/* Animated background particles */}
+          {/* Particles */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             {[...Array(6)].map((_, i) => (
               <motion.div
@@ -274,70 +347,91 @@ const CupGamePage = () => {
               exit={{ opacity: 0, y: 10 }}
               className="mb-8 text-center text-sm font-medium text-muted-foreground"
             >
-              {phase === "idle" && "Clique em Jogar para começar!"}
-              {phase === "shuffling" && "🔄 Embaralhando..."}
-              {phase === "choosing" && "👆 Escolha um copo!"}
-              {phase === "revealing" && "🔍 Revelando..."}
-              {phase === "result" && (isWin ? "🎉 Parabéns!" : "😔 Não foi dessa vez...")}
+              {phaseText[phase]}
             </motion.p>
           </AnimatePresence>
 
-          {/* Cups */}
-          <div className="relative mx-auto flex items-end justify-center" style={{ height: 180 }}>
+          {/* Cups & Items */}
+          <div className="relative mx-auto flex items-end justify-center" style={{ height: 200 }}>
             {[0, 1, 2].map((visualIndex) => {
               const shuffledPos = cupPositions[visualIndex];
               const xPos = cupXPositions[shuffledPos];
-              const content = getCupContentFixed(visualIndex);
-              const isChosen = chosenCup === visualIndex;
               const isRevealed = revealedCups[visualIndex];
+              const revealContent = getCupRevealContent(visualIndex);
+
+              // Item preview (before cups cover)
+              const previewItem = getPreviewItem(visualIndex);
+              const showPreview = (phase === "showing" || phase === "idle") && gameResult;
+
+              // Cups are UP when: idle, showing, or revealed
+              const cupUp = !cupsDown || isRevealed;
 
               return (
                 <motion.div
                   key={visualIndex}
                   className="absolute flex flex-col items-center"
-                  animate={{ x: xPos }}
+                  animate={{
+                    x: phase === "shuffling" || phase === "choosing" || phase === "revealing" || phase === "result"
+                      ? xPos : cupXPositions[visualIndex],
+                  }}
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                   style={{ bottom: 0 }}
                 >
-                  {/* Prize underneath */}
-                  <AnimatePresence>
-                    {isRevealed && content && (
+                  {/* Item underneath */}
+                  <div className="absolute bottom-0 z-0 flex flex-col items-center">
+                    {/* Preview items (before covering) */}
+                    {showPreview && previewItem && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className={`flex flex-col items-center rounded-lg px-4 py-2 ${previewItem.hasPrice ? "bg-primary/20" : "bg-muted/50"}`}
+                      >
+                        <span className="text-3xl">{previewItem.emoji}</span>
+                        <span className="text-[10px] font-bold text-foreground mt-1">
+                          {previewItem.hasPrice ? "PRÊMIO" : "VAZIO"}
+                        </span>
+                      </motion.div>
+                    )}
+
+                    {/* Revealed items (after choosing) */}
+                    {isRevealed && revealContent && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className={`absolute -bottom-1 z-0 flex flex-col items-center rounded-lg px-3 py-1 text-center ${content.won ? "bg-primary/20" : content.nearMiss ? "bg-yellow-500/20" : "bg-muted/50"}`}
+                        className={`flex flex-col items-center rounded-lg px-3 py-1 ${
+                          revealContent.won ? "bg-primary/20" : revealContent.nearMiss ? "bg-yellow-500/20" : "bg-muted/50"
+                        }`}
                       >
-                        <span className="text-2xl">{content.emoji}</span>
-                        <span className="text-[10px] font-bold text-foreground">{content.label}</span>
+                        <span className="text-2xl">{revealContent.emoji}</span>
+                        <span className="text-[10px] font-bold text-foreground">{revealContent.label}</span>
                       </motion.div>
                     )}
-                  </AnimatePresence>
+                  </div>
 
                   {/* Cup */}
                   <motion.button
                     onClick={() => chooseCup(visualIndex)}
                     disabled={phase !== "choosing"}
                     className={`relative z-10 flex h-24 w-20 items-end justify-center rounded-t-3xl rounded-b-lg transition-all ${
-                      phase === "choosing" ? "cursor-pointer hover:brightness-125" : "cursor-default"
-                    } ${isChosen ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
+                      phase === "choosing" ? "cursor-pointer" : "cursor-default"
+                    } ${chosenCup === visualIndex ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                     style={{
                       background: `linear-gradient(180deg, hsl(var(--primary) / 0.9) 0%, hsl(var(--primary) / 0.6) 100%)`,
-                      boxShadow: phase === "choosing" ? "0 8px 30px hsl(var(--primary) / 0.3)" : "0 4px 15px rgba(0,0,0,0.3)",
+                      boxShadow: phase === "choosing" ? "0 8px 30px hsl(var(--primary) / 0.3)" : "0 4px 15px hsl(var(--foreground) / 0.1)",
                     }}
                     animate={{
-                      y: isRevealed ? -60 : 0,
-                      rotateX: isRevealed ? 20 : 0,
-                      scale: phase === "choosing" ? 1 : phase === "shuffling" ? [1, 0.95, 1] : 1,
+                      y: cupUp ? -70 : 0,
+                      rotateX: isRevealed ? 15 : 0,
+                      scale: phase === "shuffling" ? [1, 0.96, 1] : 1,
                     }}
                     transition={{ type: "spring", stiffness: 200, damping: 20 }}
                     whileHover={phase === "choosing" ? { scale: 1.08, y: -5 } : {}}
                     whileTap={phase === "choosing" ? { scale: 0.95 } : {}}
                   >
-                    {/* Cup shine */}
+                    {/* Shine */}
                     <div className="absolute inset-0 rounded-t-3xl rounded-b-lg overflow-hidden">
-                      <div className="absolute left-2 top-2 h-16 w-3 rounded-full bg-white/20 blur-sm" />
+                      <div className="absolute left-2 top-2 h-16 w-3 rounded-full bg-primary-foreground/20 blur-sm" />
                     </div>
-                    {/* Cup number */}
                     <span className="mb-2 text-2xl font-bold text-primary-foreground/80 select-none">
                       {visualIndex + 1}
                     </span>
@@ -346,7 +440,8 @@ const CupGamePage = () => {
                   {/* Shadow */}
                   <motion.div
                     className="mt-1 h-2 rounded-full bg-foreground/10 blur-sm"
-                    animate={{ width: isRevealed ? 60 : 72, opacity: isRevealed ? 0.3 : 0.6 }}
+                    animate={{ width: cupUp ? 60 : 72, opacity: cupUp ? 0.3 : 0.6 }}
+                    style={{ width: 72 }}
                   />
                 </motion.div>
               );
@@ -362,7 +457,7 @@ const CupGamePage = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
               className={`mb-6 rounded-2xl border p-6 text-center ${
-                isWin ? "border-green-500/30 bg-green-500/10" : "border-border bg-muted/30"
+                isWin ? "border-primary/30 bg-primary/10" : "border-border bg-muted/30"
               }`}
             >
               <motion.div
@@ -374,7 +469,7 @@ const CupGamePage = () => {
               </motion.div>
               <h3 className="text-xl font-bold text-foreground mb-1">{gameResult.label}</h3>
               {isWin ? (
-                <p className="text-2xl font-bold text-green-400">
+                <p className="text-2xl font-bold text-primary">
                   {gameResult.reward_type === "balance"
                     ? `+R$ ${Number(gameResult.balance_won).toFixed(2)} 💰`
                     : `+${gameResult.credits_won} 💎`
@@ -384,8 +479,8 @@ const CupGamePage = () => {
                 <>
                   <p className="text-muted-foreground">Sem prêmio desta vez</p>
                   {gameResult.other_cup.value > 0 && (
-                    <p className="mt-2 text-xs text-yellow-400">
-                      😱 O outro copo tinha: {gameResult.other_cup.label}!
+                    <p className="mt-2 text-xs text-yellow-500">
+                      😱 O prêmio estava no outro copo: {gameResult.other_cup.label}!
                     </p>
                   )}
                 </>
@@ -398,7 +493,7 @@ const CupGamePage = () => {
         {/* Action Button */}
         <button
           onClick={phase === "result" ? resetGame : startGame}
-          disabled={phase === "shuffling" || phase === "revealing" || phase === "choosing" || (!canPlay && phase === "idle") || playMutation.isPending}
+          disabled={phase !== "idle" && phase !== "result" || (!canPlay && phase === "idle") || playMutation.isPending}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-lg font-bold text-primary-foreground shadow-lg transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {playMutation.isPending ? (
@@ -407,14 +502,16 @@ const CupGamePage = () => {
             <>🔄 Jogar Novamente</>
           ) : phase === "choosing" ? (
             <>👆 Escolha um copo</>
-          ) : phase === "shuffling" ? (
-            <>🔄 Embaralhando...</>
+          ) : phase === "shuffling" || phase === "covering" ? (
+            <>🔄 Aguarde...</>
+          ) : phase === "showing" ? (
+            <>👀 Observe...</>
           ) : (
             <><Zap size={20} /> Jogar ({cost} 💎)</>
           )}
         </button>
 
-        {/* Confetti effect on win */}
+        {/* Confetti on win */}
         <AnimatePresence>
           {phase === "result" && isWin && (
             <div className="pointer-events-none fixed inset-0 z-50">
@@ -425,11 +522,11 @@ const CupGamePage = () => {
                   style={{
                     left: `${Math.random() * 100}%`,
                     top: -10,
-                    backgroundColor: ["#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FF69B4"][i % 6],
+                    backgroundColor: ["hsl(var(--primary))", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1", "#FF69B4"][i % 6],
                   }}
                   initial={{ y: -10, opacity: 1, rotate: 0 }}
                   animate={{
-                    y: window.innerHeight + 20,
+                    y: typeof window !== "undefined" ? window.innerHeight + 20 : 800,
                     opacity: [1, 1, 0],
                     rotate: Math.random() * 720,
                     x: (Math.random() - 0.5) * 200,
