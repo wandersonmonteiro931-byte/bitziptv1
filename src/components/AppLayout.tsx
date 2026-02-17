@@ -11,7 +11,7 @@ const clientLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
   { to: "/credits", label: "Créditos", icon: Diamond },
-  { to: "/challenges", label: "Desafios", icon: Gamepad2 },
+  { to: "/challenges", label: "Jogos", icon: Gamepad2 },
   { to: "/scratch", label: "Raspadinha", icon: Ticket },
   { to: "/prize-box", label: "Caixa Premiada", icon: Package },
   { to: "/cup-game", label: "Jogo dos Copos", icon: CupSoda },
@@ -38,7 +38,7 @@ const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
   { to: "/credits", label: "Créditos", icon: Diamond },
-  { to: "/challenges", label: "Desafios", icon: Gamepad2 },
+  { to: "/challenges", label: "Jogos", icon: Gamepad2 },
 ];
 
 const clientMenuLinks = [

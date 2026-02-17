@@ -3,9 +3,10 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Diamond, Trophy, Flame, TrendingUp, Zap, Gift, Package } from "lucide-react";
+import { Diamond, Trophy, Flame, TrendingUp, Zap, Gift, Package, Volume2, VolumeX } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { sfx, setMuted as setSfxMuted, isMuted } from "@/lib/sounds";
 
 // ═══════════════════════════════════════════════
 // PRIZE VISUAL DATA
@@ -314,6 +315,7 @@ const PrizeBoxPage = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [boxStates, setBoxStates] = useState<["closed" | "opening" | "open", "closed" | "opening" | "open"]>(["closed", "closed"]);
   const [cooldown, setCooldown] = useState(false);
+  const [muted, setMuted] = useState(false);
 
   const userCredits = (user as any)?.credits || 0;
 
@@ -404,6 +406,8 @@ const PrizeBoxPage = () => {
       setResultData(data);
       setGameState("opening");
 
+      sfx.click();
+
       // Open chosen box first
       setBoxStates(prev => {
         const next = [...prev] as typeof prev;
@@ -412,6 +416,7 @@ const PrizeBoxPage = () => {
       });
 
       setTimeout(() => {
+        sfx.boxOpen();
         setBoxStates(prev => {
           const next = [...prev] as typeof prev;
           next[boxIdx] = "open";
@@ -438,8 +443,11 @@ const PrizeBoxPage = () => {
             setGameState("result");
 
             if (isWin) {
+              sfx.celebrate();
               setShowConfetti(true);
               setTimeout(() => setShowConfetti(false), 4000);
+            } else {
+              sfx.lose();
             }
           }, 400);
         }, 1200);
@@ -460,6 +468,7 @@ const PrizeBoxPage = () => {
 
   const handleChoose = useCallback((boxIndex: number) => {
     if (gameState !== "idle" || cooldown || playMutation.isPending) return;
+    sfx.start();
     setChosenBox(boxIndex);
     playMutation.mutate(boxIndex);
   }, [gameState, cooldown, playMutation]);
@@ -481,27 +490,32 @@ const PrizeBoxPage = () => {
       <ConfettiEffect active={showConfetti} />
 
       {/* Header */}
-      <div className="mb-4">
-        <motion.h1
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2.5 text-2xl font-bold"
-          style={{ color: "hsl(var(--foreground))" }}
-        >
-          <div
-            className="flex h-10 w-10 items-center justify-center rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, hsl(45 100% 50%), hsl(30 100% 50%))",
-              boxShadow: "0 0 20px hsl(45 100% 50% / 0.5)",
-            }}
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <motion.h1
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-2.5 text-2xl font-bold"
+            style={{ color: "hsl(var(--foreground))" }}
           >
-            <Gift size={20} className="text-white" />
-          </div>
-          Caixa Premiada
-        </motion.h1>
-        <p className="mt-1 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-          Escolha uma das 2 caixas e descubra seu prêmio! 🎁
-        </p>
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{
+                background: "linear-gradient(135deg, hsl(45 100% 50%), hsl(30 100% 50%))",
+                boxShadow: "0 0 20px hsl(45 100% 50% / 0.5)",
+              }}
+            >
+              <Gift size={20} className="text-primary-foreground" />
+            </div>
+            Caixa Premiada
+          </motion.h1>
+          <p className="mt-1 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Escolha uma das 2 caixas e descubra seu prêmio! 🎁
+          </p>
+        </div>
+        <button onClick={() => { setMuted(!muted); setSfxMuted(!muted); }} className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors">
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
       </div>
 
       {/* Stats */}
