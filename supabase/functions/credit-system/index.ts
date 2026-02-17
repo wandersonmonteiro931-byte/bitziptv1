@@ -2,8 +2,49 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// All possible prize keys for the scratch card grid
+const ALL_PRIZE_KEYS = ["nada", "r1", "r5", "c1", "c3", "r30", "r50", "r100", "r500", "r1000"];
+
+function generateScratchGrid(wonPrizeKey: string | null): string[] {
+  const grid: string[] = [];
+
+  if (wonPrizeKey && wonPrizeKey !== "nada") {
+    // Place 3 of the winning prize
+    grid.push(wonPrizeKey, wonPrizeKey, wonPrizeKey);
+    // Fill remaining 7 with random non-matching (max 2 of any)
+    const others = ALL_PRIZE_KEYS.filter((k) => k !== wonPrizeKey);
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      let pick: string;
+      do {
+        pick = others[Math.floor(Math.random() * others.length)];
+      } while ((counts[pick] || 0) >= 2);
+      counts[pick] = (counts[pick] || 0) + 1;
+      grid.push(pick);
+    }
+  } else {
+    // No 3 matching — max 2 of each
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 10; i++) {
+      let pick: string;
+      do {
+        pick = ALL_PRIZE_KEYS[Math.floor(Math.random() * ALL_PRIZE_KEYS.length)];
+      } while ((counts[pick] || 0) >= 2);
+      counts[pick] = (counts[pick] || 0) + 1;
+      grid.push(pick);
+    }
+  }
+
+  // Shuffle (Fisher-Yates)
+  for (let i = grid.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [grid[i], grid[j]] = [grid[j], grid[i]];
+  }
+  return grid;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -117,7 +158,7 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ========== USER: Play challenge ==========
+      // ========== USER: Play challenge (Scratch Card) ==========
       case "play_challenge": {
         const { challenge_id } = data;
         const { data: profile } = await supabase.from("profiles").select("credits, user_level, balance, total_earned, level_points").eq("id", caller.id).single();
@@ -134,6 +175,14 @@ Deno.serve(async (req) => {
 
         if (profile.credits < challenge.cost_credits) throw new Error("Créditos insuficientes");
 
+        // Anti-fraud: rate limit - max 1 play per 3 seconds
+        const threeSecondsAgo = new Date(Date.now() - 3000).toISOString();
+        const { count: recentCount } = await supabase.from("challenge_attempts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+          .gte("created_at", threeSecondsAgo);
+        if ((recentCount || 0) > 0) throw new Error("Aguarde alguns segundos entre jogadas");
+
         // Check daily limit for this challenge
         if (challenge.daily_limit > 0) {
           const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -144,8 +193,8 @@ Deno.serve(async (req) => {
           if ((count || 0) >= challenge.daily_limit) throw new Error("Limite diário de tentativas atingido");
         }
 
-        // Probabilistic result
-        const probabilities = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string }>;
+        // Probabilistic result — backend decides win/loss first
+        const probabilities = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; prize_key?: string }>;
         const totalWeight = probabilities.reduce((sum, p) => sum + p.weight, 0);
         let random = Math.random() * totalWeight;
         let selectedResult = probabilities[0];
@@ -155,7 +204,12 @@ Deno.serve(async (req) => {
         }
 
         const prizeValue = selectedResult.result;
-        const rewardType = selectedResult.reward_type || "credits"; // "credits" or "balance"
+        const rewardType = selectedResult.reward_type || "credits";
+        const prizeKey = selectedResult.prize_key || "nada";
+
+        // Generate the 10-cell grid server-side
+        const isWin = prizeValue > 0 && rewardType !== "none";
+        const grid = generateScratchGrid(isWin ? prizeKey : null);
 
         // Deduct credits spent
         const newCredits = profile.credits - challenge.cost_credits + (rewardType === "credits" ? prizeValue : 0);
@@ -178,7 +232,13 @@ Deno.serve(async (req) => {
           credits_spent: challenge.cost_credits,
           credits_won: rewardType === "credits" ? prizeValue : 0,
           result_label: selectedResult.label,
-          metadata: { challenge_type: challenge.challenge_type, reward_type: rewardType, balance_won: balanceWon },
+          metadata: { 
+            challenge_type: challenge.challenge_type, 
+            reward_type: rewardType, 
+            balance_won: balanceWon,
+            prize_key: prizeKey,
+            grid: grid,
+          },
         });
 
         // Log credit transactions
@@ -223,6 +283,8 @@ Deno.serve(async (req) => {
           balance_won: balanceWon,
           reward_type: rewardType,
           label: selectedResult.label,
+          prize_key: prizeKey,
+          grid: grid,
           new_credits: newCredits,
           new_balance: Number(profile.balance) + balanceWon,
         };
