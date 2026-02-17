@@ -21,6 +21,9 @@ import AdminReferralsPage from "./pages/admin/AdminReferralsPage";
 import AdminContentPage from "./pages/admin/AdminContentPage";
 import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
+import AdminCreditsPage from "./pages/admin/AdminCreditsPage";
+import CreditsStorePage from "./pages/CreditsStorePage";
+import CreditsChallengesPage from "./pages/CreditsChallengesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +53,8 @@ const App = () => (
             <Route path="/withdrawals" element={<ProtectedRoute><WithdrawalsPage /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
             <Route path="/iptv-info" element={<ProtectedRoute><IptvInfoPage /></ProtectedRoute>} />
+            <Route path="/credits" element={<ProtectedRoute><CreditsStorePage /></ProtectedRoute>} />
+            <Route path="/challenges" element={<ProtectedRoute><CreditsChallengesPage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
@@ -60,6 +65,7 @@ const App = () => (
             <Route path="/admin/content" element={<ProtectedRoute requireAdmin><AdminContentPage /></ProtectedRoute>} />
             <Route path="/admin/reports" element={<ProtectedRoute requireAdmin><AdminReportsPage /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettingsPage /></ProtectedRoute>} />
+            <Route path="/admin/credits" element={<ProtectedRoute requireAdmin><AdminCreditsPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

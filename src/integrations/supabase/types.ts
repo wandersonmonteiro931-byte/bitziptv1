@@ -97,6 +97,54 @@ export type Database = {
           },
         ]
       }
+      challenge_attempts: {
+        Row: {
+          challenge_id: string
+          created_at: string
+          credits_spent: number
+          credits_won: number
+          id: string
+          metadata: Json | null
+          result_label: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string
+          credits_spent: number
+          credits_won?: number
+          id?: string
+          metadata?: Json | null
+          result_label?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string
+          credits_spent?: number
+          credits_won?: number
+          id?: string
+          metadata?: Json | null
+          result_label?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_attempts_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "credit_challenges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "challenge_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content: {
         Row: {
           banner_url: string | null
@@ -132,6 +180,312 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      credit_challenges: {
+        Row: {
+          challenge_type: string
+          cost_credits: number
+          created_at: string
+          daily_limit: number
+          description: string
+          icon: string
+          id: string
+          is_active: boolean
+          min_level: string
+          name: string
+          probabilities: Json
+          turbo_duration_minutes: number | null
+          turbo_multiplier: number | null
+          updated_at: string
+        }
+        Insert: {
+          challenge_type: string
+          cost_credits?: number
+          created_at?: string
+          daily_limit?: number
+          description?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          min_level?: string
+          name: string
+          probabilities?: Json
+          turbo_duration_minutes?: number | null
+          turbo_multiplier?: number | null
+          updated_at?: string
+        }
+        Update: {
+          challenge_type?: string
+          cost_credits?: number
+          created_at?: string
+          daily_limit?: number
+          description?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          min_level?: string
+          name?: string
+          probabilities?: Json
+          turbo_duration_minutes?: number | null
+          turbo_multiplier?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_packages: {
+        Row: {
+          bonus_credits: number
+          created_at: string
+          credits: number
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          bonus_credits?: number
+          created_at?: string
+          credits: number
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          bonus_credits?: number
+          created_at?: string
+          credits?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_promotions: {
+        Row: {
+          bonus_percentage: number
+          created_at: string
+          description: string
+          ends_at: string
+          id: string
+          is_active: boolean
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          bonus_percentage?: number
+          created_at?: string
+          description?: string
+          ends_at: string
+          id?: string
+          is_active?: boolean
+          starts_at?: string
+          title: string
+        }
+        Update: {
+          bonus_percentage?: number
+          created_at?: string
+          description?: string
+          ends_at?: string
+          id?: string
+          is_active?: boolean
+          starts_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      credit_purchases: {
+        Row: {
+          admin_id: string | null
+          bonus_amount: number
+          confirmed_at: string | null
+          created_at: string
+          credits_amount: number
+          id: string
+          package_id: string
+          pix_code: string | null
+          price: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          bonus_amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          credits_amount: number
+          id?: string
+          package_id: string
+          pix_code?: string | null
+          price: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          bonus_amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          credits_amount?: number
+          id?: string
+          package_id?: string
+          pix_code?: string | null
+          price?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_purchases_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_purchases_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "credit_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_rankings: {
+        Row: {
+          bonus_awarded: number | null
+          created_at: string
+          id: string
+          month_year: string
+          rank_position: number | null
+          total_credits_used: number
+          total_credits_won: number
+          total_purchased: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bonus_awarded?: number | null
+          created_at?: string
+          id?: string
+          month_year: string
+          rank_position?: number | null
+          total_credits_used?: number
+          total_credits_won?: number
+          total_purchased?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bonus_awarded?: number | null
+          created_at?: string
+          id?: string
+          month_year?: string
+          rank_position?: number | null
+          total_credits_used?: number
+          total_credits_won?: number
+          total_purchased?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_rankings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_settings: {
+        Row: {
+          daily_purchase_limit: number
+          id: string
+          level_thresholds: Json
+          updated_at: string
+          vip_threshold: number
+        }
+        Insert: {
+          daily_purchase_limit?: number
+          id?: string
+          level_thresholds?: Json
+          updated_at?: string
+          vip_threshold?: number
+        }
+        Update: {
+          daily_purchase_limit?: number
+          id?: string
+          level_thresholds?: Json
+          updated_at?: string
+          vip_threshold?: number
+        }
+        Relationships: []
+      }
+      credit_transactions: {
+        Row: {
+          admin_id: string | null
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string
+          id: string
+          metadata: Json | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          amount: number
+          balance_after?: number
+          created_at?: string
+          description?: string
+          id?: string
+          metadata?: Json | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          amount?: number
+          balance_after?: number
+          created_at?: string
+          description?: string
+          id?: string
+          metadata?: Json | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_transactions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mission_completions: {
         Row: {
@@ -240,11 +594,16 @@ export type Database = {
           balance: number
           balance_frozen: boolean
           created_at: string
+          credit_purchases_blocked: boolean
+          credits: number
+          daily_credits_purchased: number
+          daily_purchase_date: string | null
           id: string
           iptv_app: string
           iptv_expiry: string | null
           iptv_server: string
           iptv_user: string
+          level_points: number
           name: string
           pix_key: string | null
           referral_code: string
@@ -252,17 +611,24 @@ export type Database = {
           status: string
           total_earned: number
           updated_at: string
+          user_level: string
           username: string
+          vip_badge: boolean
         }
         Insert: {
           balance?: number
           balance_frozen?: boolean
           created_at?: string
+          credit_purchases_blocked?: boolean
+          credits?: number
+          daily_credits_purchased?: number
+          daily_purchase_date?: string | null
           id: string
           iptv_app?: string
           iptv_expiry?: string | null
           iptv_server?: string
           iptv_user?: string
+          level_points?: number
           name?: string
           pix_key?: string | null
           referral_code: string
@@ -270,17 +636,24 @@ export type Database = {
           status?: string
           total_earned?: number
           updated_at?: string
+          user_level?: string
           username: string
+          vip_badge?: boolean
         }
         Update: {
           balance?: number
           balance_frozen?: boolean
           created_at?: string
+          credit_purchases_blocked?: boolean
+          credits?: number
+          daily_credits_purchased?: number
+          daily_purchase_date?: string | null
           id?: string
           iptv_app?: string
           iptv_expiry?: string | null
           iptv_server?: string
           iptv_user?: string
+          level_points?: number
           name?: string
           pix_key?: string | null
           referral_code?: string
@@ -288,7 +661,9 @@ export type Database = {
           status?: string
           total_earned?: number
           updated_at?: string
+          user_level?: string
           username?: string
+          vip_badge?: boolean
         }
         Relationships: [
           {
