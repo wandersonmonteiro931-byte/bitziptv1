@@ -37,6 +37,7 @@ const CupGamePage = () => {
   const [muted, setMuted] = useState(false);
   const cooldownRef = useRef(false);
   const [prizePosition, setPrizePosition] = useState<number>(1);
+  const [finalWinningVisualIndex, setFinalWinningVisualIndex] = useState<number>(0);
   const [countdown, setCountdown] = useState<number>(CHOOSE_TIME);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -141,11 +142,15 @@ const CupGamePage = () => {
       setPhase("shuffling");
       sfx.shuffle();
 
-      // Shuffles with slower, more visible speed
+      // 50 shuffles with varying speed
       let positions = [0, 1, 2];
-      const shuffleSteps = 20;
+      const shuffleSteps = 50;
       for (let i = 0; i < shuffleSteps; i++) {
-        const speed = i < 4 ? 500 - i * 30 : i > 16 ? 300 + (i - 16) * 40 : 350;
+        // Start slow, speed up in middle, slow down at end
+        let speed: number;
+        if (i < 8) speed = 450 - i * 25;
+        else if (i > 42) speed = 250 + (i - 42) * 30;
+        else speed = 280;
         await new Promise(r => setTimeout(r, speed));
         const a = Math.floor(Math.random() * 3);
         let b = a;
@@ -154,8 +159,18 @@ const CupGamePage = () => {
         positions[a] = positions[b];
         positions[b] = temp;
         setCupPositions([...positions]);
-        if (i % 2 === 0) sfx.shuffle();
+        if (i % 3 === 0) sfx.shuffle();
       }
+
+      // Track where the winning cup ended up visually
+      // positions[visualIndex] = screenSlot. We need: which visualIndex has winning_position's screen slot?
+      // The winning cup started at visualIndex === result.winning_position
+      // After shuffling, that visual cup is now at screen slot positions[result.winning_position]
+      // But user clicks on a visual index, so we need to find which visual index the prize is at
+      // Prize started at visualIndex = result.winning_position. Shuffling moves visual cups.
+      // Actually positions maps visualIndex -> screenSlot. The prize is INSIDE visualIndex=winning_position.
+      // So the prize visual index is STILL winning_position, just at a different screen slot.
+      setFinalWinningVisualIndex(result.winning_position);
 
       setPhase("choosing");
       startCountdown();
@@ -227,26 +242,25 @@ const CupGamePage = () => {
   const getCupRevealContent = (visualIndex: number) => {
     if (!gameResult || !revealedCups[visualIndex]) return null;
     if (timedOut) {
-      // Show prize location but user lost
+      // Timeout: show where the prize was, but no award
       if (visualIndex === gameResult.winning_position) {
         return { emoji: "💰", label: "R$ 1,50", won: false, nearMiss: true };
       }
       return { emoji: "❌", label: "Vazio", won: false };
     }
-    if (visualIndex === gameResult.winning_position) {
-      if (chosenCup === visualIndex) {
-        if (isWin) {
-          return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
-        }
-        return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, won: false, nearMiss: true };
+    // Backend already decided win/loss. If win, prize is under the chosen cup.
+    if (isWin) {
+      if (visualIndex === chosenCup) {
+        return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
       }
-      if (isWin) {
-        return { emoji: "❌", label: "Vazio", won: false };
-      }
-      return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, won: false, nearMiss: true };
+      return { emoji: "❌", label: "Vazio", won: false };
     }
-    if (visualIndex === chosenCup && isWin) {
-      return { emoji: gameResult.reward_type === "balance" ? "💰" : "💎", label: gameResult.label, won: true };
+    // Loss: show prize under winning_position as "near miss"
+    if (visualIndex === chosenCup) {
+      return { emoji: "❌", label: "Vazio", won: false };
+    }
+    if (visualIndex === gameResult.winning_position && gameResult.other_cup.value > 0) {
+      return { emoji: gameResult.other_cup.reward_type === "balance" ? "💰" : "💎", label: gameResult.other_cup.label, won: false, nearMiss: true };
     }
     return { emoji: "❌", label: "Vazio", won: false };
   };
