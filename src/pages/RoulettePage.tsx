@@ -56,7 +56,6 @@ const RoulettePage = () => {
   const currentAngleRef = useRef(0);
   const animRef = useRef<number>(0);
   const spinSoundRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tickSoundRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: challenge } = useQuery({
     queryKey: ["roulette-challenge"],
@@ -73,34 +72,34 @@ const RoulettePage = () => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || segments.length === 0) return;
-    
+
     const dpr = window.devicePixelRatio || 1;
-    const displaySize = 320;
+    const displaySize = 340;
     canvas.width = displaySize * dpr;
     canvas.height = displaySize * dpr;
     canvas.style.width = `${displaySize}px`;
     canvas.style.height = `${displaySize}px`;
-    
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
     const size = displaySize;
     const center = size / 2;
-    const radius = center - 12;
+    const radius = center - 16;
     const segAngle = (2 * Math.PI) / segments.length;
 
     ctx.clearRect(0, 0, size, size);
 
-    // Outer ring glow
+    // Outer ring
     ctx.save();
-    ctx.shadowColor = "rgba(255, 200, 0, 0.3)";
-    ctx.shadowBlur = 15;
     ctx.beginPath();
-    ctx.arc(center, center, radius + 6, 0, 2 * Math.PI);
-    ctx.strokeStyle = "rgba(255,200,0,0.4)";
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.arc(center, center, radius + 10, 0, 2 * Math.PI);
+    const ringGrad = ctx.createRadialGradient(center, center, radius + 2, center, center, radius + 12);
+    ringGrad.addColorStop(0, "rgba(255,215,0,0.6)");
+    ringGrad.addColorStop(1, "rgba(180,130,0,0.2)");
+    ctx.fillStyle = ringGrad;
+    ctx.fill();
     ctx.restore();
 
     // Segments
@@ -117,76 +116,92 @@ const RoulettePage = () => {
       ctx.fillStyle = color;
       ctx.fill();
 
-      // Inner gradient for depth
-      const grad = ctx.createRadialGradient(center, center, radius * 0.3, center, center, radius);
-      grad.addColorStop(0, "rgba(255,255,255,0.15)");
-      grad.addColorStop(1, "rgba(0,0,0,0.1)");
+      // Depth gradient
+      const grad = ctx.createRadialGradient(center, center, radius * 0.2, center, center, radius);
+      grad.addColorStop(0, "rgba(255,255,255,0.18)");
+      grad.addColorStop(0.6, "rgba(255,255,255,0.05)");
+      grad.addColorStop(1, "rgba(0,0,0,0.15)");
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Border between segments
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      // Segment border
+      ctx.beginPath();
+      ctx.moveTo(center, center);
+      ctx.arc(center, center, radius, startAngle, endAngle);
+      ctx.closePath();
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Label - draw text along the segment, reading outward from center
+      // Label - properly rotated to read from center outward
       ctx.save();
       ctx.translate(center, center);
       const midAngle = startAngle + segAngle / 2;
       ctx.rotate(midAngle);
-      
-      // Text settings
-      const fontSize = Math.max(11, Math.min(15, 160 / segments.length));
+
+      // Adaptive font size based on number of segments and available arc
+      const arcLen = segAngle * radius * 0.5;
+      const maxFontByArc = Math.floor(arcLen / 1.2);
+      const fontSize = Math.max(10, Math.min(16, maxFontByArc, 180 / segments.length));
+
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = 5;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
+
+      // Draw label text at ~55% radius
+      const textR = radius * 0.55;
       ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.shadowColor = "rgba(0,0,0,0.7)";
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
-      
-      // Emoji
+
+      // Truncate long labels
+      let displayLabel = seg.label;
+      if (ctx.measureText(displayLabel).width > radius * 0.5) {
+        while (displayLabel.length > 3 && ctx.measureText(displayLabel + "…").width > radius * 0.5) {
+          displayLabel = displayLabel.slice(0, -1);
+        }
+        displayLabel += "…";
+      }
+      ctx.fillText(displayLabel, textR, 0);
+
+      // Emoji at ~80% radius
       const emoji = EMOJI_MAP[seg.reward_type] || "🎯";
-      const textRadius = radius * 0.65;
-      ctx.font = `${fontSize + 2}px system-ui`;
-      ctx.fillText(emoji, textRadius + 14, 0);
-      
-      // Label text
-      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(seg.label, textRadius - 12, 0);
-      
+      ctx.font = `${fontSize + 1}px system-ui`;
+      ctx.fillText(emoji, radius * 0.82, 0);
+
       ctx.restore();
     });
 
     // Center hub
     ctx.beginPath();
-    ctx.arc(center, center, 26, 0, 2 * Math.PI);
-    const hubGrad = ctx.createRadialGradient(center - 4, center - 4, 3, center, center, 26);
+    ctx.arc(center, center, 28, 0, 2 * Math.PI);
+    const hubGrad = ctx.createRadialGradient(center - 5, center - 5, 3, center, center, 28);
     hubGrad.addColorStop(0, "#ffe066");
     hubGrad.addColorStop(0.5, "#ffc107");
-    hubGrad.addColorStop(1, "#b8860b");
+    hubGrad.addColorStop(1, "#8b6914");
     ctx.fillStyle = hubGrad;
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Hub inner circle
+    // Hub inner
     ctx.beginPath();
-    ctx.arc(center, center, 14, 0, 2 * Math.PI);
-    ctx.fillStyle = "#b8860b";
+    ctx.arc(center, center, 15, 0, 2 * Math.PI);
+    ctx.fillStyle = "#a0781a";
     ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.3)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Outer decoration lights
-    const lightCount = segments.length * 2;
+    // Decorative lights on outer ring
+    const lightCount = Math.max(segments.length * 2, 16);
     for (let i = 0; i < lightCount; i++) {
       const angle = (i / lightCount) * 2 * Math.PI;
-      const lx = center + (radius + 6) * Math.cos(angle);
-      const ly = center + (radius + 6) * Math.sin(angle);
+      const lx = center + (radius + 8) * Math.cos(angle);
+      const ly = center + (radius + 8) * Math.sin(angle);
       ctx.beginPath();
       ctx.arc(lx, ly, 3, 0, 2 * Math.PI);
       ctx.fillStyle = i % 3 === 0 ? "#ff4444" : i % 3 === 1 ? "#ffcc00" : "#44ff44";
@@ -220,86 +235,65 @@ const RoulettePage = () => {
       const result = await playMutation.mutateAsync();
       setSpinResult(result);
 
-      // Calculate target angle for the winning segment
-      const segAngle = 360 / segments.length;
-      // Segment center angle (from top, clockwise)
-      const segmentCenterAngle = segAngle * result.winning_segment_index + segAngle / 2;
-      // To align with pointer at top (0°), we rotate wheel so this segment is at top
-      const targetOffset = 360 - segmentCenterAngle;
-      // Add random jitter within segment (not too close to edges)
-      const jitter = (Math.random() - 0.5) * segAngle * 0.5;
-      // Multiple full rotations + final position
-      const fullSpins = 6 + Math.floor(Math.random() * 3); // 6-8 full rotations
-      const targetAngle = currentAngleRef.current + fullSpins * 360 + targetOffset + jitter;
-      
-      // Normalize: make sure we always spin forward
-      const minAngle = currentAngleRef.current + 360 * 5;
-      const finalTarget = targetAngle < minAngle ? targetAngle + 360 * Math.ceil((minAngle - targetAngle) / 360) : targetAngle;
+      // === FIXED: Calculate target angle correctly ===
+      const segAngleDeg = 360 / segments.length;
+      // The segment's center offset from 0° (top of wheel)
+      const segmentCenterDeg = segAngleDeg * result.winning_segment_index + segAngleDeg / 2;
+      // We need to rotate the wheel so that this segment sits under the pointer (top = 0°)
+      // Wheel rotates clockwise, so to bring segment to top: 360 - segmentCenterDeg
+      const desiredModAngle = (360 - segmentCenterDeg + 360) % 360;
+      // Current position modulo 360
+      const currentMod = ((currentAngleRef.current % 360) + 360) % 360;
+      // How much additional rotation needed to land on desiredModAngle
+      const extraNeeded = ((desiredModAngle - currentMod) + 360) % 360;
+      // Add jitter within ~40% of segment so we don't always hit dead center
+      const jitter = (Math.random() - 0.5) * segAngleDeg * 0.4;
+      // Full rotations for visual effect (6-8 turns)
+      const fullSpins = (6 + Math.floor(Math.random() * 3)) * 360;
+      const targetAngle = currentAngleRef.current + fullSpins + extraNeeded + jitter;
 
-      // Animate with requestAnimationFrame for smooth 5-second spin
+      // Animate with requestAnimationFrame for silky-smooth 5s spin
       const startAngle = currentAngleRef.current;
-      const totalDelta = finalTarget - startAngle;
-      const duration = 5000; // exactly 5 seconds
+      const totalDelta = targetAngle - startAngle;
+      const duration = 5000;
       const startTime = performance.now();
 
-      // Tick sound that slows down
-      let lastTickAngle = startAngle;
-      const tickInterval = segAngle; // tick every segment
-
-      // Spinning sound - starts fast, gets slower
-      let soundInterval = 80;
-      const playTickSound = () => {
-        sfx.shuffle();
+      // Sound management
+      let lastSoundTime = 0;
+      const playSoundTick = (now: number, progress: number) => {
+        // Tick interval increases as wheel slows (80ms → 500ms)
+        const interval = 80 + progress * progress * 600;
+        if (now - lastSoundTime > interval && progress < 0.92) {
+          sfx.shuffle();
+          lastSoundTime = now;
+        }
       };
-      spinSoundRef.current = setInterval(playTickSound, soundInterval);
 
       const animate = (now: number) => {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        
-        // Custom easing: fast start, very gradual slowdown at end
-        // Using cubic bezier approximation for smooth deceleration
-        const eased = 1 - Math.pow(1 - progress, 3.5);
-        
+
+        // Quintic ease-out for very smooth deceleration with dramatic slowdown at end
+        const eased = 1 - Math.pow(1 - progress, 4);
+
         const currentAngle = startAngle + totalDelta * eased;
-        
+
         if (wheelRef.current) {
           wheelRef.current.style.transform = `rotate(${currentAngle}deg)`;
         }
 
-        // Adjust tick sound speed based on progress
-        if (progress > 0.5 && spinSoundRef.current) {
-          clearInterval(spinSoundRef.current);
-          const newInterval = 80 + (progress - 0.5) * 600; // slow down sound
-          spinSoundRef.current = setInterval(playTickSound, newInterval);
-        }
-        if (progress > 0.85 && spinSoundRef.current) {
-          clearInterval(spinSoundRef.current);
-          spinSoundRef.current = null;
-        }
-
-        // Tick sound when crossing segment boundaries
-        const angleDiff = Math.abs(currentAngle - lastTickAngle);
-        if (angleDiff >= tickInterval) {
-          lastTickAngle = currentAngle;
-          if (progress < 0.9) sfx.click();
-        }
+        playSoundTick(now, progress);
 
         if (progress < 1) {
           animRef.current = requestAnimationFrame(animate);
         } else {
           // Animation complete
-          currentAngleRef.current = finalTarget;
-          if (spinSoundRef.current) {
-            clearInterval(spinSoundRef.current);
-            spinSoundRef.current = null;
-          }
-          
-          // Small delay then show result
+          currentAngleRef.current = targetAngle;
+
           setTimeout(async () => {
             sfx.cellReveal();
             try { navigator.vibrate?.(30); } catch {}
-            
+
             setTimeout(async () => {
               const isWin = result.credits_won > 0 || result.balance_won > 0;
               if (isWin) {
@@ -331,7 +325,6 @@ const RoulettePage = () => {
 
       animRef.current = requestAnimationFrame(animate);
     } catch (err: any) {
-      if (spinSoundRef.current) clearInterval(spinSoundRef.current);
       if (animRef.current) cancelAnimationFrame(animRef.current);
       toast({ title: "Erro", description: err.message, variant: "destructive" });
       setPhase("idle");
@@ -383,7 +376,7 @@ const RoulettePage = () => {
         </div>
 
         {/* Roulette Wheel */}
-        <div className="relative mb-4 rounded-2xl border border-border bg-gradient-to-b from-muted/20 to-background p-3">
+        <div className="relative mb-4 rounded-2xl border border-border bg-gradient-to-b from-muted/20 to-background p-4">
           {/* Particles background */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
             {[...Array(6)].map((_, i) => (
@@ -398,22 +391,22 @@ const RoulettePage = () => {
           </div>
 
           {/* Pointer at top */}
-          <div className="relative z-20 mx-auto mb-[-20px] flex justify-center">
+          <div className="relative z-20 mx-auto mb-[-22px] flex justify-center">
             <div
               className="drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
               style={{
                 width: 0,
                 height: 0,
-                borderLeft: "16px solid transparent",
-                borderRight: "16px solid transparent",
-                borderTop: "28px solid hsl(var(--primary))",
-                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
+                borderLeft: "14px solid transparent",
+                borderRight: "14px solid transparent",
+                borderTop: "30px solid hsl(var(--primary))",
+                filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.5))",
               }}
             />
           </div>
 
           {/* Wheel */}
-          <div className="relative mx-auto" style={{ width: 320, height: 320 }}>
+          <div className="relative mx-auto" style={{ width: 340, height: 340 }}>
             <div
               ref={wheelRef}
               className="absolute inset-0 will-change-transform"
@@ -430,19 +423,20 @@ const RoulettePage = () => {
               <div className="pointer-events-none absolute inset-0">
                 {[...Array(16)].map((_, i) => {
                   const angle = (i / 16) * 2 * Math.PI;
-                  const x = 160 + 154 * Math.cos(angle);
-                  const y = 160 + 154 * Math.sin(angle);
+                  const x = 170 + 162 * Math.cos(angle);
+                  const y = 170 + 162 * Math.sin(angle);
                   return (
                     <motion.div
                       key={i}
-                      className="absolute h-2 w-2 rounded-full"
+                      className="absolute h-2.5 w-2.5 rounded-full"
                       style={{
-                        left: x - 4,
-                        top: y - 4,
+                        left: x - 5,
+                        top: y - 5,
                         backgroundColor: i % 3 === 0 ? "#ff4444" : i % 3 === 1 ? "#ffcc00" : "#44ff44",
+                        boxShadow: `0 0 6px ${i % 3 === 0 ? "#ff4444" : i % 3 === 1 ? "#ffcc00" : "#44ff44"}`,
                       }}
-                      animate={{ opacity: [1, 0.15, 1] }}
-                      transition={{ duration: 0.3, repeat: Infinity, delay: i * 0.04 }}
+                      animate={{ opacity: [1, 0.2, 1] }}
+                      transition={{ duration: 0.35, repeat: Infinity, delay: i * 0.04 }}
                     />
                   );
                 })}
@@ -450,7 +444,7 @@ const RoulettePage = () => {
             )}
           </div>
 
-          {/* Glow effect on winning segment */}
+          {/* Glow effect on result */}
           <AnimatePresence>
             {phase === "result" && spinResult && (
               <motion.div
