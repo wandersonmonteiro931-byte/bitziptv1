@@ -68,7 +68,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* === TOP HEADER BAR === */}
-      <header className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-border bg-sidebar px-3 py-2.5 md:left-64" style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top))' }}>
+      <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-3 md:left-64" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         {/* Mobile: Logo + hamburger */}
         <div className="flex items-center gap-2 md:hidden">
           <img src={logo} alt="Bitz IPTV" className="h-8 w-8 rounded-lg object-cover" />
@@ -265,7 +265,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* === MAIN CONTENT === */}
-      <main className="pb-24 md:ml-64 md:pb-0" style={{ paddingTop: 'calc(5.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <main className="md:ml-64" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>
