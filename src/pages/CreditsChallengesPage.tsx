@@ -25,7 +25,7 @@ const CreditsChallengesPage = () => {
     queryKey: ["credit-challenges"],
     queryFn: async () => {
       const { data } = await supabase.from("credit_challenges").select("*").eq("is_active", true)
-        .in("challenge_type", ["scratch_card", "prize_box", "cup_game"]);
+        .in("challenge_type", ["scratch_card", "prize_box", "cup_game", "roulette"]);
       return data || [];
     },
   });
@@ -185,17 +185,19 @@ const CreditsChallengesPage = () => {
                       navigate("/prize-box");
                     } else if (ch.challenge_type === "cup_game") {
                       navigate("/cup-game");
+                    } else if (ch.challenge_type === "roulette") {
+                      navigate("/roulette");
                     } else {
                       playMutation.mutate(ch.id);
                     }
                   }}
-                  disabled={!canDo || (playMutation.isPending && ch.challenge_type !== "scratch_card" && ch.challenge_type !== "prize_box" && ch.challenge_type !== "cup_game")}
+                  disabled={!canDo || (playMutation.isPending && !["scratch_card", "prize_box", "cup_game", "roulette"].includes(ch.challenge_type))}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {playingId === ch.id ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                   ) : (
-                    <><Zap size={16} /> {ch.challenge_type === "scratch_card" ? "Abrir Raspadinha" : ch.challenge_type === "prize_box" ? "Abrir Caixa" : ch.challenge_type === "cup_game" ? "Jogar Copos" : "Jogar"}</>
+                    <><Zap size={16} /> {ch.challenge_type === "scratch_card" ? "Abrir Raspadinha" : ch.challenge_type === "prize_box" ? "Abrir Caixa" : ch.challenge_type === "cup_game" ? "Jogar Copos" : ch.challenge_type === "roulette" ? "Girar Roleta" : "Jogar"}</>
                   )}
                 </button>
               </div>
