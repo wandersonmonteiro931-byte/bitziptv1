@@ -584,10 +584,15 @@ const ScratchCardPage = () => {
       setRevealedCells((prev) => {
         const next = [...prev];
         next[index] = true;
-        const revealedCount = next.filter(Boolean).length;
+        return next;
+      });
+
+      // Process match logic outside of the state updater
+      setRevealedCells((current) => {
+        const revealedCount = current.filter(Boolean).length;
 
         const counts: Record<string, number[]> = {};
-        next.forEach((r, i) => {
+        current.forEach((r, i) => {
           if (r) {
             const key = grid[i];
             if (!counts[key]) counts[key] = [];
@@ -608,12 +613,12 @@ const ScratchCardPage = () => {
         if (foundMatch) {
           setMatchedCells(matchIndices);
           setGameFinished(true);
-          setTimeout(() => {
+          setTimeout(async () => {
             setRevealedCells(Array(10).fill(true));
             setGameState("finished");
             setShowResult(true);
             clearGameState();
-            refreshProfile();
+            await refreshProfile();
             if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
             if (wonPrizeKey) {
               setShowConfetti(true);
@@ -622,19 +627,19 @@ const ScratchCardPage = () => {
           }, 800);
         } else if (revealedCount >= 10) {
           setGameFinished(true);
-          setTimeout(() => {
+          setTimeout(async () => {
             setGameState("finished");
             setShowResult(true);
             clearGameState();
-            refreshProfile();
+            await refreshProfile();
             if (navigator.vibrate) navigator.vibrate(30);
           }, 500);
         }
 
-        return next;
+        return current; // don't modify, just read
       });
     },
-    [grid, wonPrizeKey, backendResult, gameFinished]
+    [grid, wonPrizeKey, backendResult, gameFinished, refreshProfile]
   );
 
 
