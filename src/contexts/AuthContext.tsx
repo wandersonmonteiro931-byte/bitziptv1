@@ -65,28 +65,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up auth listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // Use setTimeout to avoid potential deadlocks with Supabase auth
-        setTimeout(() => fetchProfile(session.user.id), 0);
-      } else {
-        setUser(null);
-        setRole(null);
+    let isMounted = true;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted) return;
+        if (session?.user) {
+          setTimeout(() => {
+            fetchProfile(session.user.id).then(() => {
+              if (isMounted) setLoading(false);
+            });
+          }, 0);
+        } else {
+          setUser(null);
+          setRole(null);
+          setLoading(false);
+        }
       }
-      setLoading(false);
+    );
+
+    // Initial session check
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        await fetchProfile(session.user.id);
+      }
+      if (isMounted) setLoading(false);
     });
 
-    // Then get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<string | null> => {
