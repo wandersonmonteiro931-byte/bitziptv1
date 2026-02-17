@@ -26,6 +26,7 @@ import CreditsStorePage from "./pages/CreditsStorePage";
 import CreditsChallengesPage from "./pages/CreditsChallengesPage";
 import ScratchCardPage from "./pages/ScratchCardPage";
 import PrizeBoxPage from "./pages/PrizeBoxPage";
+import CupGamePage from "./pages/CupGamePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/challenges" element={<ProtectedRoute><CreditsChallengesPage /></ProtectedRoute>} />
             <Route path="/scratch" element={<ProtectedRoute><ScratchCardPage /></ProtectedRoute>} />
             <Route path="/prize-box" element={<ProtectedRoute><PrizeBoxPage /></ProtectedRoute>} />
+            <Route path="/cup-game" element={<ProtectedRoute><CupGamePage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
