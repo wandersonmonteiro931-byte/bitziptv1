@@ -14,7 +14,7 @@ const CreditsChallengesPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [resultAnim, setResultAnim] = useState<{ won: number; label: string; balance: number } | null>(null);
+  const [resultAnim, setResultAnim] = useState<{ won: number; balanceWon: number; rewardType: string; label: string; credits: number } | null>(null);
 
   const userLevel = (user as any)?.user_level || "bronze";
   const userCredits = (user as any)?.credits || 0;
@@ -62,11 +62,12 @@ const CreditsChallengesPage = () => {
       return data;
     },
     onSuccess: (data) => {
-      setResultAnim({ won: data.credits_won, label: data.label, balance: data.new_balance });
+      const totalWon = data.reward_type === "balance" ? data.balance_won : data.credits_won;
+      setResultAnim({ won: totalWon, balanceWon: data.balance_won || 0, rewardType: data.reward_type, label: data.label, credits: data.new_credits });
       refreshProfile();
       queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
       queryClient.invalidateQueries({ queryKey: ["credit-rankings"] });
-      setTimeout(() => { setResultAnim(null); setPlayingId(null); }, 3000);
+      setTimeout(() => { setResultAnim(null); setPlayingId(null); }, 3500);
     },
     onError: (err: any) => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -115,10 +116,17 @@ const CreditsChallengesPage = () => {
                 {resultAnim.won > 0 ? "🎉" : "😔"}
               </motion.div>
               <h3 className="font-display text-xl font-bold text-foreground mb-2">{resultAnim.label}</h3>
-              <p className={`text-3xl font-bold ${resultAnim.won > 0 ? "text-green-400" : "text-red-400"}`}>
-                {resultAnim.won > 0 ? `+${resultAnim.won}` : "0"} créditos
+              <p className={`text-3xl font-bold ${resultAnim.won > 0 ? "text-green-400" : "text-destructive"}`}>
+                {resultAnim.won > 0
+                  ? resultAnim.rewardType === "balance"
+                    ? `+R$ ${Number(resultAnim.balanceWon).toFixed(2)}`
+                    : `+${resultAnim.won} créditos`
+                  : "Sem prêmio"}
               </p>
-              <p className="mt-2 text-sm text-muted-foreground">Saldo: {resultAnim.balance} 💎</p>
+              {resultAnim.rewardType === "balance" && resultAnim.won > 0 && (
+                <p className="mt-1 text-sm text-green-400/70">💰 Adicionado ao seu saldo real!</p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">Créditos: {resultAnim.credits} 💎</p>
             </motion.div>
           </motion.div>
         )}
@@ -129,7 +137,7 @@ const CreditsChallengesPage = () => {
         {challenges.map((ch: any, i: number) => {
           const locked = isLocked(ch);
           const canDo = canPlay(ch);
-          const probs = ch.probabilities as Array<{ result: number; weight: number; label: string }>;
+          const probs = ch.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string }>;
 
           return (
             <motion.div
@@ -149,9 +157,9 @@ const CreditsChallengesPage = () => {
               <div className="mb-3">
                 <p className="text-xs text-muted-foreground mb-1">Possíveis resultados:</p>
                 <div className="flex flex-wrap gap-1">
-                  {probs.map((p, j) => (
-                    <Badge key={j} variant="outline" className="text-xs">
-                      {p.label}
+                  {probs.filter(p => p.result > 0).map((p, j) => (
+                    <Badge key={j} variant="outline" className={`text-xs ${p.reward_type === "balance" ? "border-green-500/30 text-green-400" : ""}`}>
+                      {p.reward_type === "balance" ? "💰" : "💎"} {p.label}
                     </Badge>
                   ))}
                 </div>
@@ -227,9 +235,13 @@ const CreditsChallengesPage = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">-{a.credits_spent} 💎</p>
-                  <p className={`text-sm font-bold ${a.credits_won > 0 ? "text-green-400" : "text-red-400"}`}>
-                    {a.credits_won > 0 ? `+${a.credits_won}` : a.result_label}
-                  </p>
+                  {a.metadata?.reward_type === "balance" && a.metadata?.balance_won > 0 ? (
+                    <p className="text-sm font-bold text-green-400">+R$ {Number(a.metadata.balance_won).toFixed(2)} 💰</p>
+                  ) : (
+                    <p className={`text-sm font-bold ${a.credits_won > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                      {a.credits_won > 0 ? `+${a.credits_won} 💎` : a.result_label}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

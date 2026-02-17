@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       // ========== USER: Play challenge ==========
       case "play_challenge": {
         const { challenge_id } = data;
-        const { data: profile } = await supabase.from("profiles").select("credits, user_level").eq("id", caller.id).single();
+        const { data: profile } = await supabase.from("profiles").select("credits, user_level, balance, total_earned, level_points").eq("id", caller.id).single();
         if (!profile) throw new Error("Perfil não encontrado");
 
         const { data: challenge } = await supabase.from("credit_challenges").select("*").eq("id", challenge_id).eq("is_active", true).single();
@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
         }
 
         // Probabilistic result
-        const probabilities = challenge.probabilities as Array<{ result: number; weight: number; label: string }>;
+        const probabilities = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string }>;
         const totalWeight = probabilities.reduce((sum, p) => sum + p.weight, 0);
         let random = Math.random() * totalWeight;
         let selectedResult = probabilities[0];
@@ -154,26 +154,47 @@ Deno.serve(async (req) => {
           if (random <= 0) { selectedResult = prob; break; }
         }
 
-        const creditsWon = selectedResult.result;
-        const newBalance = profile.credits - challenge.cost_credits + creditsWon;
+        const prizeValue = selectedResult.result;
+        const rewardType = selectedResult.reward_type || "credits"; // "credits" or "balance"
 
-        // Update balance
-        await supabase.from("profiles").update({ credits: newBalance }).eq("id", caller.id);
+        // Deduct credits spent
+        const newCredits = profile.credits - challenge.cost_credits + (rewardType === "credits" ? prizeValue : 0);
+        const profileUpdates: any = { credits: newCredits };
+
+        // If reward is balance (real money), add to balance
+        let balanceWon = 0;
+        if (rewardType === "balance" && prizeValue > 0) {
+          balanceWon = prizeValue;
+          profileUpdates.balance = Number(profile.balance) + prizeValue;
+          profileUpdates.total_earned = Number(profile.total_earned) + prizeValue;
+        }
+
+        await supabase.from("profiles").update(profileUpdates).eq("id", caller.id);
 
         // Log attempt
         await supabase.from("challenge_attempts").insert({
           user_id: caller.id,
           challenge_id,
           credits_spent: challenge.cost_credits,
-          credits_won: creditsWon,
+          credits_won: rewardType === "credits" ? prizeValue : 0,
           result_label: selectedResult.label,
-          metadata: { challenge_type: challenge.challenge_type },
+          metadata: { challenge_type: challenge.challenge_type, reward_type: rewardType, balance_won: balanceWon },
         });
 
-        // Log transactions
+        // Log credit transactions
         await logTransaction(caller.id, "challenge_bet", -challenge.cost_credits, profile.credits - challenge.cost_credits, `Desafio: ${challenge.name}`);
-        if (creditsWon > 0) {
-          await logTransaction(caller.id, "challenge_win", creditsWon, newBalance, `Prêmio: ${selectedResult.label} - ${challenge.name}`);
+        if (rewardType === "credits" && prizeValue > 0) {
+          await logTransaction(caller.id, "challenge_win", prizeValue, newCredits, `Prêmio: ${selectedResult.label} - ${challenge.name}`);
+        }
+
+        // If balance reward, also log in balance_history
+        if (rewardType === "balance" && prizeValue > 0) {
+          await supabase.from("balance_history").insert({
+            user_id: caller.id,
+            type: "credit",
+            amount: prizeValue,
+            description: `Prêmio em saldo: ${selectedResult.label} - ${challenge.name}`,
+          });
         }
 
         // Update level points
@@ -187,16 +208,24 @@ Deno.serve(async (req) => {
         if (existingRank) {
           await supabase.from("credit_rankings").update({
             total_credits_used: existingRank.total_credits_used + challenge.cost_credits,
-            total_credits_won: existingRank.total_credits_won + creditsWon,
+            total_credits_won: existingRank.total_credits_won + (rewardType === "credits" ? prizeValue : 0),
           }).eq("id", existingRank.id);
         } else {
           await supabase.from("credit_rankings").insert({
             user_id: caller.id, month_year: monthYear,
-            total_credits_used: challenge.cost_credits, total_credits_won: creditsWon,
+            total_credits_used: challenge.cost_credits, total_credits_won: rewardType === "credits" ? prizeValue : 0,
           });
         }
 
-        result = { success: true, credits_won: creditsWon, label: selectedResult.label, new_balance: newBalance };
+        result = {
+          success: true,
+          credits_won: rewardType === "credits" ? prizeValue : 0,
+          balance_won: balanceWon,
+          reward_type: rewardType,
+          label: selectedResult.label,
+          new_credits: newCredits,
+          new_balance: Number(profile.balance) + balanceWon,
+        };
         break;
       }
 
