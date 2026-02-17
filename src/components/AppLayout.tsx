@@ -73,9 +73,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {!isAdmin && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => canWithdraw && navigate("/withdrawals")}
-              disabled={!canWithdraw}
-              className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => navigate("/withdrawals")}
+              className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:brightness-110"
             >
               <Wallet size={13} />
               Saque
