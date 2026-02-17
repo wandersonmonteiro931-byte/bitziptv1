@@ -24,6 +24,7 @@ import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminCreditsPage from "./pages/admin/AdminCreditsPage";
 import CreditsStorePage from "./pages/CreditsStorePage";
 import CreditsChallengesPage from "./pages/CreditsChallengesPage";
+import ScratchCardPage from "./pages/ScratchCardPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/iptv-info" element={<ProtectedRoute><IptvInfoPage /></ProtectedRoute>} />
             <Route path="/credits" element={<ProtectedRoute><CreditsStorePage /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><CreditsChallengesPage /></ProtectedRoute>} />
+            <Route path="/scratch" element={<ProtectedRoute><ScratchCardPage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
