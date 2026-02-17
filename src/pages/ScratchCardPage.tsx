@@ -1,9 +1,9 @@
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Diamond, Ticket, RotateCcw, Trophy, Flame, Star, TrendingUp, Zap, Crown, Sparkles, Shield } from "lucide-react";
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -104,27 +104,26 @@ function ConfettiEffect({ active }: { active: boolean }) {
 }
 
 // ═══════════════════════════════════════════════
-// SCRATCH CELL COMPONENT (multi-touch support)
+// SCRATCH CELL – exposes scratchAt via ref
 // ═══════════════════════════════════════════════
-function ScratchCell({
-  prizeKey,
-  index,
-  revealed,
-  isMatched,
-  onReveal,
-  disabled,
-}: {
-  prizeKey: string;
-  index: number;
-  revealed: boolean;
-  isMatched: boolean;
-  onReveal: (index: number) => void;
-  disabled: boolean;
-}) {
+interface ScratchCellHandle {
+  scratchAtClientPos: (clientX: number, clientY: number) => void;
+}
+
+const ScratchCell = React.forwardRef<
+  ScratchCellHandle,
+  {
+    prizeKey: string;
+    index: number;
+    revealed: boolean;
+    isMatched: boolean;
+    onReveal: (index: number) => void;
+    disabled: boolean;
+  }
+>(({ prizeKey, index, revealed, isMatched, onReveal, disabled }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cellRevealed = useRef(false);
   const scratched = useRef(0);
-  const activePointers = useRef<Set<number>>(new Set());
   const SIZE = 200;
 
   const initCanvas = useCallback(() => {
@@ -180,14 +179,14 @@ function ScratchCell({
     }
   }, [initCanvas, prizeKey, revealed]);
 
-  const scratch = useCallback(
+  const scratchXY = useCallback(
     (x: number, y: number) => {
       const canvas = canvasRef.current;
       if (!canvas || cellRevealed.current || disabled) return;
       const ctx = canvas.getContext("2d")!;
       ctx.globalCompositeOperation = "destination-out";
 
-      const radius = 26 + Math.random() * 12;
+      const radius = 28 + Math.random() * 14;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
@@ -195,16 +194,15 @@ function ScratchCell({
       for (let i = 0; i < 4; i++) {
         ctx.beginPath();
         ctx.arc(
-          x + (Math.random() - 0.5) * 24,
-          y + (Math.random() - 0.5) * 24,
-          7 + Math.random() * 8,
+          x + (Math.random() - 0.5) * 28,
+          y + (Math.random() - 0.5) * 28,
+          8 + Math.random() * 10,
           0,
           Math.PI * 2
         );
         ctx.fill();
       }
 
-      // Check scratch progress every time
       const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
       let cleared = 0;
       for (let i = 3; i < imageData.data.length; i += 16) {
@@ -212,7 +210,6 @@ function ScratchCell({
       }
       scratched.current = cleared / (SIZE * SIZE / 16);
 
-      // Auto-reveal at 25% (faster reveal)
       if (scratched.current > 0.25 && !cellRevealed.current) {
         cellRevealed.current = true;
         ctx.clearRect(0, 0, SIZE, SIZE);
@@ -223,37 +220,22 @@ function ScratchCell({
     [index, onReveal, disabled]
   );
 
-  const getPos = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left) * (SIZE / rect.width),
-      y: (clientY - rect.top) * (SIZE / rect.height),
-    };
-  }, []);
-
-  // Pointer events for multi-touch
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.setPointerCapture(e.pointerId);
-    activePointers.current.add(e.pointerId);
-    const pos = getPos(e.clientX, e.clientY);
-    scratch(pos.x, pos.y);
-  }, [getPos, scratch]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    if (!activePointers.current.has(e.pointerId)) return;
-    const pos = getPos(e.clientX, e.clientY);
-    scratch(pos.x, pos.y);
-  }, [getPos, scratch]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    activePointers.current.delete(e.pointerId);
-  }, []);
+  // Expose imperative method: scratch at a client coordinate
+  React.useImperativeHandle(ref, () => ({
+    scratchAtClientPos(clientX: number, clientY: number) {
+      const canvas = canvasRef.current;
+      if (!canvas || cellRevealed.current || disabled) return;
+      const rect = canvas.getBoundingClientRect();
+      // Check if the point is inside this cell
+      if (
+        clientX < rect.left || clientX > rect.right ||
+        clientY < rect.top || clientY > rect.bottom
+      ) return;
+      const x = (clientX - rect.left) * (SIZE / rect.width);
+      const y = (clientY - rect.top) * (SIZE / rect.height);
+      scratchXY(x, y);
+    },
+  }), [scratchXY, disabled]);
 
   const prize = PRIZE_DATA[prizeKey] || PRIZE_DATA["nada"];
 
@@ -314,16 +296,12 @@ function ScratchCell({
           height={SIZE}
           className="relative z-10 w-full h-full cursor-pointer"
           style={{ touchAction: "none" }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          onPointerLeave={handlePointerUp}
         />
       )}
     </motion.div>
   );
-}
+});
+ScratchCell.displayName = "ScratchCell";
 
 // ═══════════════════════════════════════════════
 // LUCK BAR COMPONENT
@@ -399,6 +377,8 @@ const ScratchCardPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   const hasRestoredRef = useRef(false);
+  const cellRefs = useRef<(ScratchCellHandle | null)[]>(Array(10).fill(null));
+  const isPointerDown = useRef(false);
 
   // Game state
   const [gameState, setGameState] = useState<"idle" | "scratching" | "finished">("idle");
@@ -814,10 +794,27 @@ const ScratchCardPage = () => {
             {/* ── GRID ── */}
             {gameState !== "idle" && grid.length === 10 ? (
               <>
-                <div className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-3">
+                <div
+                  className="grid grid-cols-5 gap-1.5 sm:gap-2 mb-3"
+                  style={{ touchAction: "none" }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    isPointerDown.current = true;
+                    cellRefs.current.forEach((ref) => ref?.scratchAtClientPos(e.clientX, e.clientY));
+                  }}
+                  onPointerMove={(e) => {
+                    e.preventDefault();
+                    if (!isPointerDown.current) return;
+                    cellRefs.current.forEach((ref) => ref?.scratchAtClientPos(e.clientX, e.clientY));
+                  }}
+                  onPointerUp={() => { isPointerDown.current = false; }}
+                  onPointerCancel={() => { isPointerDown.current = false; }}
+                  onPointerLeave={() => { isPointerDown.current = false; }}
+                >
                   {grid.map((prizeKey, i) => (
                     <ScratchCell
                       key={`cell-${i}-${grid.join("")}`}
+                      ref={(el) => { cellRefs.current[i] = el; }}
                       prizeKey={prizeKey}
                       index={i}
                       revealed={revealedCells[i]}
