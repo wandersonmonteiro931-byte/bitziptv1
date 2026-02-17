@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package } from "lucide-react";
+import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ const clientLinks = [
   { to: "/challenges", label: "Desafios", icon: Gamepad2 },
   { to: "/scratch", label: "Raspadinha", icon: Ticket },
   { to: "/prize-box", label: "Caixa Premiada", icon: Package },
+  { to: "/cup-game", label: "Jogo dos Copos", icon: CupSoda },
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
@@ -43,6 +44,7 @@ const clientBottomNav = [
 const clientMenuLinks = [
   { to: "/scratch", label: "Raspadinha", icon: Ticket },
   { to: "/prize-box", label: "Caixa Premiada", icon: Package },
+  { to: "/cup-game", label: "Jogo dos Copos", icon: CupSoda },
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },

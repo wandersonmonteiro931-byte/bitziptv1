@@ -182,17 +182,19 @@ const CreditsChallengesPage = () => {
                       navigate("/scratch");
                     } else if (ch.challenge_type === "prize_box") {
                       navigate("/prize-box");
+                    } else if (ch.challenge_type === "cup_game") {
+                      navigate("/cup-game");
                     } else {
                       playMutation.mutate(ch.id);
                     }
                   }}
-                  disabled={!canDo || (playMutation.isPending && ch.challenge_type !== "scratch_card" && ch.challenge_type !== "prize_box")}
+                  disabled={!canDo || (playMutation.isPending && ch.challenge_type !== "scratch_card" && ch.challenge_type !== "prize_box" && ch.challenge_type !== "cup_game")}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {playingId === ch.id ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                   ) : (
-                    <><Zap size={16} /> {ch.challenge_type === "scratch_card" ? "Abrir Raspadinha" : ch.challenge_type === "prize_box" ? "Abrir Caixa" : "Jogar"}</>
+                    <><Zap size={16} /> {ch.challenge_type === "scratch_card" ? "Abrir Raspadinha" : ch.challenge_type === "prize_box" ? "Abrir Caixa" : ch.challenge_type === "cup_game" ? "Jogar Copos" : "Jogar"}</>
                   )}
                 </button>
               </div>

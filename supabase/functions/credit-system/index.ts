@@ -549,6 +549,153 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ========== USER: Play Cup Game ==========
+      case "play_cup_game": {
+        const { challenge_id } = data;
+        const { data: profile } = await supabase.from("profiles").select("credits, user_level, balance, total_earned, level_points").eq("id", caller.id).single();
+        if (!profile) throw new Error("Perfil não encontrado");
+
+        const { data: challenge } = await supabase.from("credit_challenges").select("*").eq("id", challenge_id).eq("is_active", true).single();
+        if (!challenge) throw new Error("Desafio não encontrado");
+
+        const levelOrder = ["bronze", "prata", "ouro", "diamante"];
+        if (levelOrder.indexOf(profile.user_level) < levelOrder.indexOf(challenge.min_level)) {
+          throw new Error(`Nível mínimo: ${challenge.min_level}`);
+        }
+
+        if (profile.credits < challenge.cost_credits) throw new Error("Créditos insuficientes");
+
+        // Rate limit
+        const cupThreeSecsAgo = new Date(Date.now() - 3000).toISOString();
+        const { count: cupRecentPlays } = await supabase.from("challenge_attempts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+          .gte("created_at", cupThreeSecsAgo);
+        if ((cupRecentPlays || 0) > 0) throw new Error("Aguarde alguns segundos entre jogadas");
+
+        // Daily limit
+        if (challenge.daily_limit > 0) {
+          const cupTodayStart = new Date(); cupTodayStart.setHours(0,0,0,0);
+          const { count: cupCount } = await supabase.from("challenge_attempts")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+            .gte("created_at", cupTodayStart.toISOString());
+          if ((cupCount || 0) >= challenge.daily_limit) throw new Error("Limite diário atingido");
+        }
+
+        // Check override
+        const cupOverride = await checkOverride(caller.id, "cup_game");
+
+        const cupProbs = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; prize_key?: string }>;
+        let cupSel: typeof cupProbs[0];
+        if (cupOverride && cupOverride.prize_key) {
+          cupSel = { result: cupOverride.result || 0, weight: 1, label: cupOverride.label || "Forçado", reward_type: cupOverride.reward_type || "none", prize_key: cupOverride.prize_key };
+        } else {
+          const cupTotalW = cupProbs.reduce((s, p) => s + p.weight, 0);
+          let cupRand = Math.random() * cupTotalW;
+          cupSel = cupProbs[0];
+          for (const p of cupProbs) {
+            cupRand -= p.weight;
+            if (cupRand <= 0) { cupSel = p; break; }
+          }
+        }
+
+        const cupPrizeValue = cupSel.result;
+        const cupRewardType = cupSel.reward_type || "credits";
+        const cupIsWin = cupPrizeValue > 0 && cupRewardType !== "none";
+
+        // Winning position is random 0-2
+        const winningPosition = Math.floor(Math.random() * 3);
+
+        // Other cups info for "near miss"
+        let cupOtherPrize = "nada";
+        let cupOtherLabel = "Nada";
+        let cupOtherValue = 0;
+        let cupOtherRewardType = "none";
+        if (!cupIsWin) {
+          const cupPrizesWithValue = cupProbs.filter(p => p.result > 0);
+          if (cupPrizesWithValue.length > 0) {
+            const cupSorted = [...cupPrizesWithValue].sort((a, b) => a.result - b.result);
+            const cupOther = cupSorted[Math.floor(Math.random() * Math.min(3, cupSorted.length))];
+            cupOtherPrize = cupOther.prize_key || "nada";
+            cupOtherLabel = cupOther.label;
+            cupOtherValue = cupOther.result;
+            cupOtherRewardType = cupOther.reward_type || "credits";
+          }
+        }
+
+        // Deduct credits and apply rewards
+        const cupNewCredits = profile.credits - challenge.cost_credits + (cupRewardType === "credits" ? cupPrizeValue : 0);
+        const cupProfileUpd: any = { credits: cupNewCredits };
+
+        let cupBalanceWon = 0;
+        if (cupRewardType === "balance" && cupPrizeValue > 0) {
+          cupBalanceWon = cupPrizeValue;
+          cupProfileUpd.balance = Number(profile.balance) + cupPrizeValue;
+          cupProfileUpd.total_earned = Number(profile.total_earned) + cupPrizeValue;
+        }
+
+        await supabase.from("profiles").update(cupProfileUpd).eq("id", caller.id);
+
+        await supabase.from("challenge_attempts").insert({
+          user_id: caller.id,
+          challenge_id,
+          credits_spent: challenge.cost_credits,
+          credits_won: cupRewardType === "credits" ? cupPrizeValue : 0,
+          result_label: cupSel.label,
+          metadata: {
+            challenge_type: "cup_game",
+            reward_type: cupRewardType,
+            balance_won: cupBalanceWon,
+            prize_key: cupSel.prize_key || "nada",
+            winning_position: winningPosition,
+            other_cup: { prize_key: cupOtherPrize, label: cupOtherLabel, value: cupOtherValue, reward_type: cupOtherRewardType },
+          },
+        });
+
+        await logTransaction(caller.id, "challenge_bet", -challenge.cost_credits, profile.credits - challenge.cost_credits, `Jogo dos Copos: ${challenge.name}`);
+        if (cupRewardType === "credits" && cupPrizeValue > 0) {
+          await logTransaction(caller.id, "challenge_win", cupPrizeValue, cupNewCredits, `Prêmio: ${cupSel.label} - ${challenge.name}`);
+        }
+        if (cupRewardType === "balance" && cupPrizeValue > 0) {
+          await supabase.from("balance_history").insert({
+            user_id: caller.id, type: "credit", amount: cupPrizeValue,
+            description: `Prêmio em saldo: ${cupSel.label} - ${challenge.name}`,
+          });
+        }
+
+        await supabase.from("profiles").update({ level_points: (profile as any).level_points + 1 }).eq("id", caller.id);
+        await updateLevel(caller.id);
+
+        const cupMy = new Date().toISOString().slice(0, 7);
+        const { data: cupEr } = await supabase.from("credit_rankings").select("*").eq("user_id", caller.id).eq("month_year", cupMy).maybeSingle();
+        if (cupEr) {
+          await supabase.from("credit_rankings").update({
+            total_credits_used: cupEr.total_credits_used + challenge.cost_credits,
+            total_credits_won: cupEr.total_credits_won + (cupRewardType === "credits" ? cupPrizeValue : 0),
+          }).eq("id", cupEr.id);
+        } else {
+          await supabase.from("credit_rankings").insert({
+            user_id: caller.id, month_year: cupMy,
+            total_credits_used: challenge.cost_credits, total_credits_won: cupRewardType === "credits" ? cupPrizeValue : 0,
+          });
+        }
+
+        result = {
+          success: true,
+          credits_won: cupRewardType === "credits" ? cupPrizeValue : 0,
+          balance_won: cupBalanceWon,
+          reward_type: cupRewardType,
+          label: cupSel.label,
+          prize_key: cupSel.prize_key || "nada",
+          winning_position: winningPosition,
+          other_cup: { prize_key: cupOtherPrize, label: cupOtherLabel, value: cupOtherValue, reward_type: cupOtherRewardType },
+          new_credits: cupNewCredits,
+          new_balance: Number(profile.balance) + cupBalanceWon,
+        };
+        break;
+      }
+
       // ========== ADMIN: Set game override ==========
       case "set_game_override": {
         if (!(await isAdmin())) throw new Error("Apenas administradores");
@@ -592,7 +739,7 @@ Deno.serve(async (req) => {
     }
 
     // Audit log for admin actions
-    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block", "set_game_override", "remove_game_override"].includes(action)) {
+    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block", "set_game_override", "remove_game_override", "play_cup_game"].includes(action)) {
       await supabase.from("admin_audit_logs").insert({
         admin_id: caller.id, action: `credit_${action}`, target_table: "credits", target_id: data.user_id || data.purchase_id || data.override_id || "",
         details: data || {},
