@@ -70,14 +70,14 @@ const AdminRoulettePage = () => {
     } else {
       // Create new
       setEditingSegments([
-        { result: 0, weight: 40, label: "❌ Nada", reward_type: "none", color: COLORS[0] },
-        { result: 1, weight: 25, label: "💎 1 crédito", reward_type: "credits", color: COLORS[1] },
-        { result: 5, weight: 15, label: "💎 5 créditos", reward_type: "credits", color: COLORS[2] },
-        { result: 1, weight: 10, label: "💰 R$1", reward_type: "balance", color: COLORS[3] },
-        { result: 5, weight: 5, label: "💰 R$5", reward_type: "balance", color: COLORS[4] },
-        { result: 10, weight: 3, label: "💰 R$10", reward_type: "balance", color: COLORS[5] },
-        { result: 50, weight: 1.5, label: "💰 R$50", reward_type: "balance", color: COLORS[6] },
-        { result: 100, weight: 0.5, label: "💰 R$100", reward_type: "balance", color: COLORS[7] },
+        { result: 0, weight: 45, label: "Nada", reward_type: "none", color: COLORS[0] },
+        { result: 1, weight: 25, label: "1 crédito", reward_type: "credits", color: COLORS[1] },
+        { result: 2, weight: 15, label: "2 créditos", reward_type: "credits", color: COLORS[2] },
+        { result: 1, weight: 8, label: "R$1", reward_type: "balance", color: COLORS[3] },
+        { result: 5, weight: 5.5, label: "R$5", reward_type: "balance", color: COLORS[4] },
+        { result: 10, weight: 0.5, label: "R$10", reward_type: "balance", color: COLORS[5] },
+        { result: 50, weight: 0.3, label: "R$50", reward_type: "balance", color: COLORS[6] },
+        { result: 100, weight: 0.2, label: "R$100", reward_type: "balance", color: COLORS[7] },
       ]);
       setEditCost(1);
       setEditDailyLimit(0);
