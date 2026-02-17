@@ -487,6 +487,42 @@ export type Database = {
           },
         ]
       }
+      game_overrides: {
+        Row: {
+          challenge_type: string
+          created_at: string
+          created_by: string
+          forced_result: Json
+          id: string
+          is_active: boolean
+          notes: string | null
+          user_id: string
+          uses_remaining: number
+        }
+        Insert: {
+          challenge_type?: string
+          created_at?: string
+          created_by: string
+          forced_result?: Json
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          user_id: string
+          uses_remaining?: number
+        }
+        Update: {
+          challenge_type?: string
+          created_at?: string
+          created_by?: string
+          forced_result?: Json
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          user_id?: string
+          uses_remaining?: number
+        }
+        Relationships: []
+      }
       mission_completions: {
         Row: {
           completed_at: string

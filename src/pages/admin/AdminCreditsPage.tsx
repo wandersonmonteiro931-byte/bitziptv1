@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Diamond, Package, Settings, Users, TrendingUp, Check, X, Plus, Trash2, Edit, ShieldCheck, Ban, Sparkles, Gamepad2, BarChart3 } from "lucide-react";
+import { Diamond, Package, Settings, Users, TrendingUp, Check, X, Plus, Trash2, Edit, ShieldCheck, Ban, Sparkles, Gamepad2, BarChart3, Crosshair } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,11 @@ const AdminCreditsPage = () => {
   const [adjustDesc, setAdjustDesc] = useState("");
   const [newPromo, setNewPromo] = useState({ title: "", description: "", bonus_percentage: 0, ends_at: "" });
   const [showNewPromo, setShowNewPromo] = useState(false);
+  const [showNewOverride, setShowNewOverride] = useState(false);
+  const [overrideForm, setOverrideForm] = useState({
+    user_id: "", challenge_type: "all", uses_remaining: 1, notes: "",
+    prize_key: "nada", reward_type: "none", result: 0, label: "Não ganhou",
+  });
 
   // Queries
   const { data: packages = [] } = useQuery({
@@ -167,6 +172,63 @@ const AdminCreditsPage = () => {
     queryFn: async () => { const { data } = await supabase.from("profiles").select("id, name, username, credits, user_level, vip_badge, credit_purchases_blocked"); return data || []; },
   });
 
+  // Game overrides
+  const { data: overrides = [] } = useQuery({
+    queryKey: ["admin-game-overrides"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("credit-system", {
+        body: { action: "list_game_overrides", data: {} },
+      });
+      if (error || data?.error) return [];
+      return data.overrides || [];
+    },
+  });
+
+  const createOverride = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("credit-system", {
+        body: {
+          action: "set_game_override",
+          data: {
+            user_id: overrideForm.user_id,
+            challenge_type: overrideForm.challenge_type,
+            uses_remaining: overrideForm.uses_remaining,
+            notes: overrideForm.notes,
+            forced_result: {
+              prize_key: overrideForm.prize_key,
+              reward_type: overrideForm.reward_type,
+              result: Number(overrideForm.result),
+              label: overrideForm.label,
+            },
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast({ title: "Manipulação criada!" });
+      setShowNewOverride(false);
+      setOverrideForm({ user_id: "", challenge_type: "all", uses_remaining: 1, notes: "", prize_key: "nada", reward_type: "none", result: 0, label: "Não ganhou" });
+      queryClient.invalidateQueries({ queryKey: ["admin-game-overrides"] });
+    },
+    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const removeOverride = useMutation({
+    mutationFn: async (overrideId: string) => {
+      const { data, error } = await supabase.functions.invoke("credit-system", {
+        body: { action: "remove_game_override", data: { override_id: overrideId } },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      toast({ title: "Manipulação removida" });
+      queryClient.invalidateQueries({ queryKey: ["admin-game-overrides"] });
+    },
+  });
+
   const toggleBlock = async (userId: string, blocked: boolean) => {
     const { data, error } = await supabase.functions.invoke("credit-system", {
       body: { action: "toggle_purchase_block", data: { user_id: userId, blocked: !blocked } },
@@ -223,9 +285,10 @@ const AdminCreditsPage = () => {
       )}
 
       <Tabs defaultValue="packages">
-        <TabsList className="mb-4 w-full grid grid-cols-5">
+        <TabsList className="mb-4 w-full grid grid-cols-6">
           <TabsTrigger value="packages"><Package size={14} className="mr-1" />Pacotes</TabsTrigger>
           <TabsTrigger value="challenges"><Gamepad2 size={14} className="mr-1" />Desafios</TabsTrigger>
+          <TabsTrigger value="manipulate"><Crosshair size={14} className="mr-1" />Manipular</TabsTrigger>
           <TabsTrigger value="users"><Users size={14} className="mr-1" />Usuários</TabsTrigger>
           <TabsTrigger value="promotions"><Sparkles size={14} className="mr-1" />Promoções</TabsTrigger>
           <TabsTrigger value="settings"><Settings size={14} className="mr-1" />Config</TabsTrigger>
@@ -333,6 +396,121 @@ const AdminCreditsPage = () => {
                 )}
               </div>
             ))}
+          </div>
+        </TabsContent>
+
+        {/* MANIPULATE TAB */}
+        <TabsContent value="manipulate">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-bold text-foreground">Manipular Resultados</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Force resultados específicos para jogadores em qualquer jogo</p>
+            </div>
+            <button onClick={() => setShowNewOverride(true)} className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"><Plus size={14} /> Nova</button>
+          </div>
+
+          {showNewOverride && (
+            <div className="glass-card rounded-xl p-4 mb-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Usuário</label>
+                <select className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.user_id} onChange={e => setOverrideForm({...overrideForm, user_id: e.target.value})}>
+                  <option value="">Selecione...</option>
+                  {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} (@{u.username})</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Tipo de Jogo</label>
+                  <select className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.challenge_type} onChange={e => setOverrideForm({...overrideForm, challenge_type: e.target.value})}>
+                    <option value="all">Todos</option>
+                    <option value="prize_box">Caixa Premiada</option>
+                    <option value="scratch_card">Raspadinha</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Usos (0 = ilimitado)</label>
+                  <input type="number" className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.uses_remaining} onChange={e => setOverrideForm({...overrideForm, uses_remaining: Number(e.target.value)})} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Resultado Forçado</label>
+                  <select className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.prize_key} onChange={e => {
+                    const key = e.target.value;
+                    const presets: Record<string, { reward_type: string; result: number; label: string }> = {
+                      nada: { reward_type: "none", result: 0, label: "Não ganhou" },
+                      c1: { reward_type: "credits", result: 1, label: "1 Diamante" },
+                      c3: { reward_type: "credits", result: 3, label: "3 Diamantes" },
+                      c5: { reward_type: "credits", result: 5, label: "5 Diamantes" },
+                      r1: { reward_type: "balance", result: 1, label: "R$ 1,00" },
+                      r5: { reward_type: "balance", result: 5, label: "R$ 5,00" },
+                      r30: { reward_type: "balance", result: 30, label: "R$ 30,00" },
+                      r50: { reward_type: "balance", result: 50, label: "R$ 50,00" },
+                      r100: { reward_type: "balance", result: 100, label: "R$ 100,00" },
+                      r500: { reward_type: "balance", result: 500, label: "R$ 500,00" },
+                      r1000: { reward_type: "balance", result: 1000, label: "R$ 1.000,00" },
+                    };
+                    const preset = presets[key] || presets.nada;
+                    setOverrideForm({...overrideForm, prize_key: key, ...preset});
+                  }}>
+                    <option value="nada">❌ Não ganhou</option>
+                    <option value="c1">💎 1 Diamante</option>
+                    <option value="c3">💎 3 Diamantes</option>
+                    <option value="c5">💎 5 Diamantes</option>
+                    <option value="r1">💰 R$ 1,00</option>
+                    <option value="r5">💰 R$ 5,00</option>
+                    <option value="r30">💰 R$ 30,00</option>
+                    <option value="r50">💰 R$ 50,00</option>
+                    <option value="r100">💰 R$ 100,00</option>
+                    <option value="r500">💰 R$ 500,00</option>
+                    <option value="r1000">💰 R$ 1.000,00</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Valor customizado</label>
+                  <input type="number" className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.result} onChange={e => setOverrideForm({...overrideForm, result: Number(e.target.value)})} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Observação (opcional)</label>
+                <input className="w-full rounded-lg bg-muted/50 border border-border px-3 py-2 text-sm text-foreground mt-1" value={overrideForm.notes} onChange={e => setOverrideForm({...overrideForm, notes: e.target.value})} placeholder="Ex: Teste de prêmio para demonstração" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => createOverride.mutate()} disabled={!overrideForm.user_id || createOverride.isPending} className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">Criar</button>
+                <button onClick={() => setShowNewOverride(false)} className="rounded-lg bg-muted px-4 py-2 text-xs text-foreground">Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          {overrides.length === 0 && !showNewOverride && (
+            <div className="glass-card rounded-xl p-6 text-center">
+              <Crosshair size={24} className="mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">Nenhuma manipulação ativa</p>
+              <p className="text-xs text-muted-foreground mt-1">Crie uma para forçar o resultado de um jogador</p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {overrides.map((ov: any) => {
+              const userName = users.find((u: any) => u.id === ov.user_id);
+              const typeLabel: Record<string, string> = { all: "Todos", prize_box: "Caixa Premiada", scratch_card: "Raspadinha" };
+              return (
+                <div key={ov.id} className="glass-card rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {userName ? `${(userName as any).name} (@${(userName as any).username})` : ov.user_id.slice(0,8)}
+                      <Badge variant="outline" className="ml-2 text-xs">{typeLabel[ov.challenge_type] || ov.challenge_type}</Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Forçar: <span className="font-bold text-foreground">{ov.forced_result?.label || "?"}</span>
+                      {' • '}Usos: {ov.uses_remaining === 0 ? "∞" : ov.uses_remaining}
+                      {ov.notes ? ` • ${ov.notes}` : ""}
+                    </p>
+                  </div>
+                  <button onClick={() => removeOverride.mutate(ov.id)} className="rounded p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"><Trash2 size={14} /></button>
+                </div>
+              );
+            })}
           </div>
         </TabsContent>
 
