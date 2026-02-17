@@ -2,10 +2,10 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Diamond, Zap, Volume2, VolumeX } from "lucide-react";
+import { Diamond, Zap, Volume2, VolumeX, Timer } from "lucide-react";
 import { sfx, setMuted as setSfxMuted } from "@/lib/sounds";
 
 type GamePhase = "idle" | "showing" | "covering" | "shuffling" | "choosing" | "revealing" | "result";
@@ -22,6 +22,8 @@ interface GameResult {
   new_balance: number;
 }
 
+const CHOOSE_TIME = 5;
+
 const CupGamePage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
@@ -34,6 +36,8 @@ const CupGamePage = () => {
   const [muted, setMuted] = useState(false);
   const cooldownRef = useRef(false);
   const [prizePosition, setPrizePosition] = useState<number>(1);
+  const [countdown, setCountdown] = useState<number>(CHOOSE_TIME);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { data: challenge } = useQuery({
     queryKey: ["cup-game-challenge"],
@@ -56,10 +60,49 @@ const CupGamePage = () => {
     },
   });
 
+  // Cleanup countdown on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
+  const handleTimeout = useCallback(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (!gameResult) return;
+    
+    sfx.lose();
+    setRevealedCups([true, true, true]);
+    setCupsDown(false);
+    setPhase("result");
+    // Force loss display
+    setChosenCup(-1); // no cup chosen
+    refreshProfile();
+    queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
+  }, [gameResult, refreshProfile, queryClient]);
+
+  const startCountdown = useCallback(() => {
+    setCountdown(CHOOSE_TIME);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    
+    const start = Date.now();
+    countdownRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      const remaining = CHOOSE_TIME - elapsed;
+      if (remaining <= 0) {
+        setCountdown(0);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        handleTimeout();
+      } else {
+        setCountdown(remaining);
+      }
+    }, 200);
+  }, [handleTimeout]);
+
   const startGame = useCallback(async () => {
     if (cooldownRef.current || phase !== "idle") return;
     cooldownRef.current = true;
-    setTimeout(() => { cooldownRef.current = false; }, 6000);
+    setTimeout(() => { cooldownRef.current = false; }, 8000);
 
     sfx.start();
     setChosenCup(null);
@@ -87,10 +130,13 @@ const CupGamePage = () => {
       setPhase("shuffling");
       sfx.shuffle();
 
+      // MORE SHUFFLES - 24 steps with varying speed
       let positions = [0, 1, 2];
-      const shuffleSteps = 14;
+      const shuffleSteps = 24;
       for (let i = 0; i < shuffleSteps; i++) {
-        await new Promise(r => setTimeout(r, 180));
+        // Speed varies: faster in middle, slower at edges
+        const speed = i < 6 ? 200 - i * 15 : i > 18 ? 100 + (i - 18) * 20 : 100;
+        await new Promise(r => setTimeout(r, speed));
         const a = Math.floor(Math.random() * 3);
         let b = a;
         while (b === a) b = Math.floor(Math.random() * 3);
@@ -98,20 +144,22 @@ const CupGamePage = () => {
         positions[a] = positions[b];
         positions[b] = temp;
         setCupPositions([...positions]);
-        if (i % 3 === 0) sfx.shuffle();
+        if (i % 2 === 0) sfx.shuffle();
       }
 
       setPhase("choosing");
+      startCountdown();
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
       setPhase("idle");
       setCupsDown(false);
       cooldownRef.current = false;
     }
-  }, [challenge, phase, muted]);
+  }, [challenge, phase, startCountdown]);
 
   const chooseCup = useCallback((cupIndex: number) => {
     if (phase !== "choosing" || !gameResult) return;
+    if (countdownRef.current) clearInterval(countdownRef.current);
     sfx.click();
     setChosenCup(cupIndex);
     setPhase("revealing");
@@ -138,7 +186,7 @@ const CupGamePage = () => {
         }, 600);
       }, 800);
     }, 500);
-  }, [phase, gameResult, muted]);
+  }, [phase, gameResult]);
 
   const resetGame = () => {
     setPhase("idle");
@@ -147,12 +195,14 @@ const CupGamePage = () => {
     setRevealedCups([false, false, false]);
     setCupPositions([0, 1, 2]);
     setCupsDown(false);
+    setCountdown(CHOOSE_TIME);
   };
 
   const userCredits = (user as any)?.credits || 0;
   const cost = challenge?.cost_credits || 1;
   const canPlay = userCredits >= cost && phase === "idle";
-  const isWin = gameResult && (gameResult.credits_won > 0 || gameResult.balance_won > 0);
+  const isWin = gameResult && (gameResult.credits_won > 0 || gameResult.balance_won > 0) && chosenCup !== -1;
+  const timedOut = chosenCup === -1;
 
   const cupXPositions = [-110, 0, 110];
 
@@ -166,6 +216,13 @@ const CupGamePage = () => {
 
   const getCupRevealContent = (visualIndex: number) => {
     if (!gameResult || !revealedCups[visualIndex]) return null;
+    if (timedOut) {
+      // Show prize location but user lost
+      if (visualIndex === gameResult.winning_position) {
+        return { emoji: "💰", label: "R$ 1,50", won: false, nearMiss: true };
+      }
+      return { emoji: "❌", label: "Vazio", won: false };
+    }
     if (visualIndex === gameResult.winning_position) {
       if (chosenCup === visualIndex) {
         if (isWin) {
@@ -189,9 +246,9 @@ const CupGamePage = () => {
     showing: "👀 Memorize onde está o prêmio!",
     covering: "⬇️ Cobrindo os itens...",
     shuffling: "🔄 Embaralhando...",
-    choosing: "👆 Escolha um copo!",
+    choosing: `👆 Escolha um copo! (${countdown}s)`,
     revealing: "🔍 Revelando...",
-    result: isWin ? "🎉 Parabéns!" : "😔 Não foi dessa vez...",
+    result: timedOut ? "⏰ Tempo esgotado!" : isWin ? "🎉 Parabéns!" : "😔 Não foi dessa vez...",
   };
 
   return (
@@ -209,7 +266,7 @@ const CupGamePage = () => {
         </div>
 
         {/* Credits bar */}
-        <div className="mb-6 flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3">
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3">
           <div className="flex items-center gap-2">
             <Diamond className="text-primary" size={18} />
             <span className="text-sm text-muted-foreground">Seus créditos:</span>
@@ -217,6 +274,16 @@ const CupGamePage = () => {
           </div>
           <span className="text-xs text-muted-foreground">Custo: {cost} 💎</span>
         </div>
+
+        {/* Timer warning before playing */}
+        {phase === "idle" && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3">
+            <Timer size={16} className="text-warning shrink-0" />
+            <p className="text-xs text-warning">
+              ⚠️ Após o embaralhamento você terá <strong>{CHOOSE_TIME} segundos</strong> para escolher um copo. Se não escolher, perderá o prêmio!
+            </p>
+          </div>
+        )}
 
         {/* Prize info during showing phase */}
         <AnimatePresence>
@@ -228,6 +295,35 @@ const CupGamePage = () => {
               className="mb-4 rounded-xl border border-primary/30 bg-primary/10 p-3 text-center"
             >
               <p className="text-sm font-bold text-primary">Prêmio em jogo: 💰 R$ 1,50</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Countdown bar during choosing */}
+        <AnimatePresence>
+          {phase === "choosing" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mb-4"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-warning flex items-center gap-1">
+                  <Timer size={12} /> Tempo restante
+                </span>
+                <span className={`text-sm font-bold ${countdown <= 2 ? "text-destructive animate-pulse" : "text-warning"}`}>
+                  {countdown}s
+                </span>
+              </div>
+              <div className="h-2 w-full rounded-full bg-muted/50 overflow-hidden">
+                <motion.div
+                  className={`h-full rounded-full ${countdown <= 2 ? "bg-destructive" : "bg-warning"}`}
+                  initial={{ width: "100%" }}
+                  animate={{ width: `${(countdown / CHOOSE_TIME) * 100}%` }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -252,7 +348,7 @@ const CupGamePage = () => {
           {/* Phase text */}
           <AnimatePresence mode="wait">
             <motion.p
-              key={phase}
+              key={phase + countdown}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
@@ -304,7 +400,7 @@ const CupGamePage = () => {
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
                         className={`flex flex-col items-center rounded-lg px-3 py-1 ${
-                          revealContent.won ? "bg-primary/20" : revealContent.nearMiss ? "bg-yellow-500/20" : "bg-muted/50"
+                          revealContent.won ? "bg-primary/20" : revealContent.nearMiss ? "bg-warning/20" : "bg-muted/50"
                         }`}
                       >
                         <span className="text-2xl">{revealContent.emoji}</span>
@@ -313,7 +409,7 @@ const CupGamePage = () => {
                     )}
                   </div>
 
-                  {/* Cup - NO NUMBER */}
+                  {/* Cup */}
                   <motion.button
                     onClick={() => chooseCup(visualIndex)}
                     disabled={phase !== "choosing"}
@@ -333,7 +429,6 @@ const CupGamePage = () => {
                     whileHover={phase === "choosing" ? { scale: 1.08, y: -5 } : {}}
                     whileTap={phase === "choosing" ? { scale: 0.95 } : {}}
                   >
-                    {/* Shine */}
                     <div className="absolute inset-0 rounded-t-3xl rounded-b-lg overflow-hidden">
                       <div className="absolute left-2 top-2 h-16 w-3 rounded-full bg-primary-foreground/20 blur-sm" />
                     </div>
@@ -367,10 +462,14 @@ const CupGamePage = () => {
                 transition={{ duration: 0.5, repeat: isWin ? 2 : 0 }}
                 className="text-5xl mb-3"
               >
-                {isWin ? "🎉" : "😔"}
+                {timedOut ? "⏰" : isWin ? "🎉" : "😔"}
               </motion.div>
-              <h3 className="text-xl font-bold text-foreground mb-1">{gameResult.label}</h3>
-              {isWin ? (
+              <h3 className="text-xl font-bold text-foreground mb-1">
+                {timedOut ? "Tempo esgotado!" : gameResult.label}
+              </h3>
+              {timedOut ? (
+                <p className="text-muted-foreground">Você não escolheu a tempo e perdeu o prêmio!</p>
+              ) : isWin ? (
                 <p className="text-2xl font-bold text-primary">
                   {gameResult.reward_type === "balance"
                     ? `+R$ ${Number(gameResult.balance_won).toFixed(2)} 💰`
@@ -381,7 +480,7 @@ const CupGamePage = () => {
                 <>
                   <p className="text-muted-foreground">Sem prêmio desta vez</p>
                   {gameResult.other_cup.value > 0 && (
-                    <p className="mt-2 text-xs text-yellow-500">
+                    <p className="mt-2 text-xs text-warning">
                       😱 O prêmio estava no outro copo: {gameResult.other_cup.label}!
                     </p>
                   )}
