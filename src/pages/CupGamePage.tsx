@@ -142,15 +142,14 @@ const CupGamePage = () => {
       setPhase("shuffling");
       sfx.shuffle();
 
-      // 50 shuffles with varying speed
+      // 30 shuffles with varying speed
       let positions = [0, 1, 2];
-      const shuffleSteps = 50;
+      const shuffleSteps = 30;
       for (let i = 0; i < shuffleSteps; i++) {
-        // Start slow, speed up in middle, slow down at end
         let speed: number;
-        if (i < 8) speed = 450 - i * 25;
-        else if (i > 42) speed = 250 + (i - 42) * 30;
-        else speed = 280;
+        if (i < 5) speed = 450 - i * 30;
+        else if (i > 24) speed = 250 + (i - 24) * 35;
+        else speed = 300;
         await new Promise(r => setTimeout(r, speed));
         const a = Math.floor(Math.random() * 3);
         let b = a;
@@ -197,16 +196,22 @@ const CupGamePage = () => {
       setTimeout(() => {
         setRevealedCups([true, true, true]);
 
-        setTimeout(() => {
+        setTimeout(async () => {
           const isWin = gameResult.credits_won > 0 || gameResult.balance_won > 0;
           if (isWin) {
             sfx.celebrate();
             try { navigator.vibrate?.([100, 50, 100, 50, 200]); } catch {}
+            toast({
+              title: "🎉 Você ganhou!",
+              description: gameResult.reward_type === "balance"
+                ? `+R$ ${Number(gameResult.balance_won).toFixed(2)} adicionados ao seu saldo!`
+                : `+${gameResult.credits_won} créditos!`,
+            });
           } else {
             sfx.lose();
           }
           setPhase("result");
-          refreshProfile();
+          await refreshProfile();
           queryClient.invalidateQueries({ queryKey: ["my-challenge-attempts"] });
         }, 600);
       }, 800);
