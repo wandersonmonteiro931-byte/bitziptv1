@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Gamepad2, Diamond, Trophy, Zap, Lock } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +14,7 @@ const levelOrder = ["bronze", "prata", "ouro", "diamante"];
 const CreditsChallengesPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [resultAnim, setResultAnim] = useState<{ won: number; balanceWon: number; rewardType: string; label: string; credits: number } | null>(null);
 
@@ -175,14 +177,20 @@ const CreditsChallengesPage = () => {
                   <span className="font-bold text-primary">{ch.cost_credits} 💎</span>
                 </div>
                 <button
-                  onClick={() => playMutation.mutate(ch.id)}
-                  disabled={!canDo || playMutation.isPending}
+                  onClick={() => {
+                    if (ch.challenge_type === "scratch_card") {
+                      navigate("/scratch");
+                    } else {
+                      playMutation.mutate(ch.id);
+                    }
+                  }}
+                  disabled={!canDo || (playMutation.isPending && ch.challenge_type !== "scratch_card")}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {playingId === ch.id ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                   ) : (
-                    <><Zap size={16} /> Jogar</>
+                    <><Zap size={16} /> {ch.challenge_type === "scratch_card" ? "Abrir Raspadinha" : "Jogar"}</>
                   )}
                 </button>
               </div>
