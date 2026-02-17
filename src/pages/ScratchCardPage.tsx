@@ -777,7 +777,7 @@ const ScratchCardPage = () => {
                   style={{ touchAction: "none", userSelect: "none" }}
                   onPointerDown={(e) => {
                     e.preventDefault();
-                    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                    e.currentTarget.setPointerCapture(e.pointerId);
                     isPointerDown.current = true;
                     scratchAllAtPoint(e.clientX, e.clientY);
                   }}
@@ -788,11 +788,11 @@ const ScratchCardPage = () => {
                   }}
                   onPointerUp={(e) => {
                     isPointerDown.current = false;
-                    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+                    e.currentTarget.releasePointerCapture(e.pointerId);
                   }}
                   onPointerCancel={(e) => {
                     isPointerDown.current = false;
-                    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+                    e.currentTarget.releasePointerCapture(e.pointerId);
                   }}
                 >
                   {grid.map((prizeKey, i) => (
