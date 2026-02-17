@@ -107,6 +107,28 @@ Deno.serve(async (req) => {
       await supabase.from("profiles").update({ user_level: level, vip_badge: vip }).eq("id", userId);
     };
 
+    // Helper: check and consume game overrides
+    const checkOverride = async (userId: string, challengeType: string) => {
+      const { data: overrides } = await supabase
+        .from("game_overrides")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .in("challenge_type", [challengeType, "all"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (!overrides || overrides.length === 0) return null;
+      const ov = overrides[0];
+      // Consume one use
+      if (ov.uses_remaining === 1) {
+        await supabase.from("game_overrides").update({ is_active: false }).eq("id", ov.id);
+      } else if (ov.uses_remaining > 1) {
+        await supabase.from("game_overrides").update({ uses_remaining: ov.uses_remaining - 1 }).eq("id", ov.id);
+      }
+      // uses_remaining === 0 means unlimited
+      return ov.forced_result as { prize_key?: string; reward_type?: string; result?: number; label?: string } | null;
+    };
+
     let result: any = {};
 
     switch (action) {
@@ -193,14 +215,23 @@ Deno.serve(async (req) => {
           if ((count || 0) >= challenge.daily_limit) throw new Error("Limite diário de tentativas atingido");
         }
 
+        // Check admin override first
+        const override = await checkOverride(caller.id, challenge.challenge_type);
+        
         // Probabilistic result — backend decides win/loss first
         const probabilities = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; prize_key?: string }>;
-        const totalWeight = probabilities.reduce((sum, p) => sum + p.weight, 0);
-        let random = Math.random() * totalWeight;
-        let selectedResult = probabilities[0];
-        for (const prob of probabilities) {
-          random -= prob.weight;
-          if (random <= 0) { selectedResult = prob; break; }
+        let selectedResult: typeof probabilities[0];
+        if (override && override.prize_key) {
+          // Admin forced result
+          selectedResult = { result: override.result || 0, weight: 1, label: override.label || "Forçado", reward_type: override.reward_type || "none", prize_key: override.prize_key };
+        } else {
+          const totalWeight = probabilities.reduce((sum, p) => sum + p.weight, 0);
+          let random = Math.random() * totalWeight;
+          selectedResult = probabilities[0];
+          for (const prob of probabilities) {
+            random -= prob.weight;
+            if (random <= 0) { selectedResult = prob; break; }
+          }
         }
 
         const prizeValue = selectedResult.result;
@@ -402,14 +433,22 @@ Deno.serve(async (req) => {
           if ((count || 0) >= challenge.daily_limit) throw new Error("Limite diário de tentativas atingido");
         }
 
+        // Check admin override first
+        const boxOverride = await checkOverride(caller.id, "prize_box");
+
         // Determine result from probabilities
         const probs = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; prize_key?: string }>;
-        const totalW = probs.reduce((s, p) => s + p.weight, 0);
-        let rand = Math.random() * totalW;
-        let sel = probs[0];
-        for (const p of probs) {
-          rand -= p.weight;
-          if (rand <= 0) { sel = p; break; }
+        let sel: typeof probs[0];
+        if (boxOverride && boxOverride.prize_key) {
+          sel = { result: boxOverride.result || 0, weight: 1, label: boxOverride.label || "Forçado", reward_type: boxOverride.reward_type || "none", prize_key: boxOverride.prize_key };
+        } else {
+          const totalW = probs.reduce((s, p) => s + p.weight, 0);
+          let rand = Math.random() * totalW;
+          sel = probs[0];
+          for (const p of probs) {
+            rand -= p.weight;
+            if (rand <= 0) { sel = p; break; }
+          }
         }
 
         const prizeValue = sel.result;
@@ -417,29 +456,18 @@ Deno.serve(async (req) => {
         const prizeKey = sel.prize_key || "nada";
         const isWin = prizeValue > 0 && rewardType !== "none";
 
-        // Determine what's in the chosen box and the other box
-        // Chosen box = the prize the user won (or "nada")
-        // Other box = a "near miss" or lesser/greater value for dramatic effect
+        // RULE: One box always has the prize, the other always has "nada"
+        // If user won: chosen box = prize, other = nada
+        // If user lost: chosen box = nada, other = a random prize (for drama)
         let otherBoxPrize = "nada";
         let otherBoxLabel = "Nada";
         let otherBoxValue = 0;
         let otherBoxRewardType = "none";
-        if (isWin) {
-          // Other box shows something worse (could be "nada" or smaller prize)
-          const lesserPrizes = probs.filter(p => p.result < prizeValue && p.result >= 0);
-          if (lesserPrizes.length > 0) {
-            const other = lesserPrizes[Math.floor(Math.random() * lesserPrizes.length)];
-            otherBoxPrize = other.prize_key || "nada";
-            otherBoxLabel = other.label;
-            otherBoxValue = other.result;
-            otherBoxRewardType = other.reward_type || "none";
-          }
-        } else {
-          // Lost - other box shows a prize (near miss effect)
-          const betterPrizes = probs.filter(p => p.result > 0);
-          if (betterPrizes.length > 0) {
-            // Pick a small/medium prize for drama
-            const sortedPrizes = [...betterPrizes].sort((a, b) => a.result - b.result);
+        if (!isWin) {
+          // Show a random prize in the other box for "near miss" effect
+          const prizesWithValue = probs.filter(p => p.result > 0);
+          if (prizesWithValue.length > 0) {
+            const sortedPrizes = [...prizesWithValue].sort((a, b) => a.result - b.result);
             const other = sortedPrizes[Math.floor(Math.random() * Math.min(3, sortedPrizes.length))];
             otherBoxPrize = other.prize_key || "nada";
             otherBoxLabel = other.label;
@@ -447,6 +475,7 @@ Deno.serve(async (req) => {
             otherBoxRewardType = other.reward_type || "credits";
           }
         }
+        // If isWin: other box stays as "nada" (1 prize, 1 nothing)
 
         // Deduct credits and apply rewards
         const newCredits = profile.credits - challenge.cost_credits + (rewardType === "credits" ? prizeValue : 0);
@@ -520,14 +549,52 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ========== ADMIN: Set game override ==========
+      case "set_game_override": {
+        if (!(await isAdmin())) throw new Error("Apenas administradores");
+        const { user_id, challenge_type, forced_result, uses_remaining, notes } = data;
+        if (!user_id || !forced_result) throw new Error("Dados incompletos");
+        await supabase.from("game_overrides").insert({
+          user_id,
+          challenge_type: challenge_type || "all",
+          forced_result,
+          uses_remaining: uses_remaining ?? 1,
+          is_active: true,
+          created_by: caller.id,
+          notes: notes || "",
+        });
+        result = { success: true };
+        break;
+      }
+
+      // ========== ADMIN: List game overrides ==========
+      case "list_game_overrides": {
+        if (!(await isAdmin())) throw new Error("Apenas administradores");
+        const { user_id: uid } = data;
+        let query = supabase.from("game_overrides").select("*").eq("is_active", true).order("created_at", { ascending: false });
+        if (uid) query = query.eq("user_id", uid);
+        const { data: overrides } = await query.limit(50);
+        result = { success: true, overrides: overrides || [] };
+        break;
+      }
+
+      // ========== ADMIN: Remove game override ==========
+      case "remove_game_override": {
+        if (!(await isAdmin())) throw new Error("Apenas administradores");
+        const { override_id } = data;
+        await supabase.from("game_overrides").update({ is_active: false }).eq("id", override_id);
+        result = { success: true };
+        break;
+      }
+
       default:
         throw new Error("Ação desconhecida: " + action);
     }
 
     // Audit log for admin actions
-    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block"].includes(action)) {
+    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block", "set_game_override", "remove_game_override"].includes(action)) {
       await supabase.from("admin_audit_logs").insert({
-        admin_id: caller.id, action: `credit_${action}`, target_table: "credits", target_id: data.user_id || data.purchase_id || "",
+        admin_id: caller.id, action: `credit_${action}`, target_table: "credits", target_id: data.user_id || data.purchase_id || data.override_id || "",
         details: data || {},
       });
     }
