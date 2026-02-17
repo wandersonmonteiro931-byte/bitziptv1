@@ -141,12 +141,11 @@ const CupGamePage = () => {
       setPhase("shuffling");
       sfx.shuffle();
 
-      // MORE SHUFFLES - 24 steps with varying speed
+      // Shuffles with slower, more visible speed
       let positions = [0, 1, 2];
-      const shuffleSteps = 24;
+      const shuffleSteps = 20;
       for (let i = 0; i < shuffleSteps; i++) {
-        // Speed varies: faster in middle, slower at edges
-        const speed = i < 6 ? 200 - i * 15 : i > 18 ? 100 + (i - 18) * 20 : 100;
+        const speed = i < 4 ? 500 - i * 30 : i > 16 ? 300 + (i - 16) * 40 : 350;
         await new Promise(r => setTimeout(r, speed));
         const a = Math.floor(Math.random() * 3);
         let b = a;
