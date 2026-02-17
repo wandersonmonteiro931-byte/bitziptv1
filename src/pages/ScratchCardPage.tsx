@@ -24,6 +24,53 @@ const PRIZE_DATA: Record<string, { emoji: string; label: string; color: string; 
 };
 
 // ═══════════════════════════════════════════════
+// LOCAL STORAGE PERSISTENCE
+// ═══════════════════════════════════════════════
+const STORAGE_KEY = "scratch_game_state";
+
+interface SavedGameState {
+  grid: string[];
+  revealedCells: boolean[];
+  matchedCells: number[];
+  backendResult: any;
+  wonPrizeKey: string | null;
+  gameState: "scratching" | "finished";
+  gameFinished: boolean;
+  showResult: boolean;
+  userId: string;
+  timestamp: number;
+}
+
+function saveGameState(state: SavedGameState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function loadGameState(userId: string): SavedGameState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedGameState;
+    // Must belong to the same user and be less than 24h old
+    if (parsed.userId !== userId) return null;
+    if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearGameState() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════
 // CONFETTI EFFECT
 // ═══════════════════════════════════════════════
 function ConfettiEffect({ active }: { active: boolean }) {
@@ -57,7 +104,7 @@ function ConfettiEffect({ active }: { active: boolean }) {
 }
 
 // ═══════════════════════════════════════════════
-// SCRATCH CELL COMPONENT
+// SCRATCH CELL COMPONENT (multi-touch support)
 // ═══════════════════════════════════════════════
 function ScratchCell({
   prizeKey,
@@ -75,9 +122,9 @@ function ScratchCell({
   disabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDrawing = useRef(false);
   const cellRevealed = useRef(false);
   const scratched = useRef(0);
+  const activePointers = useRef<Set<number>>(new Set());
   const SIZE = 200;
 
   const initCanvas = useCallback(() => {
@@ -86,7 +133,6 @@ function ScratchCell({
     const ctx = canvas.getContext("2d")!;
     ctx.globalCompositeOperation = "source-over";
 
-    // Metallic gradient scratch layer
     const gradient = ctx.createLinearGradient(0, 0, SIZE, SIZE);
     gradient.addColorStop(0, "#2a1a4e");
     gradient.addColorStop(0.3, "#1e3a6e");
@@ -96,7 +142,6 @@ function ScratchCell({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, SIZE, SIZE);
 
-    // Shimmer sparkles
     for (let i = 0; i < 50; i++) {
       const sx = Math.random() * SIZE;
       const sy = Math.random() * SIZE;
@@ -106,7 +151,6 @@ function ScratchCell({
       ctx.fill();
     }
 
-    // Cross-hatch pattern
     ctx.strokeStyle = "rgba(100, 200, 255, 0.06)";
     ctx.lineWidth = 0.5;
     for (let i = -SIZE; i < SIZE * 2; i += 12) {
@@ -114,7 +158,6 @@ function ScratchCell({
       ctx.beginPath(); ctx.moveTo(i + SIZE, 0); ctx.lineTo(i, SIZE); ctx.stroke();
     }
 
-    // "?" text with glow
     ctx.shadowColor = "#00d4ff";
     ctx.shadowBlur = 20;
     ctx.fillStyle = "#00d4ff";
@@ -124,7 +167,6 @@ function ScratchCell({
     ctx.fillText("?", SIZE / 2, SIZE / 2);
     ctx.shadowBlur = 0;
 
-    // Neon border
     ctx.strokeStyle = "rgba(0, 200, 255, 0.25)";
     ctx.lineWidth = 3;
     ctx.strokeRect(2, 2, SIZE - 4, SIZE - 4);
@@ -133,8 +175,10 @@ function ScratchCell({
   useEffect(() => {
     cellRevealed.current = false;
     scratched.current = 0;
-    initCanvas();
-  }, [initCanvas, prizeKey]);
+    if (!revealed) {
+      initCanvas();
+    }
+  }, [initCanvas, prizeKey, revealed]);
 
   const scratch = useCallback(
     (x: number, y: number) => {
@@ -143,37 +187,33 @@ function ScratchCell({
       const ctx = canvas.getContext("2d")!;
       ctx.globalCompositeOperation = "destination-out";
 
-      // Main brush
-      const radius = 24 + Math.random() * 10;
+      const radius = 26 + Math.random() * 12;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Texture sub-circles
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 4; i++) {
         ctx.beginPath();
         ctx.arc(
-          x + (Math.random() - 0.5) * 20,
-          y + (Math.random() - 0.5) * 20,
-          6 + Math.random() * 6,
+          x + (Math.random() - 0.5) * 24,
+          y + (Math.random() - 0.5) * 24,
+          7 + Math.random() * 8,
           0,
           Math.PI * 2
         );
         ctx.fill();
       }
 
-      // Check scratch progress (throttled)
-      if (Math.random() > 0.5) {
-        const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
-        let cleared = 0;
-        for (let i = 3; i < imageData.data.length; i += 16) {
-          if (imageData.data[i] === 0) cleared++;
-        }
-        scratched.current = cleared / (SIZE * SIZE / 4);
+      // Check scratch progress every time
+      const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
+      let cleared = 0;
+      for (let i = 3; i < imageData.data.length; i += 16) {
+        if (imageData.data[i] === 0) cleared++;
       }
+      scratched.current = cleared / (SIZE * SIZE / 16);
 
-      // Auto-reveal at 30%
-      if (scratched.current > 0.3 && !cellRevealed.current) {
+      // Auto-reveal at 25% (faster reveal)
+      if (scratched.current > 0.25 && !cellRevealed.current) {
         cellRevealed.current = true;
         ctx.clearRect(0, 0, SIZE, SIZE);
         onReveal(index);
@@ -183,37 +223,37 @@ function ScratchCell({
     [index, onReveal, disabled]
   );
 
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current!;
+  const getPos = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const scaleX = SIZE / rect.width;
-    const scaleY = SIZE / rect.height;
-    if ("touches" in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      };
-    }
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (clientX - rect.left) * (SIZE / rect.width),
+      y: (clientY - rect.top) * (SIZE / rect.height),
     };
-  };
+  }, []);
 
-  const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+  // Pointer events for multi-touch
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    isDrawing.current = true;
-    const pos = getPos(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.setPointerCapture(e.pointerId);
+    activePointers.current.add(e.pointerId);
+    const pos = getPos(e.clientX, e.clientY);
     scratch(pos.x, pos.y);
-  };
-  const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
+  }, [getPos, scratch]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    if (!isDrawing.current) return;
-    scratch(getPos(e).x, getPos(e).y);
-  };
-  const handleEnd = () => {
-    isDrawing.current = false;
-  };
+    if (!activePointers.current.has(e.pointerId)) return;
+    const pos = getPos(e.clientX, e.clientY);
+    scratch(pos.x, pos.y);
+  }, [getPos, scratch]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    activePointers.current.delete(e.pointerId);
+  }, []);
 
   const prize = PRIZE_DATA[prizeKey] || PRIZE_DATA["nada"];
 
@@ -244,7 +284,6 @@ function ScratchCell({
       }
       transition={{ duration: 0.8, repeat: isMatched ? 3 : 0, ease: "easeInOut" }}
     >
-      {/* Prize layer underneath */}
       <div
         className="absolute inset-0 flex flex-col items-center justify-center gap-0.5"
         style={{
@@ -268,20 +307,18 @@ function ScratchCell({
         </span>
       </div>
 
-      {/* Canvas scratch layer */}
       {!revealed && (
         <canvas
           ref={canvasRef}
           width={SIZE}
           height={SIZE}
-          className="relative z-10 w-full h-full cursor-pointer touch-none"
-          onMouseDown={handleStart}
-          onMouseMove={handleMove}
-          onMouseUp={handleEnd}
-          onMouseLeave={handleEnd}
-          onTouchStart={handleStart}
-          onTouchMove={handleMove}
-          onTouchEnd={handleEnd}
+          className="relative z-10 w-full h-full cursor-pointer"
+          style={{ touchAction: "none" }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerLeave={handlePointerUp}
         />
       )}
     </motion.div>
@@ -324,7 +361,6 @@ function LuckBar({ gamesPlayed }: { gamesPlayed: number }) {
 // NEAR-MISS INDICATOR
 // ═══════════════════════════════════════════════
 function NearMissIndicator({ grid, revealedCells }: { grid: string[]; revealedCells: boolean[] }) {
-  // Count how close we are to 3 matching
   const counts: Record<string, number> = {};
   revealedCells.forEach((r, i) => {
     if (r) {
@@ -362,6 +398,7 @@ function NearMissIndicator({ grid, revealedCells }: { grid: string[]; revealedCe
 const ScratchCardPage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const hasRestoredRef = useRef(false);
 
   // Game state
   const [gameState, setGameState] = useState<"idle" | "scratching" | "finished">("idle");
@@ -377,6 +414,41 @@ const ScratchCardPage = () => {
   const userCredits = (user as any)?.credits || 0;
   const userLevel = (user as any)?.user_level || "bronze";
   const isVip = (user as any)?.vip_badge || false;
+
+  // ── Restore saved game on mount ──
+  useEffect(() => {
+    if (!user?.id || hasRestoredRef.current) return;
+    hasRestoredRef.current = true;
+
+    const saved = loadGameState(user.id);
+    if (saved && saved.grid.length === 10) {
+      setGrid(saved.grid);
+      setRevealedCells(saved.revealedCells);
+      setMatchedCells(saved.matchedCells);
+      setBackendResult(saved.backendResult);
+      setWonPrizeKey(saved.wonPrizeKey);
+      setGameState(saved.gameState);
+      setGameFinished(saved.gameFinished);
+      setShowResult(saved.showResult);
+    }
+  }, [user?.id]);
+
+  // ── Save game state whenever it changes ──
+  useEffect(() => {
+    if (!user?.id || gameState === "idle" || grid.length === 0) return;
+    saveGameState({
+      grid,
+      revealedCells,
+      matchedCells,
+      backendResult,
+      wonPrizeKey,
+      gameState,
+      gameFinished,
+      showResult,
+      userId: user.id,
+      timestamp: Date.now(),
+    });
+  }, [grid, revealedCells, matchedCells, backendResult, wonPrizeKey, gameState, gameFinished, showResult, user?.id]);
 
   // ── Queries ──
   const { data: scratchChallenge } = useQuery({
@@ -474,7 +546,6 @@ const ScratchCardPage = () => {
     onSuccess: (data) => {
       setBackendResult(data);
       setWonPrizeKey(data.prize_key !== "nada" ? data.prize_key : null);
-      // Grid comes from server now
       setGrid(data.grid || []);
       setRevealedCells(Array(10).fill(false));
       setMatchedCells([]);
@@ -507,7 +578,6 @@ const ScratchCardPage = () => {
         next[index] = true;
         const revealedCount = next.filter(Boolean).length;
 
-        // Count revealed prize keys
         const counts: Record<string, number[]> = {};
         next.forEach((r, i) => {
           if (r) {
@@ -517,7 +587,6 @@ const ScratchCardPage = () => {
           }
         });
 
-        // Check for 3 matching
         let foundMatch = false;
         let matchIndices: number[] = [];
         for (const [, indices] of Object.entries(counts)) {
@@ -535,6 +604,7 @@ const ScratchCardPage = () => {
             setRevealedCells(Array(10).fill(true));
             setGameState("finished");
             setShowResult(true);
+            clearGameState();
             if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
             if (wonPrizeKey) {
               setShowConfetti(true);
@@ -555,6 +625,7 @@ const ScratchCardPage = () => {
           setTimeout(() => {
             setGameState("finished");
             setShowResult(true);
+            clearGameState();
             if (navigator.vibrate) navigator.vibrate(30);
           }, 500);
         }
@@ -704,7 +775,6 @@ const ScratchCardPage = () => {
                   : "Jogo finalizado!"}
             </p>
 
-            {/* Progress bar while scratching */}
             {gameState === "scratching" && (
               <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "hsl(220 15% 15%)" }}>
                 <motion.div
@@ -758,7 +828,6 @@ const ScratchCardPage = () => {
                   ))}
                 </div>
 
-                {/* Near miss indicator */}
                 {gameState === "scratching" && !gameFinished && (
                   <NearMissIndicator
                     grid={grid}
@@ -880,6 +949,7 @@ const ScratchCardPage = () => {
             <motion.button
               whileTap={{ scale: 0.96 }}
               onClick={() => {
+                clearGameState();
                 setGameState("idle");
                 setGrid([]);
                 setShowResult(false);
