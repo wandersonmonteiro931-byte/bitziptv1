@@ -113,7 +113,7 @@ interface ScratchCellHandle {
 
 const CELL_SIZE = 200;
 const BRUSH_RADIUS = 38; // Large brush - reveals wherever finger passes
-const REVEAL_THRESHOLD = 0.30; // 30% to auto-reveal
+const REVEAL_THRESHOLD = 0.20; // 20% to auto-reveal
 const CHECK_INTERVAL = 3; // Check every 3 strokes
 
 const ScratchCell = React.forwardRef<
@@ -199,8 +199,20 @@ const ScratchCell = React.forwardRef<
     }
     if (cleared / total >= REVEAL_THRESHOLD) {
       cellRevealed.current = true;
-      ctx.clearRect(0, 0, CELL_SIZE, CELL_SIZE);
-      onReveal(index);
+      // Don't clear entire canvas - fade it out gradually so only scratched area shows first
+      const canvasEl = canvas;
+      let opacity = 1;
+      const fadeOut = () => {
+        opacity -= 0.08;
+        if (opacity <= 0) {
+          canvasEl.style.opacity = "0";
+          onReveal(index);
+        } else {
+          canvasEl.style.opacity = String(opacity);
+          requestAnimationFrame(fadeOut);
+        }
+      };
+      requestAnimationFrame(fadeOut);
       if (navigator.vibrate) navigator.vibrate(15);
     }
   }, [index, onReveal]);
