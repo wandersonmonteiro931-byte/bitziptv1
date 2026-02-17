@@ -112,9 +112,9 @@ interface ScratchCellHandle {
 }
 
 const CELL_SIZE = 200;
-const BRUSH_RADIUS = 22; // Medium brush for natural feel
-const REVEAL_THRESHOLD = 0.50; // 50% must be scratched
-const CHECK_INTERVAL = 4; // Only check % every N strokes
+const BRUSH_RADIUS = 38; // Large brush - reveals wherever finger passes
+const REVEAL_THRESHOLD = 0.45; // 45% to auto-reveal
+const CHECK_INTERVAL = 3; // Check every 3 strokes
 
 const ScratchCell = React.forwardRef<
   ScratchCellHandle,
