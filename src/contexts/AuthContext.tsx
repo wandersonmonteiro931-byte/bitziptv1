@@ -19,6 +19,11 @@ export interface Profile {
   pix_key: string;
   created_at: string;
   balance_frozen: boolean;
+  credits: number;
+  credit_purchases_blocked: boolean;
+  vip_badge: boolean;
+  user_level: string;
+  level_points: number;
 }
 
 interface AuthContextType {

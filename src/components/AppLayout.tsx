@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3 } from "lucide-react";
+import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ import logo from "@/assets/logo-bitz.jpg";
 const clientLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
+  { to: "/credits", label: "Créditos", icon: Diamond },
+  { to: "/challenges", label: "Desafios", icon: Gamepad2 },
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
@@ -19,6 +21,7 @@ const adminLinks = [
   { to: "/admin", label: "Painel", icon: LayoutDashboard },
   { to: "/admin/users", label: "Usuários", icon: Users },
   { to: "/admin/missions", label: "Missões", icon: Target },
+  { to: "/admin/credits", label: "Créditos", icon: Diamond },
   { to: "/admin/withdrawals", label: "Saques", icon: Wallet },
   { to: "/admin/referrals", label: "Indicações", icon: Gift },
   { to: "/admin/content", label: "Conteúdo", icon: Megaphone },
@@ -30,11 +33,13 @@ const adminLinks = [
 const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
-  { to: "/referrals", label: "Indicar", icon: Users },
-  { to: "/withdrawals", label: "Saques", icon: Wallet },
+  { to: "/credits", label: "Créditos", icon: Diamond },
+  { to: "/challenges", label: "Desafios", icon: Gamepad2 },
 ];
 
 const clientMenuLinks = [
+  { to: "/referrals", label: "Indicações", icon: Users },
+  { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
   { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
@@ -79,6 +84,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <Wallet size={13} />
               Saque
             </button>
+            <div className="flex items-center gap-1 rounded-full bg-muted/70 px-3 py-1.5 text-xs font-bold text-foreground">
+              💎 {(user as any)?.credits || 0}
+            </div>
             <div className="flex items-center gap-1 rounded-full bg-muted/70 px-3 py-1.5 text-xs font-bold text-foreground">
               💰 R$&nbsp;{balance.toFixed(2)}
             </div>
