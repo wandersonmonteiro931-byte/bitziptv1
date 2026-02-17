@@ -48,20 +48,23 @@ const WithdrawalsPage = () => {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.from("withdrawals").insert({
-      user_id: user.id,
-      amount: val,
-      pix_key: pixKey,
+    // Deduct balance immediately via edge function
+    const { data: deductResult, error: deductError } = await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "request_withdrawal", user_id: user.id, data: { amount: val, pix_key: pixKey } },
     });
-    setSubmitting(false);
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Solicitação enviada!", description: "Aguarde aprovação do administrador." });
-      setPixKey("");
-      setAmount("");
-      loadWithdrawals();
+
+    if (deductError || deductResult?.error) {
+      toast({ title: "Erro", description: deductResult?.error || deductError?.message, variant: "destructive" });
+      setSubmitting(false);
+      return;
     }
+
+    setSubmitting(false);
+    toast({ title: "Solicitação enviada!", description: "O valor foi descontado do seu saldo. Aguarde aprovação." });
+    setPixKey("");
+    setAmount("");
+    await refreshProfile();
+    loadWithdrawals();
   };
 
   return (

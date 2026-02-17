@@ -33,6 +33,49 @@ Deno.serve(async (req) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // request_withdrawal does NOT require admin role — it's called by the user
+    const body = await req.json();
+    const { action, user_id, data } = body;
+
+    if (action === "request_withdrawal") {
+      // User-facing: deduct balance immediately and create withdrawal
+      const { amount, pix_key } = data;
+      if (!amount || !pix_key) throw new Error("amount e pix_key são obrigatórios");
+
+      const { data: profile } = await supabaseAdmin.from("profiles").select("balance, balance_frozen").eq("id", user_id).single();
+      if (!profile) throw new Error("Usuário não encontrado");
+      if (profile.balance_frozen) throw new Error("Saldo congelado. Saques bloqueados.");
+      if (Number(profile.balance) < Number(amount)) throw new Error("Saldo insuficiente");
+      if (Number(amount) < 30) throw new Error("Valor mínimo de R$ 30,00");
+
+      // Deduct balance immediately
+      await supabaseAdmin.from("profiles").update({
+        balance: Number(profile.balance) - Number(amount),
+      }).eq("id", user_id);
+
+      // Create withdrawal record
+      await supabaseAdmin.from("withdrawals").insert({
+        user_id,
+        amount: Number(amount),
+        pix_key,
+        status: "pending",
+      });
+
+      // Log in balance_history
+      await supabaseAdmin.from("balance_history").insert({
+        user_id,
+        type: "withdrawal",
+        amount: Math.abs(Number(amount)),
+        description: `Saque solicitado - PIX: ${pix_key} (em análise)`,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // All other actions require admin role
     const { data: roleData } = await supabaseAdmin
       .from("user_roles").select("role").eq("user_id", caller.id).eq("role", "admin").maybeSingle();
 
@@ -104,12 +147,7 @@ Deno.serve(async (req) => {
         const { withdrawal_id, status, admin_notes } = data;
         const { data: withdrawal } = await supabaseAdmin.from("withdrawals").select("*").eq("id", withdrawal_id).single();
         if (!withdrawal) throw new Error("Saque não encontrado");
-
-        // Check if user balance is frozen
-        const { data: wProfile } = await supabaseAdmin.from("profiles").select("balance, balance_frozen").eq("id", withdrawal.user_id).single();
-        if (status === "approved" && wProfile?.balance_frozen) {
-          throw new Error("Saldo do usuário está congelado. Descongele antes de aprovar.");
-        }
+        if (withdrawal.status !== "pending") throw new Error("Saque já foi processado");
 
         await supabaseAdmin.from("withdrawals").update({
           status,
@@ -117,10 +155,8 @@ Deno.serve(async (req) => {
           processed_at: new Date().toISOString(),
         }).eq("id", withdrawal_id);
 
-        if (status === "approved" && wProfile) {
-          await supabaseAdmin.from("profiles").update({
-            balance: Number(wProfile.balance) - Number(withdrawal.amount),
-          }).eq("id", withdrawal.user_id);
+        if (status === "approved") {
+          // Balance already deducted at request time — just log confirmation
           await supabaseAdmin.from("balance_history").insert({
             user_id: withdrawal.user_id,
             type: "withdrawal",
@@ -128,6 +164,21 @@ Deno.serve(async (req) => {
             description: `Saque aprovado - PIX: ${withdrawal.pix_key}`,
             admin_id: caller.id,
           });
+        } else if (status === "rejected") {
+          // Return balance to user
+          const { data: wProfile } = await supabaseAdmin.from("profiles").select("balance").eq("id", withdrawal.user_id).single();
+          if (wProfile) {
+            await supabaseAdmin.from("profiles").update({
+              balance: Number(wProfile.balance) + Number(withdrawal.amount),
+            }).eq("id", withdrawal.user_id);
+            await supabaseAdmin.from("balance_history").insert({
+              user_id: withdrawal.user_id,
+              type: "credit",
+              amount: Number(withdrawal.amount),
+              description: `Saque recusado - saldo devolvido`,
+              admin_id: caller.id,
+            });
+          }
         }
 
         result = { success: true };
