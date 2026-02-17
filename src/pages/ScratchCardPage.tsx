@@ -613,19 +613,11 @@ const ScratchCardPage = () => {
             setGameState("finished");
             setShowResult(true);
             clearGameState();
+            refreshProfile();
             if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
             if (wonPrizeKey) {
               setShowConfetti(true);
               setTimeout(() => setShowConfetti(false), 4000);
-              const bData = backendResult;
-              const prizeText =
-                bData?.reward_type === "balance"
-                  ? `R$ ${Number(bData.balance_won).toFixed(2)} em saldo!`
-                  : `${bData?.credits_won} créditos!`;
-              toast({
-                title: `🏆 3 IGUAIS! Você ganhou ${prizeText}`,
-                description: bData?.label,
-              });
             }
           }, 800);
         } else if (revealedCount >= 10) {
@@ -634,6 +626,7 @@ const ScratchCardPage = () => {
             setGameState("finished");
             setShowResult(true);
             clearGameState();
+            refreshProfile();
             if (navigator.vibrate) navigator.vibrate(30);
           }, 500);
         }
