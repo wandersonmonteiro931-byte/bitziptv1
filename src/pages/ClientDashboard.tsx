@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, TrendingUp, Target, Users, ArrowUpRight, Clock, Snowflake, ArrowDownRight } from "lucide-react";
+import { Wallet, TrendingUp, Target, Users, ArrowUpRight, Clock, Snowflake, ArrowDownRight, RefreshCw } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
@@ -31,7 +31,7 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 const ClientDashboard = () => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   useRealtimeBalance();
 
   const [completionsCount, setCompletionsCount] = useState(0);
@@ -39,25 +39,33 @@ const ClientDashboard = () => {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [activeMissions, setActiveMissions] = useState<any[]>([]);
   const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadData = async () => {
+    if (!user) return;
+    const [completions, referrals, history, missions, chartData] = await Promise.all([
+      supabase.from("mission_completions").select("id", { count: "exact" }).eq("user_id", user.id).eq("status", "approved"),
+      supabase.from("referrals").select("id", { count: "exact" }).eq("referrer_id", user.id),
+      supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
+      supabase.from("missions").select("*").eq("is_active", true).limit(3),
+      supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: true }).limit(30),
+    ]);
+    setCompletionsCount(completions.count || 0);
+    setReferralsCount(referrals.count || 0);
+    setRecentActivity(history.data || []);
+    setActiveMissions(missions.data || []);
+    setBalanceHistory(chartData.data || []);
+  };
 
   useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      const [completions, referrals, history, missions, chartData] = await Promise.all([
-        supabase.from("mission_completions").select("id", { count: "exact" }).eq("user_id", user.id).eq("status", "approved"),
-        supabase.from("referrals").select("id", { count: "exact" }).eq("referrer_id", user.id),
-        supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
-        supabase.from("missions").select("*").eq("is_active", true).limit(3),
-        supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: true }).limit(30),
-      ]);
-      setCompletionsCount(completions.count || 0);
-      setReferralsCount(referrals.count || 0);
-      setRecentActivity(history.data || []);
-      setActiveMissions(missions.data || []);
-      setBalanceHistory(chartData.data || []);
-    };
-    load();
+    loadData();
   }, [user]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([refreshProfile(), loadData()]);
+    setIsRefreshing(false);
+  };
 
   const balance = Number(user?.balance || 0);
   const isFrozen = user?.balance_frozen;
@@ -81,11 +89,21 @@ const ClientDashboard = () => {
 
   return (
     <AppLayout>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground md:text-3xl">
-          Olá, <span className="text-gradient-primary">{user?.name?.split(" ")[0]}</span>! 👋
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Confira seu progresso e missões disponíveis</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground md:text-3xl">
+            Olá, <span className="text-gradient-primary">{user?.name?.split(" ")[0]}</span>! 👋
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Confira seu progresso e missões disponíveis</p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-all hover:bg-primary/20 disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
+          Atualizar
+        </button>
       </div>
 
       {/* Frozen banner */}
