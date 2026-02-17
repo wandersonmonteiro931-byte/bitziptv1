@@ -368,6 +368,158 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ========== USER: Play Prize Box ==========
+      case "play_prize_box": {
+        const { challenge_id } = data;
+        const { data: profile } = await supabase.from("profiles").select("credits, user_level, balance, total_earned, level_points").eq("id", caller.id).single();
+        if (!profile) throw new Error("Perfil não encontrado");
+
+        const { data: challenge } = await supabase.from("credit_challenges").select("*").eq("id", challenge_id).eq("is_active", true).single();
+        if (!challenge) throw new Error("Desafio não encontrado");
+
+        const levelOrder = ["bronze", "prata", "ouro", "diamante"];
+        if (levelOrder.indexOf(profile.user_level) < levelOrder.indexOf(challenge.min_level)) {
+          throw new Error(`Nível mínimo: ${challenge.min_level}`);
+        }
+
+        if (profile.credits < challenge.cost_credits) throw new Error("Créditos insuficientes");
+
+        // Anti-fraud: rate limit
+        const threeSecsAgo = new Date(Date.now() - 3000).toISOString();
+        const { count: recentPlays } = await supabase.from("challenge_attempts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+          .gte("created_at", threeSecsAgo);
+        if ((recentPlays || 0) > 0) throw new Error("Aguarde alguns segundos entre jogadas");
+
+        // Check daily limit
+        if (challenge.daily_limit > 0) {
+          const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+          const { count } = await supabase.from("challenge_attempts")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+            .gte("created_at", todayStart.toISOString());
+          if ((count || 0) >= challenge.daily_limit) throw new Error("Limite diário de tentativas atingido");
+        }
+
+        // Determine result from probabilities
+        const probs = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; prize_key?: string }>;
+        const totalW = probs.reduce((s, p) => s + p.weight, 0);
+        let rand = Math.random() * totalW;
+        let sel = probs[0];
+        for (const p of probs) {
+          rand -= p.weight;
+          if (rand <= 0) { sel = p; break; }
+        }
+
+        const prizeValue = sel.result;
+        const rewardType = sel.reward_type || "credits";
+        const prizeKey = sel.prize_key || "nada";
+        const isWin = prizeValue > 0 && rewardType !== "none";
+
+        // Determine what's in the chosen box and the other box
+        // Chosen box = the prize the user won (or "nada")
+        // Other box = a "near miss" or lesser/greater value for dramatic effect
+        let otherBoxPrize = "nada";
+        let otherBoxLabel = "Nada";
+        let otherBoxValue = 0;
+        let otherBoxRewardType = "none";
+        if (isWin) {
+          // Other box shows something worse (could be "nada" or smaller prize)
+          const lesserPrizes = probs.filter(p => p.result < prizeValue && p.result >= 0);
+          if (lesserPrizes.length > 0) {
+            const other = lesserPrizes[Math.floor(Math.random() * lesserPrizes.length)];
+            otherBoxPrize = other.prize_key || "nada";
+            otherBoxLabel = other.label;
+            otherBoxValue = other.result;
+            otherBoxRewardType = other.reward_type || "none";
+          }
+        } else {
+          // Lost - other box shows a prize (near miss effect)
+          const betterPrizes = probs.filter(p => p.result > 0);
+          if (betterPrizes.length > 0) {
+            // Pick a small/medium prize for drama
+            const sortedPrizes = [...betterPrizes].sort((a, b) => a.result - b.result);
+            const other = sortedPrizes[Math.floor(Math.random() * Math.min(3, sortedPrizes.length))];
+            otherBoxPrize = other.prize_key || "nada";
+            otherBoxLabel = other.label;
+            otherBoxValue = other.result;
+            otherBoxRewardType = other.reward_type || "credits";
+          }
+        }
+
+        // Deduct credits and apply rewards
+        const newCredits = profile.credits - challenge.cost_credits + (rewardType === "credits" ? prizeValue : 0);
+        const profileUpd: any = { credits: newCredits };
+
+        let balanceWon = 0;
+        if (rewardType === "balance" && prizeValue > 0) {
+          balanceWon = prizeValue;
+          profileUpd.balance = Number(profile.balance) + prizeValue;
+          profileUpd.total_earned = Number(profile.total_earned) + prizeValue;
+        }
+
+        await supabase.from("profiles").update(profileUpd).eq("id", caller.id);
+
+        // Log attempt
+        await supabase.from("challenge_attempts").insert({
+          user_id: caller.id,
+          challenge_id,
+          credits_spent: challenge.cost_credits,
+          credits_won: rewardType === "credits" ? prizeValue : 0,
+          result_label: sel.label,
+          metadata: {
+            challenge_type: "prize_box",
+            reward_type: rewardType,
+            balance_won: balanceWon,
+            prize_key: prizeKey,
+            other_box: { prize_key: otherBoxPrize, label: otherBoxLabel, value: otherBoxValue, reward_type: otherBoxRewardType },
+          },
+        });
+
+        await logTransaction(caller.id, "challenge_bet", -challenge.cost_credits, profile.credits - challenge.cost_credits, `Caixa Premiada: ${challenge.name}`);
+        if (rewardType === "credits" && prizeValue > 0) {
+          await logTransaction(caller.id, "challenge_win", prizeValue, newCredits, `Prêmio: ${sel.label} - ${challenge.name}`);
+        }
+        if (rewardType === "balance" && prizeValue > 0) {
+          await supabase.from("balance_history").insert({
+            user_id: caller.id, type: "credit", amount: prizeValue,
+            description: `Prêmio em saldo: ${sel.label} - ${challenge.name}`,
+          });
+        }
+
+        await supabase.from("profiles").update({ level_points: (profile as any).level_points + 1 }).eq("id", caller.id);
+        await updateLevel(caller.id);
+
+        // Monthly ranking
+        const my = new Date().toISOString().slice(0, 7);
+        const { data: er } = await supabase.from("credit_rankings").select("*").eq("user_id", caller.id).eq("month_year", my).maybeSingle();
+        if (er) {
+          await supabase.from("credit_rankings").update({
+            total_credits_used: er.total_credits_used + challenge.cost_credits,
+            total_credits_won: er.total_credits_won + (rewardType === "credits" ? prizeValue : 0),
+          }).eq("id", er.id);
+        } else {
+          await supabase.from("credit_rankings").insert({
+            user_id: caller.id, month_year: my,
+            total_credits_used: challenge.cost_credits, total_credits_won: rewardType === "credits" ? prizeValue : 0,
+          });
+        }
+
+        result = {
+          success: true,
+          credits_won: rewardType === "credits" ? prizeValue : 0,
+          balance_won: balanceWon,
+          reward_type: rewardType,
+          label: sel.label,
+          prize_key: prizeKey,
+          other_box: { prize_key: otherBoxPrize, label: otherBoxLabel, value: otherBoxValue, reward_type: otherBoxRewardType },
+          new_credits: newCredits,
+          new_balance: Number(profile.balance) + balanceWon,
+        };
+        break;
+      }
+
       default:
         throw new Error("Ação desconhecida: " + action);
     }
