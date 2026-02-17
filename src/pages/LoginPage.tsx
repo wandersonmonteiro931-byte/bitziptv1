@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/logo-bitz.jpg";
@@ -11,24 +11,32 @@ const LoginPage = () => {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { login, isAdmin } = useAuth();
+  const { login, isAdmin, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
-    const err = await login(email, password);
-    setSubmitting(false);
-    if (err) {
-      setError("Credenciais inválidas. Contate o administrador.");
-    } else {
-      // Wait briefly for profile to load
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+    try {
+      const err = await login(email, password);
+      if (err) {
+        setError("Credenciais inválidas. Contate o administrador.");
+        setSubmitting(false);
+      }
+      // Navigation will be handled by useEffect below after auth state updates
+    } catch (err) {
+      setError("Erro ao conectar. Tente novamente.");
+      setSubmitting(false);
     }
   };
+
+  // Redirect when user is authenticated
+  useEffect(() => {
+    if (user) {
+      navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
+    }
+  }, [user, isAdmin, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
