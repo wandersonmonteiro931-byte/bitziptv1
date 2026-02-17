@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Download, Smartphone, Share2 } from "lucide-react";
+import { Download, Smartphone, Share2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
@@ -16,11 +16,18 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isIOS, setIsIOS] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [showIOSHelp, setShowIOSHelp] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const checkedRef = useRef(false);
 
   useEffect(() => {
     if (checkedRef.current) return;
     checkedRef.current = true;
+
+    // Check if user previously dismissed
+    const wasDismissed = sessionStorage.getItem("install-gate-dismissed");
+    if (wasDismissed) {
+      setDismissed(true);
+    }
 
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -44,8 +51,10 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (isInstalled || isStandalone) return <>{children}</>;
-  if (isDesktop) return <>{children}</>;
+  // Allow access if: installed, standalone, desktop, or user dismissed the gate
+  if (isInstalled || isStandalone || isDesktop || dismissed) {
+    return <>{children}</>;
+  }
 
   const handleInstallClick = async () => {
     if (isIOS) {
@@ -53,7 +62,6 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     if (!deferredPrompt) {
-      // Fallback: try to trigger via menu
       setShowIOSHelp(true);
       return;
     }
@@ -65,6 +73,11 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     } catch {}
     setInstalling(false);
     setDeferredPrompt(null);
+  };
+
+  const handleSkip = () => {
+    sessionStorage.setItem("install-gate-dismissed", "true");
+    setDismissed(true);
   };
 
   return (
@@ -93,7 +106,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           Gratuito • Rápido • Sem loja de apps
         </p>
 
-        {/* iOS instructions (shown after tap) */}
+        {/* iOS instructions */}
         {showIOSHelp && isIOS && (
           <div className="animate-fade-in rounded-2xl border border-border bg-card p-5 text-left shadow-lg">
             <div className="mb-3 flex items-center gap-2 text-primary">
@@ -117,7 +130,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           </div>
         )}
 
-        {/* Android fallback instructions (shown if no prompt available) */}
+        {/* Android fallback instructions */}
         {showIOSHelp && !isIOS && (
           <div className="animate-fade-in rounded-2xl border border-border bg-card p-5 text-left shadow-lg">
             <div className="mb-3 flex items-center gap-2 text-primary">
@@ -141,8 +154,16 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           </div>
         )}
 
+        {/* Continue without installing */}
+        <button
+          onClick={handleSkip}
+          className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Continuar no navegador <ArrowRight size={16} />
+        </button>
+
         <p className="text-[11px] text-muted-foreground/50">
-          Após instalar, abra o app pela tela inicial do seu celular.
+          Para melhor experiência, instale o app.
         </p>
       </div>
     </div>
