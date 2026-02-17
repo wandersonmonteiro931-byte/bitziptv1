@@ -696,6 +696,146 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ========== USER: Play Roulette ==========
+      case "play_roulette": {
+        const { challenge_id } = data;
+        const { data: profile } = await supabase.from("profiles").select("credits, user_level, balance, total_earned, level_points").eq("id", caller.id).single();
+        if (!profile) throw new Error("Perfil não encontrado");
+
+        const { data: challenge } = await supabase.from("credit_challenges").select("*").eq("id", challenge_id).eq("is_active", true).single();
+        if (!challenge) throw new Error("Jogo não encontrado");
+
+        const levelOrder = ["bronze", "prata", "ouro", "diamante"];
+        if (levelOrder.indexOf(profile.user_level) < levelOrder.indexOf(challenge.min_level)) {
+          throw new Error(`Nível mínimo: ${challenge.min_level}`);
+        }
+
+        if (profile.credits < challenge.cost_credits) throw new Error("Créditos insuficientes");
+
+        // Rate limit 3s
+        const rouletteThreeSecsAgo = new Date(Date.now() - 3000).toISOString();
+        const { count: rouletteRecentPlays } = await supabase.from("challenge_attempts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+          .gte("created_at", rouletteThreeSecsAgo);
+        if ((rouletteRecentPlays || 0) > 0) throw new Error("Aguarde alguns segundos entre giros");
+
+        // Daily limit
+        if (challenge.daily_limit > 0) {
+          const rouletteTodayStart = new Date(); rouletteTodayStart.setHours(0,0,0,0);
+          const { count: rouletteCount } = await supabase.from("challenge_attempts")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", caller.id).eq("challenge_id", challenge_id)
+            .gte("created_at", rouletteTodayStart.toISOString());
+          if ((rouletteCount || 0) >= challenge.daily_limit) throw new Error("Limite diário de giros atingido");
+        }
+
+        // Check override
+        const rouletteOverride = await checkOverride(caller.id, "roulette");
+
+        const rouletteProbs = challenge.probabilities as Array<{ result: number; weight: number; label: string; reward_type?: string; color?: string; segment_index?: number }>;
+        let rouletteSel: typeof rouletteProbs[0];
+        let winningSegmentIndex: number;
+
+        if (rouletteOverride && rouletteOverride.prize_key) {
+          const overrideIdx = rouletteProbs.findIndex(p => p.label === rouletteOverride.label || (p as any).prize_key === rouletteOverride.prize_key);
+          rouletteSel = overrideIdx >= 0 ? rouletteProbs[overrideIdx] : { result: rouletteOverride.result || 0, weight: 1, label: rouletteOverride.label || "Forçado", reward_type: rouletteOverride.reward_type || "none" };
+          winningSegmentIndex = overrideIdx >= 0 ? overrideIdx : 0;
+        } else {
+          const rouletteTotalW = rouletteProbs.reduce((s, p) => s + p.weight, 0);
+          let rouletteRand = Math.random() * rouletteTotalW;
+          rouletteSel = rouletteProbs[0];
+          winningSegmentIndex = 0;
+          for (let i = 0; i < rouletteProbs.length; i++) {
+            rouletteRand -= rouletteProbs[i].weight;
+            if (rouletteRand <= 0) { rouletteSel = rouletteProbs[i]; winningSegmentIndex = i; break; }
+          }
+        }
+
+        const roulettePrizeValue = rouletteSel.result;
+        const rouletteRewardType = rouletteSel.reward_type || "credits";
+
+        // Deduct credits and apply rewards
+        const rouletteNewCredits = profile.credits - challenge.cost_credits + (rouletteRewardType === "credits" ? roulettePrizeValue : 0);
+        const rouletteProfileUpd: any = { credits: rouletteNewCredits };
+
+        let rouletteBalanceWon = 0;
+        if (rouletteRewardType === "balance" && roulettePrizeValue > 0) {
+          rouletteBalanceWon = roulettePrizeValue;
+          rouletteProfileUpd.balance = Number(profile.balance) + roulettePrizeValue;
+          rouletteProfileUpd.total_earned = Number(profile.total_earned) + roulettePrizeValue;
+        }
+
+        // Multiplier: multiply the cost as reward
+        if (rouletteRewardType === "multiplier" && roulettePrizeValue > 0) {
+          const multipliedCredits = Math.floor(challenge.cost_credits * roulettePrizeValue);
+          rouletteProfileUpd.credits = profile.credits - challenge.cost_credits + multipliedCredits;
+        }
+
+        await supabase.from("profiles").update(rouletteProfileUpd).eq("id", caller.id);
+
+        const finalNewCredits = rouletteProfileUpd.credits ?? rouletteNewCredits;
+
+        await supabase.from("challenge_attempts").insert({
+          user_id: caller.id,
+          challenge_id,
+          credits_spent: challenge.cost_credits,
+          credits_won: rouletteRewardType === "credits" ? roulettePrizeValue : (rouletteRewardType === "multiplier" ? Math.floor(challenge.cost_credits * roulettePrizeValue) : 0),
+          result_label: rouletteSel.label,
+          metadata: {
+            challenge_type: "roulette",
+            reward_type: rouletteRewardType,
+            balance_won: rouletteBalanceWon,
+            winning_segment_index: winningSegmentIndex,
+            segments_count: rouletteProbs.length,
+          },
+        });
+
+        await logTransaction(caller.id, "challenge_bet", -challenge.cost_credits, profile.credits - challenge.cost_credits, `Roleta: ${challenge.name}`);
+        if ((rouletteRewardType === "credits" || rouletteRewardType === "multiplier") && roulettePrizeValue > 0) {
+          const wonAmount = rouletteRewardType === "multiplier" ? Math.floor(challenge.cost_credits * roulettePrizeValue) : roulettePrizeValue;
+          await logTransaction(caller.id, "challenge_win", wonAmount, finalNewCredits, `Prêmio Roleta: ${rouletteSel.label} - ${challenge.name}`);
+        }
+        if (rouletteRewardType === "balance" && roulettePrizeValue > 0) {
+          await supabase.from("balance_history").insert({
+            user_id: caller.id, type: "credit", amount: roulettePrizeValue,
+            description: `Prêmio Roleta em saldo: ${rouletteSel.label} - ${challenge.name}`,
+          });
+        }
+
+        await supabase.from("profiles").update({ level_points: (profile as any).level_points + 1 }).eq("id", caller.id);
+        await updateLevel(caller.id);
+
+        const rouletteMy = new Date().toISOString().slice(0, 7);
+        const { data: rouletteEr } = await supabase.from("credit_rankings").select("*").eq("user_id", caller.id).eq("month_year", rouletteMy).maybeSingle();
+        const creditsWonForRank = rouletteRewardType === "credits" ? roulettePrizeValue : (rouletteRewardType === "multiplier" ? Math.floor(challenge.cost_credits * roulettePrizeValue) : 0);
+        if (rouletteEr) {
+          await supabase.from("credit_rankings").update({
+            total_credits_used: rouletteEr.total_credits_used + challenge.cost_credits,
+            total_credits_won: rouletteEr.total_credits_won + creditsWonForRank,
+          }).eq("id", rouletteEr.id);
+        } else {
+          await supabase.from("credit_rankings").insert({
+            user_id: caller.id, month_year: rouletteMy,
+            total_credits_used: challenge.cost_credits, total_credits_won: creditsWonForRank,
+          });
+        }
+
+        result = {
+          success: true,
+          winning_segment_index: winningSegmentIndex,
+          segments_count: rouletteProbs.length,
+          credits_won: rouletteRewardType === "credits" ? roulettePrizeValue : (rouletteRewardType === "multiplier" ? Math.floor(challenge.cost_credits * roulettePrizeValue) : 0),
+          balance_won: rouletteBalanceWon,
+          reward_type: rouletteRewardType,
+          reward_value: roulettePrizeValue,
+          label: rouletteSel.label,
+          new_credits: finalNewCredits,
+          new_balance: Number(profile.balance) + rouletteBalanceWon,
+        };
+        break;
+      }
+
       // ========== ADMIN: Set game override ==========
       case "set_game_override": {
         if (!(await isAdmin())) throw new Error("Apenas administradores");
@@ -739,7 +879,7 @@ Deno.serve(async (req) => {
     }
 
     // Audit log for admin actions
-    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block", "set_game_override", "remove_game_override", "play_cup_game"].includes(action)) {
+    if (["confirm_purchase", "cancel_purchase", "admin_adjust_credits", "toggle_purchase_block", "set_game_override", "remove_game_override", "play_cup_game", "play_roulette"].includes(action)) {
       await supabase.from("admin_audit_logs").insert({
         admin_id: caller.id, action: `credit_${action}`, target_table: "credits", target_id: data.user_id || data.purchase_id || data.override_id || "",
         details: data || {},
