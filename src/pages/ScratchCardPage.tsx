@@ -179,24 +179,30 @@ const ScratchCell = React.forwardRef<
     const ctx = canvas.getContext("2d")!;
     ctx.globalCompositeOperation = "destination-out";
 
-    const r = 30 + Math.random() * 12;
+    // Smaller brush for realistic scratch feel
+    const r = 14 + Math.random() * 6;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    for (let i = 0; i < 3; i++) {
+    // Small scattered particles for texture
+    for (let i = 0; i < 2; i++) {
       ctx.beginPath();
-      ctx.arc(x + (Math.random() - 0.5) * 30, y + (Math.random() - 0.5) * 30, 10 + Math.random() * 8, 0, Math.PI * 2);
+      ctx.arc(x + (Math.random() - 0.5) * 18, y + (Math.random() - 0.5) * 18, 4 + Math.random() * 4, 0, Math.PI * 2);
       ctx.fill();
     }
 
+    // Correct percentage calculation: sample every 4th pixel
     const imageData = ctx.getImageData(0, 0, CELL_SIZE, CELL_SIZE);
     let cleared = 0;
+    let total = 0;
     for (let i = 3; i < imageData.data.length; i += 16) {
+      total++;
       if (imageData.data[i] === 0) cleared++;
     }
-    const pct = cleared / (CELL_SIZE * CELL_SIZE / 16);
+    const pct = cleared / total;
 
-    if (pct > 0.25 && !cellRevealed.current) {
+    // Require 50% scratched to auto-reveal
+    if (pct > 0.50 && !cellRevealed.current) {
       cellRevealed.current = true;
       ctx.clearRect(0, 0, CELL_SIZE, CELL_SIZE);
       onReveal(index);
