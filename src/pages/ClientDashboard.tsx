@@ -260,6 +260,15 @@ function PaymentHistory() {
       if (!error) setPayments(data || []);
     };
     load();
+
+    // Realtime: reload when iptv_payments changes
+    const channel = supabase
+      .channel("payment-history-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        load();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   return (
@@ -283,20 +292,20 @@ function PaymentHistory() {
                     const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
                     const endParts = p.period_end?.split("-");
                     const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
+                    const isPendingActivation = p.status === "paid_pending_activation";
                     return (
                       <div key={p.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                         <div>
                           <p className="text-sm text-foreground">{formatted}</p>
                           <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
-                          {p.status === "paid_pending_activation" ? (
-                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">Aguardando</span>
-                          ) : p.status === "pending" ? (
-                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">Pendente</span>
-                          ) : (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
                             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                          </div>
+                          {isPendingActivation && (
+                            <span className="text-[9px] text-blue-400">Aguardando liberação do suporte</span>
                           )}
                         </div>
                       </div>
@@ -514,17 +523,28 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // When closing without payment, delete the pending record
+  const handleClose = async () => {
+    if (!paymentConfirmed && paymentId) {
+      try {
+        await supabase.from("iptv_payments").delete().eq("id", paymentId).eq("status", "pending");
+      } catch (err) {
+        // ignore
+      }
+    }
+    onClose();
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
-      onClick={onClose}>
+      onClick={handleClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
         className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
         onClick={e => e.stopPropagation()}>
 
         {paymentConfirmed ? (
           (() => {
-            // Always use registered expiry date as base
             let baseExpiry: Date;
             if (user?.iptv_expiry) {
               const [y, m, d] = user.iptv_expiry.split("-").map(Number);
@@ -549,7 +569,6 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
                     Seu pagamento foi confirmado com sucesso.
                   </p>
 
-                  {/* New expiry date */}
                   <div className="mt-4 rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nova data de validade</p>
                     <p className="mt-1 text-lg font-bold text-foreground">{formattedNewExpiry}</p>
@@ -558,17 +577,16 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
                     </p>
                   </div>
 
-                  {/* Admin notification info */}
                   <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
                     <p className="text-xs font-medium text-primary">
                       ✅ Nosso suporte já foi notificado!
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      O administrador irá atualizar a nova data de vencimento e ativar seu aplicativo em breve. Você será notificado assim que estiver ativo.
+                    <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>, no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará funcionando normalmente.
                     </p>
                   </div>
                 </div>
-                <button onClick={onClose}
+                <button onClick={handleClose}
                   className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
                   Fechar
                 </button>
@@ -624,14 +642,22 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
                 </div>
 
                 <div className="mb-5">
-                  <p className="mb-1.5 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
-                  <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
-                    <p className="flex-1 truncate font-mono text-xs text-foreground">{pixData.qrcode}</p>
-                    <button onClick={copyPix}
-                      className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
-                      {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
-                    </button>
-                  </div>
+                  <p className="mb-2 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
+                  <button onClick={copyPix}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.97] ${
+                      copied 
+                        ? "bg-emerald-500 text-white" 
+                        : "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                    }`}>
+                    {copied ? <><Check size={16} /> Código copiado!</> : <><Copy size={16} /> Copiar código PIX</>}
+                  </button>
+                  <p className="mt-2 truncate text-center font-mono text-[10px] text-muted-foreground/60">{pixData.qrcode}</p>
+                </div>
+
+                <div className="mb-5 rounded-xl bg-blue-500/10 px-4 py-3">
+                  <p className="text-[11px] text-blue-300 leading-relaxed text-center">
+                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos de <span className="font-semibold">2 horas</span>.
+                  </p>
                 </div>
 
                 <div className="mb-5 text-center">
@@ -643,7 +669,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
               </>
             ) : null}
 
-            <button onClick={onClose}
+            <button onClick={handleClose}
               className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
               Fechar
             </button>
@@ -738,6 +764,17 @@ const ClientDashboard = () => {
             <span className={`text-[11px] ${status.color}`}>{status.label}</span>
           </div>
         </motion.div>
+
+        {/* Awaiting activation banner */}
+        {effectiveStatus === "awaiting_activation" && (
+          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+            className="mx-0 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+            <p className="text-xs font-medium text-blue-400">⏳ Aguardando liberação do suporte</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Seu pagamento foi recebido. O suporte está atualizando seu servidor. Em média leva menos de 2 horas.
+            </p>
+          </motion.div>
+        )}
 
         {/* BANNERS (optional, minimal) */}
         <BannerCarousel />

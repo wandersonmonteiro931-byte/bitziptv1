@@ -95,6 +95,16 @@ Deno.serve(async (req) => {
       case "update_profile": {
         const { error } = await supabaseAdmin.from("profiles").update(data).eq("id", user_id);
         if (error) throw new Error(error.message);
+
+        // When admin activates a user (sets status to active), also confirm pending activation payments
+        if (data.iptv_status === "active") {
+          await supabaseAdmin
+            .from("iptv_payments")
+            .update({ status: "confirmed", admin_id: caller.id })
+            .eq("user_id", user_id)
+            .eq("status", "paid_pending_activation");
+        }
+
         result = { success: true };
         break;
       }
