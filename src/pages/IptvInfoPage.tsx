@@ -10,7 +10,7 @@ const IptvInfoPage = () => {
     { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
     { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
     { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
-    { label: "Vencimento", value: user?.iptv_expiry ? new Date(user.iptv_expiry).toLocaleDateString("pt-BR") : "-", icon: Calendar },
+    { label: "Vencimento", value: user?.iptv_expiry ? (() => { const [y, m, d] = user.iptv_expiry.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("pt-BR"); })() : "-", icon: Calendar },
   ];
 
   return (

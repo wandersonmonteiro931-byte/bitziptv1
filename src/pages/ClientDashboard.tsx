@@ -274,14 +274,24 @@ const ClientDashboard = () => {
   };
 
   const status = SYSTEM_STATUS_MAP[user?.iptv_status || "active"] || SYSTEM_STATUS_MAP.active;
-  const dueDay = user?.iptv_due_day || 10;
   const now = new Date();
-  const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
-  if (dueDate < now && dueDay < now.getDate()) {
-    dueDate.setMonth(dueDate.getMonth() + 1);
+
+  // Use iptv_expiry (set by admin) if available, otherwise fallback to iptv_due_day
+  let dueDate: Date;
+  if (user?.iptv_expiry) {
+    // Parse as local date to avoid timezone shift
+    const [year, month, day] = user.iptv_expiry.split("-").map(Number);
+    dueDate = new Date(year, month - 1, day);
+  } else {
+    const dueDay = user?.iptv_due_day || 10;
+    dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+    if (dueDate < now && dueDay < now.getDate()) {
+      dueDate.setMonth(dueDate.getMonth() + 1);
+    }
   }
+
   const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  const isDueToday = daysUntilDue === 0 || (now.getDate() === dueDay);
+  const isDueToday = daysUntilDue === 0;
   const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
   const isOverdue = daysUntilDue < 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
@@ -289,7 +299,7 @@ const ClientDashboard = () => {
   const totalValue = monthlyValue * connections;
 
   // Format due date as DD/MM/YYYY
-  const formattedDueDate = `${String(dueDay).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
+  const formattedDueDate = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
 
   return (
     <AppLayout>
