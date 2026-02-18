@@ -132,8 +132,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
+    // Immediately fetch profile instead of relying on onAuthStateChange
+    if (data.session?.user) {
+      await fetchProfile(data.session.user.id);
+    }
     return null;
   };
 
