@@ -25,7 +25,7 @@ function getPemCredentials(): { cert: string; key: string } {
   const certPem = Deno.env.get("EFI_CERT_PEM");
   const keyPem = Deno.env.get("EFI_KEY_PEM");
   if (certPem && keyPem) {
-    _cachedPem = { cert: certPem, key: keyPem };
+    _cachedPem = { cert: ensurePemNewlines(certPem), key: ensurePemNewlines(keyPem) };
     return _cachedPem;
   }
 
@@ -41,14 +41,27 @@ function getPemCredentials(): { cert: string; key: string } {
   if (!certBag?.cert) throw new Error("No certificate found in .p12");
   const cert = forge.pki.certificateToPem(certBag.cert);
 
-  // Extract private key
+  // Extract private key  
   const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
   if (!keyBag?.key) throw new Error("No private key found in .p12");
   const key = forge.pki.privateKeyToPem(keyBag.key);
 
   _cachedPem = { cert, key };
+  console.log("Extracted PEM from .p12 successfully");
   return _cachedPem;
+}
+
+/** Ensure PEM strings have proper newlines (secrets might strip them) */
+function ensurePemNewlines(pem: string): string {
+  // If it already has proper newlines, return as-is
+  if (pem.includes("\n")) return pem;
+  // Otherwise reconstruct: header + base64 in 64-char lines + footer
+  const match = pem.match(/^(-----BEGIN [^-]+-----)(.+)(-----END [^-]+-----)$/);
+  if (!match) return pem;
+  const [, header, body, footer] = match;
+  const lines = body.match(/.{1,64}/g) || [];
+  return `${header}\n${lines.join("\n")}\n${footer}`;
 }
 
 // ── Efí API ──────────────────────────────────────────────────────────────
@@ -224,12 +237,12 @@ async function handleCreateCharge(userId: string, body: any) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key: privKey } = getPemCredentials();
-  console.log("PEM cert starts with:", cert.substring(0, 40));
-  console.log("PEM key starts with:", privKey.substring(0, 40));
+  console.log("PEM cert length:", cert.length, "has newlines:", cert.includes("\n"));
+  console.log("PEM key length:", privKey.length, "has newlines:", privKey.includes("\n"));
 
   const httpClient = Deno.createHttpClient({
-    cert: cert,
-    key: privKey,
+    certChain: cert,
+    privateKey: privKey,
   });
 
   try {
@@ -283,7 +296,7 @@ async function handleRegisterWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ cert, key });
+  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
 
   try {
     const accessToken = await getAccessToken(httpClient);
@@ -321,7 +334,7 @@ async function handleCheckWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ cert, key });
+  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
 
   try {
     const accessToken = await getAccessToken(httpClient);
