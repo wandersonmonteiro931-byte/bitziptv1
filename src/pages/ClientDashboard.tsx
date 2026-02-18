@@ -290,7 +290,13 @@ function PaymentHistory() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
-                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                          {p.status === "paid_pending_activation" ? (
+                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">Aguardando</span>
+                          ) : p.status === "pending" ? (
+                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">Pendente</span>
+                          ) : (
+                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                          )}
                         </div>
                       </div>
                     );
@@ -358,13 +364,14 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     txid: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     const createCharge = async () => {
       setLoading(true);
       setError(null);
       try {
-        // First create the iptv_payment record
         const periodStart = new Date();
         const periodEnd = new Date();
         periodEnd.setMonth(periodEnd.getMonth() + pixModal.months);
@@ -388,7 +395,8 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
           throw new Error(insertError?.message || "Erro ao criar pagamento");
         }
 
-        // Call edge function to create PIX charge
+        setPaymentId(payment.id);
+
         const { data, error: fnError } = await supabase.functions.invoke("pix-efi/create-charge", {
           body: {
             payment_id: payment.id,
@@ -415,8 +423,36 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     createCharge();
   }, []);
 
+  // Realtime: listen for payment status change
   useEffect(() => {
-    if (loading || error) return;
+    if (!paymentId) return;
+
+    const channel = supabase
+      .channel(`pix-payment-${paymentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "iptv_payments",
+          filter: `id=eq.${paymentId}`,
+        },
+        (payload: any) => {
+          const newStatus = payload.new?.status;
+          if (newStatus && newStatus !== "pending") {
+            setPaymentConfirmed(true);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [paymentId]);
+
+  useEffect(() => {
+    if (loading || error || paymentConfirmed) return;
     const interval = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) { clearInterval(interval); return 0; }
@@ -424,7 +460,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [loading, error]);
+  }, [loading, error, paymentConfirmed]);
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
@@ -443,76 +479,106 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
         className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
         onClick={e => e.stopPropagation()}>
 
-        <div className="mb-5 text-center">
-          <p className="text-lg font-bold text-foreground">Pagamento PIX</p>
-          <p className="text-xs text-muted-foreground">
-            {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
-          </p>
-        </div>
-
-        <div className="mb-5 rounded-2xl bg-muted/15 p-5 text-center">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
-          <p className="mt-2 text-3xl font-bold text-foreground">R$ {pixModal.value.toFixed(2)}</p>
-          {pixModal.discount > 0 && (
-            <p className="mt-1 text-xs text-success">Você economiza R$ {pixModal.discount.toFixed(2)}</p>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="mb-5 flex flex-col items-center justify-center py-8">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="mt-3 text-sm text-muted-foreground">Gerando cobrança PIX...</p>
-          </div>
-        ) : error ? (
-          <div className="mb-5 rounded-2xl bg-destructive/10 p-4 text-center">
-            <p className="text-sm text-destructive">{error}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Entre em contato com o suporte para pagamento manual.
-            </p>
-          </div>
-        ) : pixData ? (
+        {paymentConfirmed ? (
           <>
-            <div className="mb-5 flex justify-center">
-              {pixData.qrcode_image ? (
-                <img
-                  src={pixData.qrcode_image.startsWith('data:') ? pixData.qrcode_image : `data:image/png;base64,${pixData.qrcode_image}`}
-                  alt="QR Code PIX"
-                  className="h-40 w-40 rounded-2xl"
-                />
-              ) : (
-                <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
-                  <div className="text-center">
-                    <p className="text-3xl">📱</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
-                  </div>
+            <div className="py-8 text-center">
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}>
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
+                  <Check size={40} className="text-emerald-400" />
                 </div>
+              </motion.div>
+              <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Seu pagamento foi confirmado com sucesso.
+              </p>
+              <div className="mt-4 rounded-xl bg-primary/10 px-4 py-3">
+                <p className="text-xs font-medium text-primary">
+                  ⏳ Aguardando ativação do administrador
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Seu plano será renovado em breve. Você será notificado quando estiver ativo.
+                </p>
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+              Fechar
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mb-5 text-center">
+              <p className="text-lg font-bold text-foreground">Pagamento PIX</p>
+              <p className="text-xs text-muted-foreground">
+                {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
+              </p>
+            </div>
+
+            <div className="mb-5 rounded-2xl bg-muted/15 p-5 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
+              <p className="mt-2 text-3xl font-bold text-foreground">R$ {pixModal.value.toFixed(2)}</p>
+              {pixModal.discount > 0 && (
+                <p className="mt-1 text-xs text-success">Você economiza R$ {pixModal.discount.toFixed(2)}</p>
               )}
             </div>
 
-            <div className="mb-5">
-              <p className="mb-1.5 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
-              <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
-                <p className="flex-1 truncate font-mono text-xs text-foreground">{pixData.qrcode}</p>
-                <button onClick={copyPix}
-                  className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
-                  {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
-                </button>
+            {loading ? (
+              <div className="mb-5 flex flex-col items-center justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="mt-3 text-sm text-muted-foreground">Gerando cobrança PIX...</p>
               </div>
-            </div>
+            ) : error ? (
+              <div className="mb-5 rounded-2xl bg-destructive/10 p-4 text-center">
+                <p className="text-sm text-destructive">{error}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Entre em contato com o suporte para pagamento manual.
+                </p>
+              </div>
+            ) : pixData ? (
+              <>
+                <div className="mb-5 flex justify-center">
+                  {pixData.qrcode_image ? (
+                    <img
+                      src={pixData.qrcode_image.startsWith('data:') ? pixData.qrcode_image : `data:image/png;base64,${pixData.qrcode_image}`}
+                      alt="QR Code PIX"
+                      className="h-40 w-40 rounded-2xl"
+                    />
+                  ) : (
+                    <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
+                      <div className="text-center">
+                        <p className="text-3xl">📱</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            <div className="mb-5 text-center">
-              <p className="text-[10px] text-muted-foreground">Tempo restante</p>
-              <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
-                {formatTime(timeLeft)}
-              </p>
-            </div>
+                <div className="mb-5">
+                  <p className="mb-1.5 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
+                  <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
+                    <p className="flex-1 truncate font-mono text-xs text-foreground">{pixData.qrcode}</p>
+                    <button onClick={copyPix}
+                      className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
+                      {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Tempo restante</p>
+                  <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
+                    {formatTime(timeLeft)}
+                  </p>
+                </div>
+              </>
+            ) : null}
+
+            <button onClick={onClose}
+              className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
+              Fechar
+            </button>
           </>
-        ) : null}
-
-        <button onClick={onClose}
-          className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
-          Fechar
-        </button>
+        )}
       </motion.div>
     </motion.div>
   );

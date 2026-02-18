@@ -103,6 +103,7 @@ const AdminIptvPage = () => {
     });
     else if (activeFilter === "unstable") list = list.filter((u) => u.iptv_status === "unstable");
     else if (activeFilter === "awaiting_payment") list = list.filter((u) => u.iptv_status === "awaiting_payment");
+    else if (activeFilter === "awaiting_activation") list = list.filter((u) => u.iptv_status === "awaiting_activation");
 
     if (search) {
       const q = search.toLowerCase();
