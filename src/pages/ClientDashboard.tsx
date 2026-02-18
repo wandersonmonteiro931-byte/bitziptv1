@@ -116,15 +116,15 @@ function BannerCarousel() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-      className="overflow-hidden rounded-2xl"
+      className="overflow-hidden rounded-xl"
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
     >
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="relative block w-full aspect-[16/7] overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20"
+        className="relative block w-full aspect-[16/6] overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 to-accent/10"
       >
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.5 }}
-            className="absolute inset-0 flex items-center justify-center"
+          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
+            className="absolute inset-0"
           >
             {banner.banner_url ? (
               <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-cover" />
@@ -138,10 +138,10 @@ function BannerCarousel() {
         </AnimatePresence>
       </a>
       {banners.length > 1 && (
-        <div className="mt-2 flex items-center justify-center gap-1.5">
+        <div className="mt-2 flex items-center justify-center gap-1">
           {banners.map((_, i) => (
             <button key={i} onClick={() => setCurrent(i)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${i === current ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
+              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-4 bg-primary/60" : "w-1 bg-muted-foreground/20"}`}
             />
           ))}
         </div>
@@ -265,59 +265,41 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
   );
 }
 
-// --- Expiry Countdown ---
+// --- Expiry Countdown (separate card) ---
 function ExpiryCountdown({ daysUntilDue, formattedDueDate, isDueToday, isOverdue }: {
   daysUntilDue: number; formattedDueDate: string; isDueToday: boolean; isOverdue: boolean;
 }) {
-  let alertColor = "border-border bg-card";
-  let textColor = "text-foreground";
-  let icon = <CalendarClock size={18} className="text-muted-foreground" />;
-  let message = `Faltam ${daysUntilDue} dias para o próximo pagamento`;
+  let bgClass = "bg-yellow-500/5 border-yellow-500/15";
+  let textColor = "text-yellow-400";
+  let message = `⏳ Faltam ${daysUntilDue} dias para o vencimento`;
 
   if (isOverdue) {
-    alertColor = "border-destructive/30 bg-destructive/10";
+    bgClass = "bg-destructive/5 border-destructive/20";
     textColor = "text-destructive";
-    icon = <AlertTriangle size={18} className="text-destructive animate-pulse" />;
-    message = `Vencido há ${Math.abs(daysUntilDue)} dia(s)`;
+    message = `⏳ Vencido há ${Math.abs(daysUntilDue)} dia(s)`;
   } else if (isDueToday) {
-    alertColor = "border-destructive/30 bg-destructive/10";
+    bgClass = "bg-destructive/5 border-destructive/20";
     textColor = "text-destructive";
-    icon = <AlertTriangle size={18} className="text-destructive animate-pulse" />;
-    message = "🔥 Último dia para pagamento. Evite bloqueio automático às 23:59.";
-  } else if (daysUntilDue <= 1) {
-    alertColor = "border-red-500/30 bg-red-500/10";
-    textColor = "text-red-400";
-    icon = <AlertTriangle size={18} className="text-red-400 animate-pulse" />;
-    message = `Falta ${daysUntilDue} dia para o pagamento`;
+    message = "🔥 Último dia para pagamento!";
   } else if (daysUntilDue <= 3) {
-    alertColor = "border-orange-500/30 bg-orange-500/10";
+    bgClass = "bg-orange-500/5 border-orange-500/15";
     textColor = "text-orange-400";
-    icon = <Clock size={18} className="text-orange-400" />;
-    message = `Faltam ${daysUntilDue} dias para o pagamento`;
   } else if (daysUntilDue <= 7) {
-    alertColor = "border-yellow-500/30 bg-yellow-500/10";
+    bgClass = "bg-yellow-500/5 border-yellow-500/15";
     textColor = "text-yellow-400";
-    icon = <Clock size={18} className="text-yellow-400" />;
-    message = `Faltam ${daysUntilDue} dias para o pagamento`;
+  } else {
+    bgClass = "bg-muted/20 border-border";
+    textColor = "text-foreground";
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-      className={`overflow-hidden rounded-2xl border p-4 ${alertColor}`}
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+      className={`rounded-xl border p-4 ${bgClass}`}
     >
-      <div className="flex items-start gap-3">
-        {icon}
-        <div className="flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">📅 Próximo vencimento: {formattedDueDate}</p>
-          <p className={`mt-1 text-sm font-bold ${textColor}`}>⏳ {message}</p>
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-xl bg-muted/20 px-3 py-2">
-        <p className="text-[10px] text-muted-foreground/80">
-          ⚠️ O sistema é bloqueado automaticamente às 23:59 do dia do vencimento caso não seja identificado pagamento.
-        </p>
-      </div>
+      <p className={`text-sm font-bold ${textColor}`}>{message}</p>
+      <p className="mt-1.5 text-[10px] text-muted-foreground/70">
+        ⚠️ Bloqueio automático às 23:59 caso não identificado pagamento.
+      </p>
     </motion.div>
   );
 }
@@ -326,7 +308,7 @@ function ExpiryCountdown({ daysUntilDue, formattedDueDate, isDueToday, isOverdue
 function PaymentSection({ totalValue, supportInfo }: { totalValue: number; supportInfo: any }) {
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900); // 15 min
+  const [timeLeft, setTimeLeft] = useState(900);
 
   const value3m = totalValue * 3;
   const discount3m = value3m * 0.05;
@@ -365,49 +347,38 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
 
   return (
     <>
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-        className="overflow-hidden rounded-2xl border border-border bg-card p-4"
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+        className="space-y-2.5"
       >
-        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          <Wallet size={14} className="text-secondary" /> 💳 Pagamento Rápido
-        </div>
+        <button onClick={() => openPix(1, totalValue, 0)}
+          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/20 px-4 py-4 text-left transition-all hover:from-primary/20 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-foreground">Renovar 1 mês</p>
+          </div>
+          <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
+        </button>
 
-        <div className="space-y-2.5">
-          <button onClick={() => openPix(1, totalValue, 0)}
-            className="flex w-full items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-4 py-3.5 text-left transition-all hover:bg-primary/20 active:scale-[0.98]">
-            <div>
-              <p className="text-sm font-bold text-primary">🔵 Renovar Plano</p>
-              <p className="text-xs text-muted-foreground">1 mês</p>
-            </div>
-            <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
-          </button>
+        <button onClick={() => openPix(3, final3m, discount3m)}
+          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/15 px-4 py-4 text-left transition-all hover:from-purple-500/15 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-foreground">Renovar 3 meses</p>
+            <p className="text-[10px] text-purple-400 font-medium">5% OFF</p>
+          </div>
+          <div className="text-right">
+            <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
+          </div>
+        </button>
 
-          <button onClick={() => openPix(3, final3m, discount3m)}
-            className="relative flex w-full items-center justify-between rounded-xl bg-purple-500/10 border border-purple-500/20 px-4 py-3.5 text-left transition-all hover:bg-purple-500/20 active:scale-[0.98]">
-            <div>
-              <p className="text-sm font-bold text-purple-400">🟣 3 Meses</p>
-              <p className="text-xs text-muted-foreground">5% de desconto</p>
-            </div>
-            <div className="text-right">
-              <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
-              <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
-                className="text-[10px] font-semibold text-success">💰 Economize R$ {discount3m.toFixed(2)}</motion.p>
-            </div>
-          </button>
-
-          <button onClick={() => openPix(6, final6m, discount6m)}
-            className="relative flex w-full items-center justify-between rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3.5 text-left transition-all hover:bg-green-500/20 active:scale-[0.98]">
-            <div>
-              <p className="text-sm font-bold text-green-400">🟢 6 Meses</p>
-              <p className="text-xs text-muted-foreground">10% de desconto</p>
-            </div>
-            <div className="text-right">
-              <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
-              <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
-                className="text-[10px] font-semibold text-success">💰 Economize R$ {discount6m.toFixed(2)}</motion.p>
-            </div>
-          </button>
-        </div>
+        <button onClick={() => openPix(6, final6m, discount6m)}
+          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-green-500/10 to-green-500/5 border border-green-500/15 px-4 py-4 text-left transition-all hover:from-green-500/15 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-foreground">Renovar 6 meses</p>
+            <p className="text-[10px] text-green-400 font-medium">10% OFF</p>
+          </div>
+          <div className="text-right">
+            <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
+          </div>
+        </button>
       </motion.div>
 
       {/* PIX Modal */}
@@ -431,12 +402,10 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
                 <p className="mt-1 font-display text-3xl font-bold text-primary">R$ {pixModal.value.toFixed(2)}</p>
                 {pixModal.discount > 0 && (
-                  <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }}
-                    className="mt-1 text-xs font-semibold text-success">💰 Você economiza R$ {pixModal.discount.toFixed(2)}</motion.p>
+                  <p className="mt-1 text-xs font-semibold text-success">💰 Você economiza R$ {pixModal.discount.toFixed(2)}</p>
                 )}
               </div>
 
-              {/* QR Code placeholder */}
               <div className="mb-4 flex justify-center">
                 <div className="flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10">
                   <div className="text-center">
@@ -446,7 +415,6 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
                 </div>
               </div>
 
-              {/* PIX Key */}
               <div className="mb-4">
                 <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-muted-foreground">Chave PIX (Copia e Cola)</p>
                 <div className="flex items-center gap-2 rounded-xl bg-muted/30 px-3 py-2.5">
@@ -458,7 +426,6 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
                 </div>
               </div>
 
-              {/* Timer */}
               <div className="mb-4 text-center">
                 <p className="text-[10px] text-muted-foreground">⏱️ Tempo restante para pagamento</p>
                 <p className={`mt-1 font-mono text-xl font-bold ${timeLeft <= 120 ? "text-destructive animate-pulse" : "text-foreground"}`}>
@@ -466,7 +433,6 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
                 </p>
               </div>
 
-              {/* Status info */}
               <div className="mb-4 rounded-xl bg-primary/5 border border-primary/15 p-3">
                 <p className="text-[10px] text-muted-foreground text-center">
                   ✅ Após o pagamento, seu status mudará para <span className="font-bold text-blue-400">AGUARDANDO ATIVAÇÃO</span> e o administrador será notificado.
@@ -485,9 +451,10 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
   );
 }
 
-// --- Payment History ---
+// --- Payment History (Collapsible) ---
 function PaymentHistory() {
   const [payments, setPayments] = useState<any[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
@@ -506,96 +473,112 @@ function PaymentHistory() {
   const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-      className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          <Receipt size={14} className="text-secondary" /> 📜 Histórico de Mensalidades
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+      <button
+        onClick={() => setHistoryOpen(!historyOpen)}
+        className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3.5 text-sm transition-all hover:border-primary/20 active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-2">
+          <Receipt size={15} className="text-muted-foreground" />
+          <span className="font-medium text-foreground">📑 Mensalidades Pagas</span>
+          {payments.length > 0 && (
+            <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">{payments.length}</span>
+          )}
         </div>
-        {payments.length > 0 && (
-          <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground">
-            {payments.length} registros
-          </span>
-        )}
-      </div>
+        <ChevronDown size={16} className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`} />
+      </button>
 
-      {payments.length === 0 ? (
-        <div className="py-6 text-center">
-          <p className="text-3xl mb-2">📜</p>
-          <p className="text-xs text-muted-foreground">Nenhum pagamento registrado ainda.</p>
-        </div>
-      ) : (
-        <>
-          {/* Last payment badge */}
-          <div className="mb-3 flex items-center gap-2 rounded-xl bg-success/5 border border-success/15 px-3 py-2">
-            <Check size={12} className="text-success" />
-            <p className="text-[10px] text-muted-foreground">
-              Último pagamento em{" "}
-              <span className="font-bold text-success">
-                {(() => { const d = new Date(payments[0].created_at); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })()}
-              </span>
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {payments.map((p, i) => {
-              const date = new Date(p.created_at);
-              const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-              const refMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-              return (
-                <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                  onClick={() => setExpanded(expanded === p.id ? null : p.id)}
-                  className="cursor-pointer rounded-xl bg-muted/20 px-3 py-2.5 transition-all hover:bg-muted/30 active:scale-[0.99]"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 text-sm text-success">✔</span>
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">{refMonth}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatted}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
-                      <p className="text-[10px] text-muted-foreground">{expanded === p.id ? "▲" : "▼"}</p>
-                    </div>
-                  </div>
-                  <AnimatePresence>
-                    {expanded === p.id && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden">
-                        <div className="mt-2 space-y-1.5 border-t border-border/30 pt-2">
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-muted-foreground">📅 Data Pagamento</span>
-                            <span className="font-medium text-foreground">{formatted}</span>
-                          </div>
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-muted-foreground">📋 Referente a</span>
-                            <span className="font-medium text-foreground">{refMonth}</span>
-                          </div>
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-muted-foreground">💰 Valor Pago</span>
-                            <span className="font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-muted-foreground">💳 Forma de Pagamento</span>
-                            <span className="font-medium text-foreground">PIX</span>
-                          </div>
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-muted-foreground">✅ Status</span>
-                            <span className="rounded-full bg-success/15 px-2 py-0.5 font-bold text-success">Confirmado</span>
+      <AnimatePresence>
+        {historyOpen && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <div className="mt-1 space-y-1.5 rounded-xl border border-border bg-card p-3">
+              {payments.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
+              ) : (
+                payments.map((p, i) => {
+                  const date = new Date(p.created_at);
+                  const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+                  const refMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+                  return (
+                    <div key={p.id}
+                      onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                      className="cursor-pointer rounded-lg bg-muted/15 px-3 py-2.5 transition-all hover:bg-muted/25"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-success/15 text-xs text-success">✔</span>
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">{refMonth}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatted}</p>
                           </div>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
+                        <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
+                      </div>
+                      <AnimatePresence>
+                        {expanded === p.id && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden">
+                            <div className="mt-2 space-y-1 border-t border-border/30 pt-2">
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-muted-foreground">💳 Pagamento</span>
+                                <span className="font-medium text-foreground">PIX</span>
+                              </div>
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-muted-foreground">✅ Status</span>
+                                <span className="rounded-full bg-success/15 px-2 py-0.5 font-bold text-success">Confirmado</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// --- TV App Mini Icons ---
+function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
+      className="rounded-xl border border-border bg-card p-4"
+    >
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">📺 App na sua TV</p>
+      <div className="flex flex-wrap gap-2">
+        {tvApps.map((app) => {
+          const isActive = userApp === app.name;
+          const logo = getAppLogoSrc(app.name);
+          return (
+            <div key={app.id}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
+                isActive
+                  ? "border-primary/30 bg-primary/10 text-primary font-semibold"
+                  : "border-border/30 bg-muted/5 text-muted-foreground/40"
+              }`}
+            >
+              {logo ? (
+                <img src={logo} alt={app.name} className="h-5 w-5 rounded object-contain" />
+              ) : (
+                <span className="text-sm">{TV_APP_ICONS[app.name] || app.icon}</span>
+              )}
+              <span>{app.name}</span>
+              {isActive && <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
+            </div>
+          );
+        })}
+        {tvApps.length === 0 && userApp && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary font-semibold">
+            {(() => { const logo = getAppLogoSrc(userApp); return logo ? <img src={logo} alt={userApp} className="h-5 w-5 rounded object-contain" /> : <span>📺</span>; })()}
+            <span>{userApp}</span>
           </div>
-        </>
-      )}
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -652,7 +635,6 @@ const ClientDashboard = () => {
 
   const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   const isDueToday = daysUntilDue === 0;
-  const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
   const isOverdue = daysUntilDue < 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
   const connections = user?.iptv_connections || 1;
@@ -662,139 +644,64 @@ const ClientDashboard = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-4">
-        {/* 1️⃣ NOME DO CLIENTE */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-foreground md:text-xl">
-              Olá, {user?.name?.split(" ")[0]} 👋
-            </h1>
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Star size={10} className="text-secondary" />
-              <span>Plano ativo</span>
-              <span className="text-muted-foreground/30">•</span>
-              <span className="text-secondary">Cliente Premium</span>
-            </p>
-          </div>
-          <button onClick={handleRefresh} disabled={isRefreshing}
-            className="flex items-center gap-1.5 rounded-xl bg-muted/50 p-2.5 text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:scale-95 disabled:opacity-50">
-            <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
-          </button>
+      <div className="space-y-5">
+        {/* 1️⃣ GREETING */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <h1 className="text-xl font-bold text-foreground">
+            Olá, {user?.name?.split(" ")[0]} 👋
+          </h1>
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Star size={10} className="text-secondary" />
+            <span className="text-secondary font-medium">Cliente Premium</span>
+          </p>
         </motion.div>
 
-        {/* 2️⃣ BANNERS ROTATIVOS */}
+        {/* 2️⃣ BANNERS */}
         <BannerCarousel />
 
-        {/* === SYSTEM STATUS === */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className={`flex items-center justify-between rounded-2xl border p-4 ${status.bgColor}`}
+        {/* 3️⃣ STATUS STRIP */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className={`flex items-center justify-between rounded-lg border px-3 py-2 ${status.bgColor}`}
         >
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Radio size={18} className={status.color} />
-              {status.pulse && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-ping rounded-full bg-green-400/60" />}
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Status do Sistema</p>
-              <p className={`font-display text-sm font-bold ${status.color}`}>{status.label}</p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
+            <span className={`text-xs font-semibold ${status.color}`}>Sistema {status.label}</span>
           </div>
-          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className={`h-1.5 w-1.5 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
-            Ao vivo
-          </span>
+          <span className="text-[10px] text-muted-foreground">Ao vivo</span>
         </motion.div>
 
-        {/* 3️⃣ INFORMAÇÕES DO PLANO */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-        >
-          <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <CreditCard size={14} className="text-secondary" /> Informações da Assinatura
-          </div>
-
-          {/* Server */}
-          <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/20 px-3 py-3">
-            <div className="flex items-center gap-2">
-              <Satellite size={14} className="text-primary" />
-              <span className="text-xs text-muted-foreground">Servidor</span>
+        {/* 4️⃣ SUBSCRIPTION SUMMARY - 3 mini cards */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Servidor</p>
+              <p className="mt-1 text-sm font-bold text-primary">{user?.iptv_server || "—"}</p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-              <Zap size={10} className="animate-pulse" />
-              {user?.iptv_server || "Não definido"}
-            </span>
-          </div>
-
-          {/* Value + Due Date */}
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-muted/20 p-3">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">💰 Mensalidade</p>
-              <p className="mt-1 font-display text-lg font-bold text-secondary">R$ {totalValue.toFixed(2)}</p>
+            <div className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Vencimento</p>
+              <p className="mt-1 text-sm font-bold text-foreground">{formattedDueDate}</p>
             </div>
-            <div className={`rounded-xl p-3 ${isDueSoon || isOverdue ? "bg-destructive/10 border border-destructive/20" : "bg-muted/20"}`}>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">📅 Validade</p>
-              <p className={`mt-1 font-display text-sm font-bold ${isDueSoon || isOverdue ? "text-destructive" : "text-foreground"}`}>
-                {formattedDueDate}
-              </p>
+            <div className="rounded-xl border border-border bg-card p-3 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Telas</p>
+              <p className="mt-1 text-sm font-bold text-accent">{connections}</p>
             </div>
           </div>
-
-          {connections > 1 && (
-            <div className="mb-3 rounded-xl bg-secondary/5 border border-secondary/20 p-2.5">
-              <p className="text-xs text-muted-foreground">Valor por tela: <span className="font-bold text-secondary">R$ {monthlyValue.toFixed(2)}</span> × {connections} telas = <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span></p>
-            </div>
-          )}
-
-          {/* Telas Ativas */}
-          <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/20 px-3 py-3">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                <Link2 size={14} className="text-accent" /> Telas Ativas
-              </div>
-              <p className="mt-0.5 text-[10px] text-muted-foreground/60">Será cobrado o valor integral da mensalidade por cada tela contratada.</p>
-            </div>
-            <span className="font-display text-2xl font-bold text-accent">{connections}</span>
-          </div>
-
-          {/* TV App */}
-          <div className="rounded-xl bg-muted/20 px-3 py-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <Tv size={14} className="text-primary" /> 📺 Aplicativo instalado na sua TV
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {tvApps.map((app) => {
-                const isActive = user?.iptv_tv_app === app.name;
-                const logo = getAppLogoSrc(app.name);
-                return (
-                  <div key={app.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${isActive ? "border-primary/30 bg-primary/10 text-primary" : "border-border/50 bg-muted/10 text-muted-foreground/40"}`}>
-                    {logo ? (
-                      <img src={logo} alt={app.name} className="h-7 w-7 rounded-md object-contain" />
-                    ) : (
-                      <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
-                    )}
-                    <span className="font-medium">{app.name}</span>
-                    {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
-                  </div>
-                );
-              })}
-              {tvApps.length === 0 && user?.iptv_tv_app && (
-                <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
-                  {(() => { const logo = getAppLogoSrc(user.iptv_tv_app); return logo ? <img src={logo} alt={user.iptv_tv_app} className="h-7 w-7 rounded-md object-contain" /> : <span>📺</span>; })()}
-                  <span className="font-medium">{user.iptv_tv_app}</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            💰 Mensalidade: <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span>
+          </p>
         </motion.div>
 
-        {/* 4️⃣ CONTADOR DE VENCIMENTO */}
+        {/* 5️⃣ COUNTDOWN */}
         <ExpiryCountdown daysUntilDue={daysUntilDue} formattedDueDate={formattedDueDate} isDueToday={isDueToday} isOverdue={isOverdue} />
 
-        {/* 5️⃣ ÁREA DE PAGAMENTO */}
+        {/* 6️⃣ PAYMENT BUTTONS */}
         <PaymentSection totalValue={totalValue} supportInfo={supportInfo} />
 
-        {/* 6️⃣ HISTÓRICO DE MENSALIDADES */}
+        {/* 7️⃣ PAYMENT HISTORY (collapsible) */}
         <PaymentHistory />
+
+        {/* 8️⃣ TV APP MINI ICONS */}
+        <TvAppIcons tvApps={tvApps} userApp={user?.iptv_tv_app} />
 
         {/* === ACCESS DATA === */}
         <AccessDataBlock user={user} />
@@ -804,14 +711,14 @@ const ClientDashboard = () => {
 
         {/* === SUPPORT === */}
         {supportInfo && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-            className="overflow-hidden rounded-2xl border border-border bg-card p-4"
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
+            className="rounded-xl border border-border bg-card p-4"
           >
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              <Headphones size={14} className="text-secondary" /> Seu Suporte
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Headphones size={14} className="text-secondary" /> Suporte
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-accent/20 text-lg">👤</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/30 text-lg">👤</div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-foreground">{supportInfo.support_name}</p>
                 <p className="text-xs text-muted-foreground">{supportInfo.support_phone}</p>
@@ -819,50 +726,22 @@ const ClientDashboard = () => {
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <a href={supportInfo.whatsapp_link} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-success/15 px-3 py-2.5 text-sm font-medium text-success transition-all hover:bg-success/25 active:scale-[0.98]">
+                className="flex items-center justify-center gap-2 rounded-lg bg-success/10 px-3 py-2.5 text-sm font-medium text-success transition-all hover:bg-success/20 active:scale-[0.98]">
                 <MessageCircle size={16} /> WhatsApp
               </a>
               <a href={`tel:${supportInfo.support_phone.replace(/\D/g, "")}`}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/20 active:scale-[0.98]">
+                className="flex items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/20 active:scale-[0.98]">
                 <Phone size={16} /> Ligar
               </a>
             </div>
           </motion.div>
         )}
 
-        {/* 7️⃣ ACESSO RÁPIDO (Jogos / Créditos) */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
-          className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-        >
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <Zap size={14} className="text-warning" /> Acesso Rápido
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "Mini Games", icon: Gamepad2, to: "/challenges", color: "text-accent" },
-              { label: "Recompensas", icon: Diamond, to: "/missions", color: "text-secondary" },
-              { label: "Histórico", icon: History, to: "/history", color: "text-primary" },
-              { label: "Meus Saques", icon: Wallet, to: "/withdrawals", color: "text-success" },
-            ].map((item) => (
-              <button key={item.to} onClick={() => navigate(item.to)}
-                className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-3 text-sm font-medium text-foreground transition-all hover:bg-muted/40 active:scale-[0.98]">
-                <item.icon size={16} className={item.color} />
-                {item.label}
-                <ChevronRight size={14} className="ml-auto text-muted-foreground/40" />
-              </button>
-            ))}
-          </div>
-        </motion.div>
-
         {/* === FOOTER === */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
-          className="space-y-1 pb-2 text-center">
-          <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground/40">
-            <Shield size={10} />
-            <span>Conexão segura · Dados protegidos</span>
-          </div>
-          <p className="text-[10px] text-muted-foreground/30">
-            Não compartilhe seus dados de login com terceiros.
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+          className="pb-2 text-center">
+          <p className="text-[10px] text-muted-foreground/30 flex items-center justify-center gap-1">
+            <Shield size={8} /> Conexão segura · Dados protegidos
           </p>
         </motion.div>
       </div>
