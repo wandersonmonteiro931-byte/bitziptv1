@@ -254,6 +254,7 @@ function PaymentHistory() {
       const { data, error } = await (supabase as any)
         .from("iptv_payments")
         .select("*")
+        .in("status", ["confirmed", "paid_pending_activation"])
         .order("payment_date", { ascending: false })
         .limit(20);
       if (!error) setPayments(data || []);
