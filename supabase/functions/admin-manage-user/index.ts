@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const roundMoney = (v: number) => Math.round(v * 100) / 100;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,7 +52,7 @@ Deno.serve(async (req) => {
 
       // Deduct balance immediately
       await supabaseAdmin.from("profiles").update({
-        balance: Number(profile.balance) - Number(amount),
+        balance: roundMoney(Number(profile.balance) - Number(amount)),
       }).eq("id", user_id);
 
       // Create withdrawal record
@@ -104,10 +106,10 @@ Deno.serve(async (req) => {
         const { data: profile } = await supabaseAdmin.from("profiles").select("balance, total_earned").eq("id", user_id).single();
         if (!profile) throw new Error("Usuário não encontrado");
 
-        const newBalance = Number(profile.balance) + Number(amount);
+        const newBalance = roundMoney(Number(profile.balance) + Number(amount));
         const updates: any = { balance: newBalance };
         if (Number(amount) > 0) {
-          updates.total_earned = Number(profile.total_earned) + Number(amount);
+          updates.total_earned = roundMoney(Number(profile.total_earned) + Number(amount));
         }
 
         await supabaseAdmin.from("profiles").update(updates).eq("id", user_id);
@@ -162,7 +164,7 @@ Deno.serve(async (req) => {
           const { data: wProfile } = await supabaseAdmin.from("profiles").select("balance").eq("id", withdrawal.user_id).single();
           if (wProfile) {
             await supabaseAdmin.from("profiles").update({
-              balance: Number(wProfile.balance) + Number(withdrawal.amount),
+              balance: roundMoney(Number(wProfile.balance) + Number(withdrawal.amount)),
             }).eq("id", withdrawal.user_id);
             await supabaseAdmin.from("balance_history").insert({
               user_id: withdrawal.user_id,
