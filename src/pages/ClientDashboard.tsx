@@ -432,33 +432,23 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     createCharge();
   }, []);
 
-  // Realtime: listen for payment status change
+  // Poll every 1s to check payment status
   useEffect(() => {
-    if (!paymentId) return;
+    if (!paymentId || paymentConfirmed) return;
 
-    const channel = supabase
-      .channel(`pix-payment-${paymentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "iptv_payments",
-          filter: `id=eq.${paymentId}`,
-        },
-        (payload: any) => {
-          const newStatus = payload.new?.status;
-          if (newStatus && newStatus !== "pending") {
-            setPaymentConfirmed(true);
-          }
-        }
-      )
-      .subscribe();
+    const poll = setInterval(async () => {
+      const { data } = await supabase
+        .from("iptv_payments")
+        .select("status")
+        .eq("id", paymentId)
+        .maybeSingle();
+      if (data?.status && data.status !== "pending") {
+        setPaymentConfirmed(true);
+      }
+    }, 1000);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [paymentId]);
+    return () => clearInterval(poll);
+  }, [paymentId, paymentConfirmed]);
 
   useEffect(() => {
     if (loading || error || paymentConfirmed) return;
