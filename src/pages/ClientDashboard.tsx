@@ -99,16 +99,16 @@ function BannerCarousel() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-      className="overflow-hidden rounded-2xl" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="relative block w-full aspect-[16/7] overflow-hidden rounded-2xl bg-muted/30">
+        className="block w-full overflow-hidden rounded-3xl"
+        style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
-            className="absolute inset-0">
+          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             {banner.banner_url ? (
-              <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-cover" />
+              <img src={banner.banner_url} alt={banner.title} className="block w-full h-auto rounded-3xl object-contain" />
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center p-4">
+              <div className="flex w-full flex-col items-center justify-center rounded-3xl bg-muted/30 p-8">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
@@ -117,10 +117,10 @@ function BannerCarousel() {
         </AnimatePresence>
       </a>
       {banners.length > 1 && (
-        <div className="mt-2 flex items-center justify-center gap-1">
+        <div className="mt-3 flex items-center justify-center gap-1.5">
           {banners.map((_, i) => (
             <button key={i} onClick={() => setCurrent(i)}
-              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-4 bg-primary/50" : "w-1 bg-muted-foreground/15"}`} />
+              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-5 bg-primary/60" : "w-1.5 bg-muted-foreground/15"}`} />
           ))}
         </div>
       )}
