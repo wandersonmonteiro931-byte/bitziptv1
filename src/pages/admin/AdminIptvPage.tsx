@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2 } from "lucide-react";
+import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -188,6 +188,44 @@ const AdminIptvPage = () => {
 
       {/* Stats Cards */}
       <StatsCards users={users} />
+
+      {/* Awaiting Activation Highlight */}
+      {(() => {
+        const awaitingUsers = users.filter(u => u.iptv_status === "awaiting_activation");
+        if (awaitingUsers.length === 0) return null;
+        return (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            className="mt-4 rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertCircle size={16} className="text-blue-400" />
+              <h3 className="text-sm font-bold text-blue-400">
+                Aguardando Ativação ({awaitingUsers.length})
+              </h3>
+            </div>
+            <p className="mb-3 text-[10px] text-muted-foreground">
+              Clientes que pagaram via PIX e aguardam ativação no servidor.
+            </p>
+            <div className="space-y-2">
+              {awaitingUsers.map((u) => (
+                <div key={u.id} className="flex items-center justify-between rounded-xl border border-blue-500/20 bg-card/80 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{u.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {u.iptv_server || "—"} · {u.iptv_connections || 1} tela{(u.iptv_connections || 1) > 1 ? "s" : ""} · Validade: {u.iptv_expiry ? u.iptv_expiry.split("-").reverse().join("/") : "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEditUser(u)}
+                    className="rounded-lg bg-blue-500/15 px-3 py-2 text-xs font-semibold text-blue-400 hover:bg-blue-500/25 transition-colors"
+                  >
+                    Ativar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Quick Filters */}
       <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-none pb-1">
