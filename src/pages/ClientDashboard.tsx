@@ -475,7 +475,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
             <div className="mb-5 flex justify-center">
               {pixData.qrcode_image ? (
                 <img
-                  src={`data:image/png;base64,${pixData.qrcode_image}`}
+                  src={pixData.qrcode_image.startsWith('data:') ? pixData.qrcode_image : `data:image/png;base64,${pixData.qrcode_image}`}
                   alt="QR Code PIX"
                   className="h-40 w-40 rounded-2xl"
                 />
