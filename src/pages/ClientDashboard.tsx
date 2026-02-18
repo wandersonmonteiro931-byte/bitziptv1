@@ -154,7 +154,7 @@ function AccessDataBlock({ user }: { user: any }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border bg-card p-5">
+      className="rounded-2xl border border-border/40 bg-card/50 p-5">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Lock size={13} /> Dados de Acesso
@@ -263,15 +263,15 @@ function PaymentHistory() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
       <button onClick={() => setHistoryOpen(!historyOpen)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-sm active:scale-[0.99]">
-        <span className="font-medium text-foreground">Mensalidades pagas</span>
+        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/50 px-5 py-3.5 text-sm active:opacity-80">
+        <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
         <ChevronDown size={16} className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`} />
       </button>
 
       <AnimatePresence>
         {historyOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="mt-1 rounded-2xl border border-border bg-card p-4">
+            <div className="mt-1 rounded-2xl border border-border/30 bg-card/40 p-4">
               {payments.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
               ) : (
@@ -305,8 +305,8 @@ function PaymentHistory() {
 function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border bg-card p-5">
-      <p className="mb-3 text-xs font-medium text-muted-foreground">App na sua TV</p>
+      className="rounded-2xl border border-border/40 bg-card/50 p-5">
+      <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
       <div className="flex flex-wrap gap-2">
         {tvApps.map((app) => {
           const isActive = userApp === app.name;
@@ -491,9 +491,9 @@ const ClientDashboard = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-5 pb-4">
         {/* GREETING */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between pt-1">
           <div>
             <h1 className="text-xl font-bold text-foreground">
               Olá, {user?.name?.split(" ")[0]}
@@ -503,8 +503,8 @@ const ClientDashboard = () => {
             </p>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
-            <span className={`text-xs ${status.color}`}>{status.label}</span>
+            <span className={`h-1.5 w-1.5 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
+            <span className={`text-[11px] ${status.color}`}>{status.label}</span>
           </div>
         </motion.div>
 
@@ -513,7 +513,7 @@ const ClientDashboard = () => {
 
         {/* MAIN CARD — Plan */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className="rounded-2xl border border-border bg-card p-6">
+          className="rounded-2xl border border-border/50 bg-card/80 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground">Plano IPTV</p>
@@ -548,18 +548,18 @@ const ClientDashboard = () => {
 
         {/* PLAN DETAILS (simple text) */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="rounded-2xl border border-border bg-card px-5 py-4">
-          <div className="flex items-center justify-between py-1.5">
+          className="rounded-2xl border border-border/40 bg-card/60 px-5 py-3">
+          <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Servidor</span>
             <span className="text-sm font-medium text-foreground">{user?.iptv_server || "—"}</span>
           </div>
-          <div className="border-t border-border/30" />
-          <div className="flex items-center justify-between py-1.5">
+          <div className="border-t border-border/20" />
+          <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Telas ativas</span>
             <span className="text-sm font-medium text-foreground">{connections}</span>
           </div>
-          <div className="border-t border-border/30" />
-          <div className="flex items-center justify-between py-1.5">
+          <div className="border-t border-border/20" />
+          <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Validade</span>
             <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
           </div>
@@ -582,25 +582,27 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* RENEWAL OPTIONS (3m, 6m) */}
+        {/* RENEWAL OPTIONS (3m, 6m) — discrete */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="space-y-2">
+          className="rounded-2xl border border-border/30 bg-card/40 px-5 py-1">
           <button onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
-            className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-left active:scale-[0.99]">
+            className="flex w-full items-center justify-between py-3.5 text-left active:opacity-70">
             <div>
-              <p className="text-sm font-medium text-foreground">Renovar 3 meses</p>
-              <p className="text-[11px] text-primary">5% de desconto</p>
+              <p className="text-sm text-foreground">Renovar 3 meses</p>
+              <p className="text-[11px] text-muted-foreground">5% de desconto</p>
             </div>
-            <span className="text-sm font-semibold text-foreground">R$ {final3m.toFixed(2)}</span>
+            <span className="text-sm text-muted-foreground">R$ {final3m.toFixed(2)}</span>
           </button>
 
+          <div className="border-t border-border/20" />
+
           <button onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
-            className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-left active:scale-[0.99]">
+            className="flex w-full items-center justify-between py-3.5 text-left active:opacity-70">
             <div>
-              <p className="text-sm font-medium text-foreground">Renovar 6 meses</p>
-              <p className="text-[11px] text-primary">10% de desconto</p>
+              <p className="text-sm text-foreground">Renovar 6 meses</p>
+              <p className="text-[11px] text-muted-foreground">10% de desconto</p>
             </div>
-            <span className="text-sm font-semibold text-foreground">R$ {final6m.toFixed(2)}</span>
+            <span className="text-sm text-muted-foreground">R$ {final6m.toFixed(2)}</span>
           </button>
         </motion.div>
 
@@ -619,8 +621,8 @@ const ClientDashboard = () => {
         {/* SUPPORT */}
         {supportInfo && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
-            className="rounded-2xl border border-border bg-card p-5">
-            <p className="mb-3 text-xs font-medium text-muted-foreground">Suporte</p>
+            className="rounded-2xl border border-border/40 bg-card/50 p-5">
+            <p className="mb-3 text-xs text-muted-foreground">Suporte</p>
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/20 text-sm">👤</div>
               <div className="flex-1">
