@@ -95,6 +95,19 @@ const MemoryGamePage = () => {
       toast({ title: "Jogo desativado", variant: "destructive" });
       return;
     }
+
+    // Clean up any previous game state
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (memTimerRef.current) { clearInterval(memTimerRef.current); memTimerRef.current = null; }
+    lockRef.current = false;
+    setPhase("idle");
+    setCards([]);
+    setSelected([]);
+    setMatchedPairs(0);
+    setGameResult(null);
+    setDuration(0);
+    setCombo(0);
+
     setLoading(true);
     // Deduct credits via edge function
     const { data, error } = await supabase.functions.invoke("memory-game", {
@@ -105,17 +118,13 @@ const MemoryGamePage = () => {
       setLoading(false);
       return;
     }
-    refreshProfile();
+    await refreshProfile();
     setLoading(false);
 
     const deck = createDeck();
     setCards(deck.map((c) => ({ ...c, flipped: true })));
     setPhase("memorize");
-    setMatchedPairs(0);
-    setSelected([]);
-    setGameResult(null);
-    setDuration(0);
-    setCombo(0);
+    setTimeLeft(settings?.time_limit_seconds || 60);
     sound("gameStart");
 
     let mem = settings?.memorize_seconds || 3;
@@ -125,7 +134,7 @@ const MemoryGamePage = () => {
       setMemorizeTime(mem);
       if (mem <= 0) {
         clearInterval(memTimerRef.current);
-        // Cascade close
+        memTimerRef.current = null;
         setCards((prev) => prev.map((c) => ({ ...c, flipped: false })));
         setPhase("playing");
         setTimeLeft(settings?.time_limit_seconds || 60);
@@ -135,6 +144,7 @@ const MemoryGamePage = () => {
           setTimeLeft((prev) => {
             if (prev <= 1) {
               clearInterval(timerRef.current);
+              timerRef.current = null;
               setPhase("lost");
               sound("lose");
               return 0;
