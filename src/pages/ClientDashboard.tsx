@@ -6,7 +6,7 @@ import {
   RefreshCw, Phone, MessageCircle, Wallet, Gamepad2, History,
   AlertTriangle, ChevronRight, Zap, Award, Eye, EyeOff, Lock,
   Copy, Check, FileText, ChevronDown, ChevronUp, Radio, Bell,
-  Diamond, Star
+  Diamond, Star, Clock, CalendarClock, Receipt
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,7 +80,6 @@ function BannerCarousel() {
         .eq("content_type", "banner")
         .lte("starts_at", now)
         .order("sort_order");
-      // Filter banners that haven't ended
       const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
       setBanners(active);
     };
@@ -116,7 +115,7 @@ function BannerCarousel() {
         className="relative block aspect-[16/7] w-full overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20"
       >
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.4 }}
+          <motion.div key={current} initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.5 }}
             className="absolute inset-0"
           >
             {banner.banner_url ? (
@@ -130,7 +129,6 @@ function BannerCarousel() {
           </motion.div>
         </AnimatePresence>
       </a>
-      {/* Dots */}
       {banners.length > 1 && (
         <div className="mt-2 flex items-center justify-center gap-1.5">
           {banners.map((_, i) => (
@@ -259,6 +257,197 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
   );
 }
 
+// --- Expiry Countdown ---
+function ExpiryCountdown({ daysUntilDue, formattedDueDate, isDueToday, isOverdue }: {
+  daysUntilDue: number; formattedDueDate: string; isDueToday: boolean; isOverdue: boolean;
+}) {
+  let alertColor = "border-border bg-card";
+  let textColor = "text-foreground";
+  let icon = <CalendarClock size={18} className="text-muted-foreground" />;
+  let message = `Faltam ${daysUntilDue} dias para o próximo pagamento`;
+
+  if (isOverdue) {
+    alertColor = "border-destructive/30 bg-destructive/10";
+    textColor = "text-destructive";
+    icon = <AlertTriangle size={18} className="text-destructive animate-pulse" />;
+    message = `Vencido há ${Math.abs(daysUntilDue)} dia(s)`;
+  } else if (isDueToday) {
+    alertColor = "border-destructive/30 bg-destructive/10";
+    textColor = "text-destructive";
+    icon = <AlertTriangle size={18} className="text-destructive animate-pulse" />;
+    message = "🔥 Último dia para pagamento. Evite bloqueio automático às 23:59.";
+  } else if (daysUntilDue <= 1) {
+    alertColor = "border-red-500/30 bg-red-500/10";
+    textColor = "text-red-400";
+    icon = <AlertTriangle size={18} className="text-red-400 animate-pulse" />;
+    message = `Falta ${daysUntilDue} dia para o pagamento`;
+  } else if (daysUntilDue <= 3) {
+    alertColor = "border-orange-500/30 bg-orange-500/10";
+    textColor = "text-orange-400";
+    icon = <Clock size={18} className="text-orange-400" />;
+    message = `Faltam ${daysUntilDue} dias para o pagamento`;
+  } else if (daysUntilDue <= 7) {
+    alertColor = "border-yellow-500/30 bg-yellow-500/10";
+    textColor = "text-yellow-400";
+    icon = <Clock size={18} className="text-yellow-400" />;
+    message = `Faltam ${daysUntilDue} dias para o pagamento`;
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+      className={`overflow-hidden rounded-2xl border p-4 ${alertColor}`}
+    >
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">📅 Próximo vencimento: {formattedDueDate}</p>
+          <p className={`mt-1 text-sm font-bold ${textColor}`}>⏳ {message}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl bg-muted/20 px-3 py-2">
+        <p className="text-[10px] text-muted-foreground/80">
+          ⚠️ O sistema é bloqueado automaticamente às 23:59 do dia do vencimento caso não seja identificado pagamento.
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+// --- Payment Section ---
+function PaymentSection({ totalValue, supportInfo }: { totalValue: number; supportInfo: any }) {
+  const value3m = totalValue * 3;
+  const discount3m = value3m * 0.05;
+  const final3m = value3m - discount3m;
+
+  const value6m = totalValue * 6;
+  const discount6m = value6m * 0.10;
+  const final6m = value6m - discount6m;
+
+  const handleRenew = (months: number, value: number) => {
+    if (supportInfo?.whatsapp_link) {
+      const msg = months === 1
+        ? `Olá! Gostaria de renovar meu plano IPTV (1 mês) - R$ ${value.toFixed(2)}`
+        : `Olá! Gostaria de renovar meu plano IPTV por ${months} meses - R$ ${value.toFixed(2)}`;
+      window.open(supportInfo.whatsapp_link + "?text=" + encodeURIComponent(msg), "_blank");
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+      className="overflow-hidden rounded-2xl border border-border bg-card p-4"
+    >
+      <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <Wallet size={14} className="text-secondary" /> 💳 Pagamento Rápido
+      </div>
+
+      <div className="space-y-2.5">
+        {/* 1 month */}
+        <button onClick={() => handleRenew(1, totalValue)}
+          className="flex w-full items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-4 py-3.5 text-left transition-all hover:bg-primary/20 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-primary">🔵 Renovar Plano</p>
+            <p className="text-xs text-muted-foreground">1 mês</p>
+          </div>
+          <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
+        </button>
+
+        {/* 3 months */}
+        <button onClick={() => handleRenew(3, final3m)}
+          className="relative flex w-full items-center justify-between rounded-xl bg-purple-500/10 border border-purple-500/20 px-4 py-3.5 text-left transition-all hover:bg-purple-500/20 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-purple-400">🟣 3 Meses</p>
+            <p className="text-xs text-muted-foreground">5% de desconto</p>
+          </div>
+          <div className="text-right">
+            <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
+            <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
+              className="text-[10px] font-semibold text-success">💰 Economize R$ {discount3m.toFixed(2)}</motion.p>
+          </div>
+        </button>
+
+        {/* 6 months */}
+        <button onClick={() => handleRenew(6, final6m)}
+          className="relative flex w-full items-center justify-between rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3.5 text-left transition-all hover:bg-green-500/20 active:scale-[0.98]">
+          <div>
+            <p className="text-sm font-bold text-green-400">🟢 6 Meses</p>
+            <p className="text-xs text-muted-foreground">10% de desconto</p>
+          </div>
+          <div className="text-right">
+            <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
+            <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
+              className="text-[10px] font-semibold text-success">💰 Economize R$ {discount6m.toFixed(2)}</motion.p>
+          </div>
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// --- Payment History ---
+function PaymentHistory() {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("balance_history")
+        .select("*")
+        .eq("type", "payment")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setPayments(data || []);
+    };
+    load();
+  }, []);
+
+  if (payments.length === 0) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+      className="overflow-hidden rounded-2xl border border-border bg-card p-4"
+    >
+      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <Receipt size={14} className="text-secondary" /> 📜 Histórico de Mensalidades
+      </div>
+      <div className="space-y-2">
+        {payments.map((p, i) => {
+          const date = new Date(p.created_at);
+          const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+          return (
+            <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+              onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+              className="cursor-pointer rounded-xl bg-muted/20 px-3 py-2.5 transition-all hover:bg-muted/30"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-success/15 text-xs text-success">✔</span>
+                  <div>
+                    <p className="text-xs font-medium text-foreground">{formatted}</p>
+                    <p className="text-[10px] text-muted-foreground">{p.description || "Mensalidade"}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
+              </div>
+              <AnimatePresence>
+                {expanded === p.id && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                    className="mt-2 border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
+                    <p>Data: {formatted}</p>
+                    <p>Valor: R$ {Math.abs(p.amount).toFixed(2)}</p>
+                    <p>Status: Confirmado</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
 // --- Main Dashboard ---
 const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
@@ -297,10 +486,8 @@ const ClientDashboard = () => {
   const status = SYSTEM_STATUS_MAP[user?.iptv_status || "active"] || SYSTEM_STATUS_MAP.active;
   const now = new Date();
 
-  // Use iptv_expiry (set by admin) if available, otherwise fallback to iptv_due_day
   let dueDate: Date;
   if (user?.iptv_expiry) {
-    // Parse as local date to avoid timezone shift
     const [year, month, day] = user.iptv_expiry.split("-").map(Number);
     dueDate = new Date(year, month - 1, day);
   } else {
@@ -319,13 +506,12 @@ const ClientDashboard = () => {
   const connections = user?.iptv_connections || 1;
   const totalValue = monthlyValue * connections;
 
-  // Format due date as DD/MM/YYYY
   const formattedDueDate = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
 
   return (
     <AppLayout>
       <div className="space-y-4">
-        {/* === GREETING HEADER === */}
+        {/* 1️⃣ NOME DO CLIENTE */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-foreground md:text-xl">
@@ -344,7 +530,7 @@ const ClientDashboard = () => {
           </button>
         </motion.div>
 
-        {/* === BANNER CAROUSEL === */}
+        {/* 2️⃣ BANNERS ROTATIVOS */}
         <BannerCarousel />
 
         {/* === SYSTEM STATUS === */}
@@ -367,7 +553,7 @@ const ClientDashboard = () => {
           </span>
         </motion.div>
 
-        {/* === SUBSCRIPTION INFO === */}
+        {/* 3️⃣ INFORMAÇÕES DO PLANO */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="overflow-hidden rounded-2xl border border-border bg-card p-4"
         >
@@ -407,70 +593,66 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground/70">Funciona até às 23:59 do dia da validade.</p>
-
-          <AnimatePresence>
-            {isDueToday && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                className="mt-2 flex items-center gap-2 rounded-xl bg-warning/10 border border-warning/20 px-3 py-2 text-xs font-medium text-warning">
-                <AlertTriangle size={14} className="animate-pulse" /> Hoje é o último dia para pagamento!
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* === CONNECTIONS === */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-        >
-          <div className="flex items-center justify-between">
+          {/* Telas Ativas */}
+          <div className="mb-3 flex items-center justify-between rounded-xl bg-muted/20 px-3 py-3">
             <div>
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                 <Link2 size={14} className="text-accent" /> Telas Ativas
               </div>
               <p className="mt-0.5 text-[10px] text-muted-foreground/60">Será cobrado o valor integral da mensalidade por cada tela contratada.</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-3xl font-bold text-accent">{connections}</span>
+            <span className="font-display text-2xl font-bold text-accent">{connections}</span>
+          </div>
+
+          {/* TV App */}
+          <div className="rounded-xl bg-muted/20 px-3 py-3">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Tv size={14} className="text-primary" /> 📺 Aplicativo instalado na sua TV
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tvApps.map((app) => {
+                const isActive = user?.iptv_tv_app === app.name;
+                const logo = getAppLogoSrc(app.name);
+                return (
+                  <div key={app.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${isActive ? "border-primary/30 bg-primary/10 text-primary" : "border-border/50 bg-muted/10 text-muted-foreground/40"}`}>
+                    {logo ? (
+                      <img src={logo} alt={app.name} className="h-7 w-7 rounded-md object-contain" />
+                    ) : (
+                      <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
+                    )}
+                    <span className="font-medium">{app.name}</span>
+                    {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
+                  </div>
+                );
+              })}
+              {tvApps.length === 0 && user?.iptv_tv_app && (
+                <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                  {(() => { const logo = getAppLogoSrc(user.iptv_tv_app); return logo ? <img src={logo} alt={user.iptv_tv_app} className="h-7 w-7 rounded-md object-contain" /> : <span>📺</span>; })()}
+                  <span className="font-medium">{user.iptv_tv_app}</span>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
 
-        {/* === TV APP === */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-        >
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <Tv size={14} className="text-primary" /> Aplicativo Instalado
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {tvApps.map((app) => {
-              const isActive = user?.iptv_tv_app === app.name;
-              const logo = getAppLogoSrc(app.name);
-              return (
-                <div key={app.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${isActive ? "border-primary/30 bg-primary/10 text-primary" : "border-border/50 bg-muted/10 text-muted-foreground/40"}`}>
-                  {logo ? (
-                    <img src={logo} alt={app.name} className="h-7 w-7 rounded-md object-contain" />
-                  ) : (
-                    <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
-                  )}
-                  <span className="font-medium">{app.name}</span>
-                  {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
-                </div>
-              );
-            })}
-            {tvApps.length === 0 && user?.iptv_tv_app && (
-              <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
-                {(() => { const logo = getAppLogoSrc(user.iptv_tv_app); return logo ? <img src={logo} alt={user.iptv_tv_app} className="h-7 w-7 rounded-md object-contain" /> : <span>📺</span>; })()}
-                <span className="font-medium">{user.iptv_tv_app}</span>
-              </div>
-            )}
-          </div>
-        </motion.div>
+        {/* 4️⃣ CONTADOR DE VENCIMENTO */}
+        <ExpiryCountdown daysUntilDue={daysUntilDue} formattedDueDate={formattedDueDate} isDueToday={isDueToday} isOverdue={isOverdue} />
+
+        {/* 5️⃣ ÁREA DE PAGAMENTO */}
+        <PaymentSection totalValue={totalValue} supportInfo={supportInfo} />
+
+        {/* 6️⃣ HISTÓRICO DE MENSALIDADES */}
+        <PaymentHistory />
+
+        {/* === ACCESS DATA === */}
+        <AccessDataBlock user={user} />
+
+        {/* === ADMIN NOTES === */}
+        <AdminNotesBlock notes={user?.admin_notes || ""} urgent={user?.admin_notes_urgent || false} />
 
         {/* === SUPPORT === */}
         {supportInfo && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
             className="overflow-hidden rounded-2xl border border-border bg-card p-4"
           >
             <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -496,29 +678,7 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* === ACCESS DATA === */}
-        <AccessDataBlock user={user} />
-
-        {/* === ADMIN NOTES === */}
-        <AdminNotesBlock notes={user?.admin_notes || ""} urgent={user?.admin_notes_urgent || false} />
-
-        {/* === RENEWAL BUTTON === */}
-        {(isDueSoon || isOverdue || user?.iptv_status === "awaiting_payment") && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.55 }}>
-            <button
-              onClick={() => {
-                if (supportInfo?.whatsapp_link) {
-                  window.open(supportInfo.whatsapp_link + "?text=" + encodeURIComponent("Olá! Gostaria de solicitar a renovação do meu plano IPTV."), "_blank");
-                }
-              }}
-              className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-secondary to-secondary/80 px-6 py-4 font-display text-sm font-bold text-secondary-foreground shadow-lg transition-all hover:brightness-110 active:scale-[0.98]"
-            >
-              {isDueToday ? <><Wallet size={18} /> PAGAR AGORA VIA PIX</> : <><RefreshCw size={18} /> RENOVAR AGORA</>}
-            </button>
-          </motion.div>
-        )}
-
-        {/* === QUICK ACCESS === */}
+        {/* 7️⃣ ACESSO RÁPIDO (Jogos / Créditos) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="overflow-hidden rounded-2xl border border-border bg-card p-4"
         >
