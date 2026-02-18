@@ -373,7 +373,7 @@ const ClientDashboard = () => {
               <p className="mt-1 font-display text-lg font-bold text-secondary">R$ {monthlyValue.toFixed(2)}</p>
             </div>
             <div className={`rounded-xl p-3 ${isDueSoon || isOverdue ? "bg-destructive/10 border border-destructive/20" : "bg-muted/20"}`}>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">📅 Vencimento</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">📅 Validade</p>
               <p className={`mt-1 font-display text-sm font-bold ${isDueSoon || isOverdue ? "text-destructive" : "text-foreground"}`}>
                 {formattedDueDate}
               </p>
@@ -386,7 +386,7 @@ const ClientDashboard = () => {
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground/70">Funciona até às 23:59 do dia do vencimento.</p>
+          <p className="text-[10px] text-muted-foreground/70">Funciona até às 23:59 do dia da validade.</p>
 
           <AnimatePresence>
             {isDueToday && (
