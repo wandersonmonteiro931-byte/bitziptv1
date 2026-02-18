@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Gamepad2, Diamond, Trophy, Zap, Lock } from "lucide-react";
+import { Gamepad2, Diamond, Trophy, Zap, Lock, Brain } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -204,6 +204,39 @@ const CreditsChallengesPage = () => {
             </motion.div>
           );
         })}
+
+        {/* Memory Game Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: challenges.length * 0.1 }}
+          className="stat-card rounded-xl p-5 flex flex-col"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <span className="text-2xl">🧠</span>
+              <h3 className="font-bold text-foreground mt-1">Jogo da Memória</h3>
+              <p className="text-xs text-muted-foreground mt-1">Encontre os pares e ganhe saldo real!</p>
+            </div>
+            <Brain size={18} className="text-primary" />
+          </div>
+          <div className="mb-3">
+            <p className="text-xs text-muted-foreground mb-1">Recompensa:</p>
+            <Badge variant="outline" className="text-xs border-green-500/30 text-green-400">
+              💰 Saldo real
+            </Badge>
+          </div>
+          <div className="mt-auto">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-muted-foreground">Custo:</span>
+              <span className="font-bold text-primary">💰 Saldo</span>
+            </div>
+            <button
+              onClick={() => navigate("/memory-game")}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all"
+            >
+              <Brain size={16} /> Jogar Memória
+            </button>
+          </div>
+        </motion.div>
       </div>
 
       {/* Ranking */}
