@@ -31,6 +31,7 @@ import CupGamePage from "./pages/CupGamePage";
 import RoulettePage from "./pages/RoulettePage";
 import AdminRoulettePage from "./pages/admin/AdminRoulettePage";
 import AdminIptvPage from "./pages/admin/AdminIptvPage";
+import MemoryGamePage from "./pages/MemoryGamePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/prize-box" element={<ProtectedRoute><PrizeBoxPage /></ProtectedRoute>} />
             <Route path="/cup-game" element={<ProtectedRoute><CupGamePage /></ProtectedRoute>} />
             <Route path="/roulette" element={<ProtectedRoute><RoulettePage /></ProtectedRoute>} />
+            <Route path="/memory-game" element={<ProtectedRoute><MemoryGamePage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
