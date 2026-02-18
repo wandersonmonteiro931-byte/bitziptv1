@@ -214,6 +214,14 @@ serve(async (req) => {
       return await handleCreateCharge(userId, body);
     }
 
+    if (path === "register-webhook") {
+      return await handleRegisterWebhook(userId);
+    }
+
+    if (path === "check-webhook") {
+      return await handleCheckWebhook(userId);
+    }
+
     return jsonResp({ error: "Unknown action" }, 400);
   } catch (err) {
     console.error("pix-efi error:", err);
@@ -276,6 +284,76 @@ async function handleCreateCharge(userId: string, body: any) {
       location: cob.loc.location,
       expiracao: cob.calendario.expiracao,
     });
+  } finally {
+    httpClient.close();
+  }
+}
+
+async function handleRegisterWebhook(userId: string) {
+  // Verify user is admin
+  const adminSupa = getAdminSupabase();
+  const { data: isAdmin } = await adminSupa.rpc("has_role", { _role: "admin", _user_id: userId });
+  if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
+
+  const pixKey = getEnv("EFI_PIX_KEY");
+  const { cert, key } = await getP12Pem();
+  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+
+  try {
+    const accessToken = await getAccessToken(httpClient);
+    const baseUrl = getBaseUrl();
+    const supabaseUrl = getEnv("SUPABASE_URL");
+    const webhookUrl = `${supabaseUrl}/functions/v1/pix-efi/webhook`;
+
+    const resp = await fetch(`${baseUrl}/v2/webhook/${pixKey}`, {
+      method: "PUT",
+      client: httpClient,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ webhookUrl }),
+    } as RequestInit & { client: Deno.HttpClient });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      return jsonResp({ error: `Falha ao registrar webhook (${resp.status}): ${text}` }, 400);
+    }
+
+    const data = await resp.json();
+    console.log("Webhook registered:", JSON.stringify(data));
+    return jsonResp({ ok: true, webhookUrl, data });
+  } finally {
+    httpClient.close();
+  }
+}
+
+async function handleCheckWebhook(userId: string) {
+  const adminSupa = getAdminSupabase();
+  const { data: isAdmin } = await adminSupa.rpc("has_role", { _role: "admin", _user_id: userId });
+  if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
+
+  const pixKey = getEnv("EFI_PIX_KEY");
+  const { cert, key } = await getP12Pem();
+  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+
+  try {
+    const accessToken = await getAccessToken(httpClient);
+    const baseUrl = getBaseUrl();
+
+    const resp = await fetch(`${baseUrl}/v2/webhook/${pixKey}`, {
+      method: "GET",
+      client: httpClient,
+      headers: { Authorization: `Bearer ${accessToken}` },
+    } as RequestInit & { client: Deno.HttpClient });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      return jsonResp({ error: `Falha ao consultar webhook (${resp.status}): ${text}` }, 400);
+    }
+
+    const data = await resp.json();
+    return jsonResp({ ok: true, data });
   } finally {
     httpClient.close();
   }
