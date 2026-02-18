@@ -66,8 +66,8 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const loadPayments = async () => {
     if (paymentsLoaded) return;
-    const { data } = await supabase
-      .from("iptv_payments" as any)
+    const { data } = await (supabase as any)
+      .from("iptv_payments")
       .select("*")
       .eq("user_id", user.id)
       .order("payment_date", { ascending: false })

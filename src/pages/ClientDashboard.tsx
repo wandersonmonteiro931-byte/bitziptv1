@@ -251,12 +251,12 @@ function PaymentHistory() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await (supabase as any)
         .from("iptv_payments")
         .select("*")
         .order("payment_date", { ascending: false })
         .limit(20);
-      setPayments(data || []);
+      if (!error) setPayments(data || []);
     };
     load();
   }, []);
