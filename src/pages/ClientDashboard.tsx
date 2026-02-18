@@ -480,31 +480,54 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
         onClick={e => e.stopPropagation()}>
 
         {paymentConfirmed ? (
-          <>
-            <div className="py-8 text-center">
-              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}>
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
-                  <Check size={40} className="text-emerald-400" />
+          (() => {
+            // Calculate the new expiry date based on current expiry or today
+            const baseDate = user?.iptv_expiry
+              ? (() => { const [y, m, d] = user.iptv_expiry.split("-").map(Number); return new Date(y, m - 1, d); })()
+              : new Date();
+            const newExpiry = new Date(baseDate);
+            newExpiry.setMonth(newExpiry.getMonth() + pixModal.months);
+            const formattedNewExpiry = `${String(newExpiry.getDate()).padStart(2, '0')}/${String(newExpiry.getMonth() + 1).padStart(2, '0')}/${newExpiry.getFullYear()}`;
+
+            return (
+              <>
+                <div className="py-6 text-center">
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}>
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
+                      <Check size={40} className="text-emerald-400" />
+                    </div>
+                  </motion.div>
+                  <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Seu pagamento foi confirmado com sucesso.
+                  </p>
+
+                  {/* New expiry date */}
+                  <div className="mt-4 rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nova data de validade</p>
+                    <p className="mt-1 text-lg font-bold text-foreground">{formattedNewExpiry}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Renovação de {pixModal.months} {pixModal.months === 1 ? "mês" : "meses"}
+                    </p>
+                  </div>
+
+                  {/* Admin notification info */}
+                  <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
+                    <p className="text-xs font-medium text-primary">
+                      ✅ Nosso suporte já foi notificado!
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      O administrador irá atualizar a nova data de vencimento e ativar seu aplicativo em breve. Você será notificado assim que estiver ativo.
+                    </p>
+                  </div>
                 </div>
-              </motion.div>
-              <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Seu pagamento foi confirmado com sucesso.
-              </p>
-              <div className="mt-4 rounded-xl bg-primary/10 px-4 py-3">
-                <p className="text-xs font-medium text-primary">
-                  ⏳ Aguardando ativação do administrador
-                </p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Seu plano será renovado em breve. Você será notificado quando estiver ativo.
-                </p>
-              </div>
-            </div>
-            <button onClick={onClose}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
-              Fechar
-            </button>
-          </>
+                <button onClick={onClose}
+                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+                  Fechar
+                </button>
+              </>
+            );
+          })()
         ) : (
           <>
             <div className="mb-5 text-center">
