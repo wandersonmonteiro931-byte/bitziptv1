@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const roundMoney = (v: number) => Math.round(v * 100) / 100;
+
 // All possible prize keys for the scratch card grid
 const ALL_PRIZE_KEYS = ["nada", "r1", "r5", "c1", "c3", "r30", "r50", "r100", "r500", "r1000"];
 
@@ -250,8 +252,8 @@ Deno.serve(async (req) => {
         let balanceWon = 0;
         if (rewardType === "balance" && prizeValue > 0) {
           balanceWon = prizeValue;
-          profileUpdates.balance = Number(profile.balance) + prizeValue;
-          profileUpdates.total_earned = Number(profile.total_earned) + prizeValue;
+          profileUpdates.balance = roundMoney(Number(profile.balance) + prizeValue);
+          profileUpdates.total_earned = roundMoney(Number(profile.total_earned) + prizeValue);
         }
 
         await supabase.from("profiles").update(profileUpdates).eq("id", caller.id);
@@ -317,7 +319,7 @@ Deno.serve(async (req) => {
           prize_key: prizeKey,
           grid: grid,
           new_credits: newCredits,
-          new_balance: Number(profile.balance) + balanceWon,
+          new_balance: roundMoney(Number(profile.balance) + balanceWon),
         };
         break;
       }
@@ -484,8 +486,8 @@ Deno.serve(async (req) => {
         let balanceWon = 0;
         if (rewardType === "balance" && prizeValue > 0) {
           balanceWon = prizeValue;
-          profileUpd.balance = Number(profile.balance) + prizeValue;
-          profileUpd.total_earned = Number(profile.total_earned) + prizeValue;
+          profileUpd.balance = roundMoney(Number(profile.balance) + prizeValue);
+          profileUpd.total_earned = roundMoney(Number(profile.total_earned) + prizeValue);
         }
 
         await supabase.from("profiles").update(profileUpd).eq("id", caller.id);
@@ -544,7 +546,7 @@ Deno.serve(async (req) => {
           prize_key: prizeKey,
           other_box: { prize_key: otherBoxPrize, label: otherBoxLabel, value: otherBoxValue, reward_type: otherBoxRewardType },
           new_credits: newCredits,
-          new_balance: Number(profile.balance) + balanceWon,
+          new_balance: roundMoney(Number(profile.balance) + balanceWon),
         };
         break;
       }
@@ -631,8 +633,8 @@ Deno.serve(async (req) => {
         let cupBalanceWon = 0;
         if (cupRewardType === "balance" && cupPrizeValue > 0) {
           cupBalanceWon = cupPrizeValue;
-          cupProfileUpd.balance = Number(profile.balance) + cupPrizeValue;
-          cupProfileUpd.total_earned = Number(profile.total_earned) + cupPrizeValue;
+          cupProfileUpd.balance = roundMoney(Number(profile.balance) + cupPrizeValue);
+          cupProfileUpd.total_earned = roundMoney(Number(profile.total_earned) + cupPrizeValue);
         }
 
         await supabase.from("profiles").update(cupProfileUpd).eq("id", caller.id);
@@ -691,7 +693,7 @@ Deno.serve(async (req) => {
           winning_position: winningPosition,
           other_cup: { prize_key: cupOtherPrize, label: cupOtherLabel, value: cupOtherValue, reward_type: cupOtherRewardType },
           new_credits: cupNewCredits,
-          new_balance: Number(profile.balance) + cupBalanceWon,
+          new_balance: roundMoney(Number(profile.balance) + cupBalanceWon),
         };
         break;
       }
@@ -762,8 +764,8 @@ Deno.serve(async (req) => {
         let rouletteBalanceWon = 0;
         if (rouletteRewardType === "balance" && roulettePrizeValue > 0) {
           rouletteBalanceWon = roulettePrizeValue;
-          rouletteProfileUpd.balance = Number(profile.balance) + roulettePrizeValue;
-          rouletteProfileUpd.total_earned = Number(profile.total_earned) + roulettePrizeValue;
+          rouletteProfileUpd.balance = roundMoney(Number(profile.balance) + roulettePrizeValue);
+          rouletteProfileUpd.total_earned = roundMoney(Number(profile.total_earned) + roulettePrizeValue);
         }
 
         // Multiplier: multiply the cost as reward
@@ -831,7 +833,7 @@ Deno.serve(async (req) => {
           reward_value: roulettePrizeValue,
           label: rouletteSel.label,
           new_credits: finalNewCredits,
-          new_balance: Number(profile.balance) + rouletteBalanceWon,
+          new_balance: roundMoney(Number(profile.balance) + rouletteBalanceWon),
         };
         break;
       }

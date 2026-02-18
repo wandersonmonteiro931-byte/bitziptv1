@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Prevent floating-point precision errors on monetary values
+const roundMoney = (v: number) => Math.round(v * 100) / 100;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -67,7 +70,7 @@ Deno.serve(async (req) => {
 
         // Deduct
         await supabaseAdmin.from("profiles").update({
-          balance: Number(profile.balance) - cost,
+          balance: roundMoney(Number(profile.balance) - cost),
         }).eq("id", user.id);
 
         await supabaseAdmin.from("balance_history").insert({
@@ -128,8 +131,8 @@ Deno.serve(async (req) => {
 
           if (profile) {
             await supabaseAdmin.from("profiles").update({
-              balance: Number(profile.balance) + Number(settings.reward_amount),
-              total_earned: Number(profile.total_earned) + Number(settings.reward_amount),
+              balance: roundMoney(Number(profile.balance) + Number(settings.reward_amount)),
+              total_earned: roundMoney(Number(profile.total_earned) + Number(settings.reward_amount)),
             }).eq("id", user.id);
 
             await supabaseAdmin.from("balance_history").insert({
