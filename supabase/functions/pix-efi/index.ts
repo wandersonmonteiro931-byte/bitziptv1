@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import forge from "https://esm.sh/node-forge@1.3.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,11 +16,39 @@ function getEnv(name: string): string {
   return v;
 }
 
+let _cachedPem: { cert: string; key: string } | null = null;
+
 function getPemCredentials(): { cert: string; key: string } {
-  return {
-    cert: getEnv("EFI_CERT_PEM"),
-    key: getEnv("EFI_KEY_PEM"),
-  };
+  if (_cachedPem) return _cachedPem;
+
+  // Try direct PEM secrets first
+  const certPem = Deno.env.get("EFI_CERT_PEM");
+  const keyPem = Deno.env.get("EFI_KEY_PEM");
+  if (certPem && keyPem) {
+    _cachedPem = { cert: certPem, key: keyPem };
+    return _cachedPem;
+  }
+
+  // Fallback: convert .p12 from base64 using node-forge (pure JS, no openssl)
+  const b64 = getEnv("EFI_CERTIFICATE_BASE64");
+  const derBytes = forge.util.decode64(b64);
+  const asn1 = forge.asn1.fromDer(derBytes);
+  const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, "");
+
+  // Extract certificate
+  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+  const certBag = (certBags[forge.pki.oids.certBag] || [])[0];
+  if (!certBag?.cert) throw new Error("No certificate found in .p12");
+  const cert = forge.pki.certificateToPem(certBag.cert);
+
+  // Extract private key
+  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+  const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
+  if (!keyBag?.key) throw new Error("No private key found in .p12");
+  const key = forge.pki.privateKeyToPem(keyBag.key);
+
+  _cachedPem = { cert, key };
+  return _cachedPem;
 }
 
 // ── Efí API ──────────────────────────────────────────────────────────────
