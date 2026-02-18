@@ -24,7 +24,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isDesktop, setIsDesktop] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [activeTab, setActiveTab] = useState<"android" | "ios">("android");
+  // activeTab removed — we auto-detect the platform
   const [adminBypass, setAdminBypass] = useState(false);
   const checkedRef = useRef(false);
 
@@ -45,7 +45,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     setIsDesktop(!mobile);
     const ios = /iPhone|iPad|iPod/i.test(ua);
     setIsIOS(ios);
-    setActiveTab(ios ? "ios" : "android");
+    // Platform auto-detected via isIOS state
 
     if (standalone) setIsInstalled(true);
 
@@ -156,116 +156,109 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           className="w-full max-w-sm">
           <h2 className="mb-3 text-center text-sm font-bold text-foreground">📱 Como Instalar</h2>
 
-          {/* Tabs */}
-          <div className="mb-4 flex overflow-hidden rounded-xl border border-border bg-muted/20">
-            <button onClick={() => setActiveTab("android")}
-              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all ${activeTab === "android" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              <Smartphone size={14} /> Android
-              {!isIOS && <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 text-[9px]">Seu</span>}
-            </button>
-            <button onClick={() => setActiveTab("ios")}
-              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-all ${activeTab === "ios" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              🍎 iPhone
-              {isIOS && <span className="ml-1 rounded-full bg-primary-foreground/20 px-1.5 text-[9px]">Seu</span>}
-            </button>
+        {/* Platform label */}
+          <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2">
+            {isIOS ? (
+              <>🍎 <span className="text-xs font-semibold text-foreground">Instruções para iPhone</span></>
+            ) : (
+              <><Smartphone size={14} className="text-primary" /> <span className="text-xs font-semibold text-foreground">Instruções para Android</span></>
+            )}
           </div>
 
-          {/* Tutorial content */}
-          <AnimatePresence mode="wait">
-            {activeTab === "android" ? (
-              <motion.div key="android" initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 15 }}
-                className="space-y-3">
-                <TutorialStep step={1} delay={0}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
-                      <Download size={18} className="text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">Clique em "Instalar Aplicativo"</p>
-                      <p className="text-[10px] text-muted-foreground">Toque no botão abaixo</p>
-                    </div>
-                    <AnimatedFinger />
+          {/* Tutorial content - show only the user's platform */}
+          {!isIOS ? (
+            <motion.div key="android" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="space-y-3">
+              <TutorialStep step={1} delay={0}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
+                    <Download size={18} className="text-primary" />
                   </div>
-                </TutorialStep>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Clique em "Instalar Aplicativo"</p>
+                    <p className="text-[10px] text-muted-foreground">Toque no botão abaixo</p>
+                  </div>
+                  <AnimatedFinger />
+                </div>
+              </TutorialStep>
 
-                <TutorialStep step={2} delay={0.1}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning/15">
-                      <Settings size={18} className="text-warning" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">Se pedir permissão</p>
-                      <p className="text-[10px] text-muted-foreground">Toque em "Permitir" → "Instalar"</p>
-                    </div>
-                    <CheckCircle2 size={16} className="text-success/60" />
+              <TutorialStep step={2} delay={0.1}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning/15">
+                    <Settings size={18} className="text-warning" />
                   </div>
-                </TutorialStep>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Se pedir permissão</p>
+                    <p className="text-[10px] text-muted-foreground">Toque em "Permitir" → "Instalar"</p>
+                  </div>
+                  <CheckCircle2 size={16} className="text-success/60" />
+                </div>
+              </TutorialStep>
 
-                <TutorialStep step={3} delay={0.2}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15">
-                      <CheckCircle2 size={18} className="text-success" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">Pronto! Abra o app</p>
-                      <p className="text-[10px] text-muted-foreground">Ícone na tela inicial do celular</p>
-                    </div>
-                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                      <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                        <img src={logoBitz} alt="" className="h-full w-full object-cover" />
-                      </div>
-                    </motion.div>
+              <TutorialStep step={3} delay={0.2}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15">
+                    <CheckCircle2 size={18} className="text-success" />
                   </div>
-                </TutorialStep>
-              </motion.div>
-            ) : (
-              <motion.div key="ios" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}
-                className="space-y-3">
-                <TutorialStep step={1} delay={0}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
-                      <Share2 size={18} className="text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">Toque em Compartilhar</p>
-                      <p className="text-[10px] text-muted-foreground">Ícone <span className="font-bold text-primary">↑</span> na barra do Safari</p>
-                    </div>
-                    <AnimatedArrow />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Pronto! Abra o app</p>
+                    <p className="text-[10px] text-muted-foreground">Ícone na tela inicial do celular</p>
                   </div>
-                </TutorialStep>
+                  <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+                    <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
+                      <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  </motion.div>
+                </div>
+              </TutorialStep>
+            </motion.div>
+          ) : (
+            <motion.div key="ios" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="space-y-3">
+              <TutorialStep step={1} delay={0}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
+                    <Share2 size={18} className="text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Toque em Compartilhar</p>
+                    <p className="text-[10px] text-muted-foreground">Ícone <span className="font-bold text-primary">↑</span> na barra do Safari</p>
+                  </div>
+                  <AnimatedArrow />
+                </div>
+              </TutorialStep>
 
-                <TutorialStep step={2} delay={0.1}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15">
-                      <Plus size={18} className="text-accent" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">"Adicionar à Tela de Início"</p>
-                      <p className="text-[10px] text-muted-foreground">Role a lista e toque na opção</p>
-                    </div>
-                    <AnimatedFinger />
+              <TutorialStep step={2} delay={0.1}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15">
+                    <Plus size={18} className="text-accent" />
                   </div>
-                </TutorialStep>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">"Adicionar à Tela de Início"</p>
+                    <p className="text-[10px] text-muted-foreground">Role a lista e toque na opção</p>
+                  </div>
+                  <AnimatedFinger />
+                </div>
+              </TutorialStep>
 
-                <TutorialStep step={3} delay={0.2}>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15">
-                      <CheckCircle2 size={18} className="text-success" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">Toque em "Adicionar"</p>
-                      <p className="text-[10px] text-muted-foreground">App será adicionado à sua tela</p>
-                    </div>
-                    <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                      <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                        <img src={logoBitz} alt="" className="h-full w-full object-cover" />
-                      </div>
-                    </motion.div>
+              <TutorialStep step={3} delay={0.2}>
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15">
+                    <CheckCircle2 size={18} className="text-success" />
                   </div>
-                </TutorialStep>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Toque em "Adicionar"</p>
+                    <p className="text-[10px] text-muted-foreground">App será adicionado à sua tela</p>
+                  </div>
+                  <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+                    <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
+                      <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  </motion.div>
+                </div>
+              </TutorialStep>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Benefits compact */}
