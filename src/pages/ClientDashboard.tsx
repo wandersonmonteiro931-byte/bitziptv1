@@ -120,13 +120,14 @@ function BannerCarousel() {
       onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
     >
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="block w-full overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20"
+        className="relative block w-full aspect-[16/7] overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20"
       >
         <AnimatePresence mode="wait">
           <motion.div key={current} initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.5 }}
+            className="absolute inset-0 flex items-center justify-center"
           >
             {banner.banner_url ? (
-              <img src={banner.banner_url} alt={banner.title} className="w-full h-auto block rounded-2xl" />
+              <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-contain" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center p-4">
                 <p className="text-center font-display text-sm font-bold text-foreground">{banner.title}</p>
