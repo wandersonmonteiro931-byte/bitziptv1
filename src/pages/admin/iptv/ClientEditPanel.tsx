@@ -32,6 +32,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [showConfirmPayment, setShowConfirmPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ months: 1, amount: "", notes: "" });
+  const [invoiceFilter, setInvoiceFilter] = useState<"all" | "past" | "future">("all");
   const [form, setForm] = useState({
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
@@ -397,57 +398,143 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     )}
                   </AnimatePresence>
 
-                  {/* Payment History */}
+                  {/* Payment History + Future Invoices */}
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Histórico de Pagamentos</p>
-                    {payments.length === 0 ? (
-                      <p className="text-center text-xs text-muted-foreground py-4">Nenhum pagamento registrado.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-80 overflow-y-auto">
-                        {payments.map((p: any) => {
-                          const date = new Date(p.payment_date);
-                          const formatted = date.toLocaleDateString("pt-BR");
-                          const endParts = p.period_end?.split("-");
-                          const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
-                          const isReversed = p.status === "reversed";
-                          return (
-                            <div key={p.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${isReversed ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/20"}`}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-foreground">{formatted}</p>
-                                <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
-                                {p.notes && <p className="text-[10px] text-muted-foreground/70 italic truncate">{p.notes}</p>}
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="text-right">
-                                  <span className={`text-sm font-semibold ${isReversed ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
-                                  <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${isReversed ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-400"}`}>
-                                    {isReversed ? "Revertido" : "Pago"}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={async () => {
-                                    setSaving(true);
-                                    await supabase.functions.invoke("admin-manage-user", {
-                                      body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
-                                    });
-                                    toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
-                                    setPaymentsLoaded(false);
-                                    await loadPayments();
-                                    setSaving(false);
-                                    onSaved();
-                                  }}
-                                  disabled={saving}
-                                  className={`rounded-lg p-1.5 transition-colors ${isReversed ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-destructive/10 text-destructive hover:bg-destructive/20"}`}
-                                  title={isReversed ? "Re-confirmar pagamento" : "Reverter pagamento"}
-                                >
-                                  <RotateCcw size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Faturas</p>
+                      <div className="flex gap-1">
+                        {(["all", "past", "future"] as const).map((f) => (
+                          <button key={f} onClick={() => setInvoiceFilter(f)}
+                            className={`rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors ${invoiceFilter === f ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+                            {f === "all" ? "Todas" : f === "past" ? "Anteriores" : "Próximas"}
+                          </button>
+                        ))}
                       </div>
-                    )}
+                    </div>
+
+                    {/* Generate future invoices button */}
+                    <button
+                      onClick={async () => {
+                        setSaving(true);
+                        await supabase.functions.invoke("admin-manage-user", {
+                          body: { action: "generate_future_invoices", user_id: user.id, data: { months_ahead: 6 } },
+                        });
+                        toast({ title: "📅 Faturas futuras geradas (6 meses)" });
+                        setPaymentsLoaded(false);
+                        await loadPayments();
+                        setSaving(false);
+                      }}
+                      disabled={saving}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <CreditCard size={13} /> Gerar Próximas 6 Faturas
+                    </button>
+
+                    {(() => {
+                      const today = new Date().toISOString().split("T")[0];
+                      const filtered = payments.filter((p: any) => {
+                        if (invoiceFilter === "past") return p.period_end <= today;
+                        if (invoiceFilter === "future") return p.period_end > today;
+                        return true;
+                      });
+
+                      if (filtered.length === 0) {
+                        return <p className="text-center text-xs text-muted-foreground py-4">Nenhuma fatura encontrada.</p>;
+                      }
+
+                      return (
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                          {filtered.map((p: any) => {
+                            const date = new Date(p.payment_date);
+                            const formatted = date.toLocaleDateString("pt-BR");
+                            const startParts = p.period_start?.split("-");
+                            const startFormatted = startParts ? `${startParts[2]}/${startParts[1]}/${startParts[0]}` : "";
+                            const endParts = p.period_end?.split("-");
+                            const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
+                            const isReversed = p.status === "reversed";
+                            const isPending = p.status === "pending";
+                            const isConfirmed = p.status === "confirmed";
+                            const isFuture = p.period_start > today;
+
+                            const statusColor = isReversed
+                              ? "bg-destructive/10 text-destructive"
+                              : isPending
+                              ? "bg-yellow-500/10 text-yellow-400"
+                              : "bg-emerald-500/10 text-emerald-400";
+                            const statusLabel = isReversed ? "Revertido" : isPending ? "Pendente" : "Pago";
+                            const borderColor = isReversed
+                              ? "bg-destructive/5 border-destructive/20"
+                              : isPending
+                              ? "bg-yellow-500/5 border-yellow-500/20"
+                              : "bg-muted/30 border-border/20";
+
+                            return (
+                              <div key={p.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${borderColor}`}>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-xs font-medium text-foreground">
+                                      {isPending && isFuture ? `Vence ${startFormatted}` : formatted}
+                                    </p>
+                                    {isFuture && isPending && (
+                                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">Futura</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · {startFormatted} → {endFormatted}</p>
+                                  {p.notes && <p className="text-[10px] text-muted-foreground/70 italic truncate">{p.notes}</p>}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <div className="text-right">
+                                    <span className={`text-sm font-semibold ${isReversed ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
+                                    <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>
+                                      {statusLabel}
+                                    </span>
+                                  </div>
+                                  {isPending ? (
+                                    <button
+                                      onClick={async () => {
+                                        setSaving(true);
+                                        await supabase.functions.invoke("admin-manage-user", {
+                                          body: { action: "mark_invoice_paid", user_id: user.id, data: { payment_id: p.id } },
+                                        });
+                                        toast({ title: "✅ Fatura marcada como paga" });
+                                        setPaymentsLoaded(false);
+                                        await loadPayments();
+                                        setSaving(false);
+                                        onSaved();
+                                      }}
+                                      disabled={saving}
+                                      className="rounded-lg p-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                                      title="Marcar como pago"
+                                    >
+                                      <CalendarCheck size={12} />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={async () => {
+                                        setSaving(true);
+                                        await supabase.functions.invoke("admin-manage-user", {
+                                          body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
+                                        });
+                                        toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
+                                        setPaymentsLoaded(false);
+                                        await loadPayments();
+                                        setSaving(false);
+                                        onSaved();
+                                      }}
+                                      disabled={saving}
+                                      className={`rounded-lg p-1.5 transition-colors ${isReversed ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-destructive/10 text-destructive hover:bg-destructive/20"}`}
+                                      title={isReversed ? "Re-confirmar pagamento" : "Reverter pagamento"}
+                                    >
+                                      <RotateCcw size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Saldo */}

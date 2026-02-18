@@ -296,6 +296,110 @@ Deno.serve(async (req) => {
         result = { success: true, new_status: newStatus };
         break;
       }
+      case "generate_future_invoices": {
+        const { months_ahead } = data;
+        const count = Math.min(Number(months_ahead) || 6, 12);
+
+        // Get user profile for monthly value and connections
+        const { data: prof } = await supabaseAdmin.from("profiles").select("iptv_monthly_value, iptv_connections, iptv_expiry").eq("id", user_id).single();
+        if (!prof) throw new Error("Usuário não encontrado");
+
+        const monthlyTotal = roundMoney(Number(prof.iptv_monthly_value) * Number(prof.iptv_connections));
+
+        // Find the latest period_end across all non-reversed payments
+        const { data: lastPay } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("period_end")
+          .eq("user_id", user_id)
+          .neq("status", "reversed")
+          .order("period_end", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let startFrom: Date;
+        if (lastPay?.period_end) {
+          startFrom = new Date(lastPay.period_end + "T00:00:00");
+        } else if (prof.iptv_expiry) {
+          startFrom = new Date(prof.iptv_expiry + "T00:00:00");
+        } else {
+          startFrom = new Date();
+        }
+
+        const invoices: any[] = [];
+        for (let i = 0; i < count; i++) {
+          const pStart = new Date(startFrom);
+          pStart.setMonth(pStart.getMonth() + i);
+          const pEnd = new Date(startFrom);
+          pEnd.setMonth(pEnd.getMonth() + i + 1);
+          invoices.push({
+            user_id,
+            amount: monthlyTotal,
+            months: 1,
+            period_start: pStart.toISOString().split("T")[0],
+            period_end: pEnd.toISOString().split("T")[0],
+            status: "pending",
+            payment_method: "pix",
+            notes: "Fatura gerada automaticamente",
+          });
+        }
+
+        // Only insert invoices that don't overlap with existing ones
+        const { data: existing } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("period_start, period_end")
+          .eq("user_id", user_id)
+          .neq("status", "reversed");
+
+        const existingPeriods = (existing || []).map((e: any) => `${e.period_start}_${e.period_end}`);
+        const newInvoices = invoices.filter((inv) => !existingPeriods.includes(`${inv.period_start}_${inv.period_end}`));
+
+        if (newInvoices.length > 0) {
+          await supabaseAdmin.from("iptv_payments").insert(newInvoices);
+        }
+
+        result = { success: true, generated: newInvoices.length };
+        break;
+      }
+      case "mark_invoice_paid": {
+        const { payment_id } = data;
+        if (!payment_id) throw new Error("payment_id é obrigatório");
+
+        const { data: invoice } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("*")
+          .eq("id", payment_id)
+          .single();
+        if (!invoice) throw new Error("Fatura não encontrada");
+
+        // Mark as confirmed
+        await supabaseAdmin.from("iptv_payments").update({
+          status: "confirmed",
+          admin_id: caller.id,
+          payment_date: new Date().toISOString(),
+        }).eq("id", payment_id);
+
+        // Update expiry to this payment's period_end if it's further than current
+        const { data: profile } = await supabaseAdmin.from("profiles").select("iptv_expiry").eq("id", user_id).single();
+        const currentExpiry = profile?.iptv_expiry || "1970-01-01";
+        if (invoice.period_end > currentExpiry) {
+          await supabaseAdmin.from("profiles").update({
+            iptv_expiry: invoice.period_end,
+            iptv_status: "active",
+          }).eq("id", user_id);
+        }
+
+        // Log in balance_history
+        await supabaseAdmin.from("balance_history").insert({
+          user_id,
+          type: "payment",
+          amount: Number(invoice.amount),
+          description: `Fatura paga — período até ${invoice.period_end}`,
+          admin_id: caller.id,
+        });
+
+        result = { success: true };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
