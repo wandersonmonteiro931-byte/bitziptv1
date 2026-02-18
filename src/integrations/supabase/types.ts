@@ -627,6 +627,9 @@ export type Database = {
           payment_method: string
           period_end: string
           period_start: string
+          pix_copia_cola: string | null
+          pix_location: string | null
+          pix_txid: string | null
           status: string
           user_id: string
         }
@@ -641,6 +644,9 @@ export type Database = {
           payment_method?: string
           period_end: string
           period_start: string
+          pix_copia_cola?: string | null
+          pix_location?: string | null
+          pix_txid?: string | null
           status?: string
           user_id: string
         }
@@ -655,6 +661,9 @@ export type Database = {
           payment_method?: string
           period_end?: string
           period_start?: string
+          pix_copia_cola?: string | null
+          pix_location?: string | null
+          pix_txid?: string | null
           status?: string
           user_id?: string
         }
