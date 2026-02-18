@@ -58,25 +58,26 @@ Deno.serve(async (req) => {
       if (cost > 0) {
         const { data: profile } = await supabaseAdmin
           .from("profiles")
-          .select("balance")
+          .select("credits")
           .eq("id", user.id)
           .single();
 
-        if (!profile || Number(profile.balance) < cost) {
-          return new Response(JSON.stringify({ error: "Saldo insuficiente", required: cost }), {
+        if (!profile || Number(profile.credits) < cost) {
+          return new Response(JSON.stringify({ error: "Créditos insuficientes", required: cost }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
 
-        // Deduct
+        // Deduct credits
         await supabaseAdmin.from("profiles").update({
-          balance: roundMoney(Number(profile.balance) - cost),
+          credits: Number(profile.credits) - cost,
         }).eq("id", user.id);
 
-        await supabaseAdmin.from("balance_history").insert({
+        await supabaseAdmin.from("credit_transactions").insert({
           user_id: user.id,
-          type: "debit",
-          amount: cost,
+          type: "challenge_bet",
+          amount: -cost,
+          balance_after: Number(profile.credits) - cost,
           description: `🎮 Jogo da Memória – entrada`,
         });
       }
