@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User } from "lucide-react";
+import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
@@ -28,6 +28,10 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [showPass, setShowPass] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [logsLoaded, setLogsLoaded] = useState(false);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [showConfirmPayment, setShowConfirmPayment] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ months: 1, amount: "", notes: "" });
   const [form, setForm] = useState({
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
@@ -60,6 +64,24 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     setLogsLoaded(true);
   };
 
+  const loadPayments = async () => {
+    if (paymentsLoaded) return;
+    const { data } = await supabase
+      .from("iptv_payments" as any)
+      .select("*")
+      .eq("user_id", user.id)
+      .order("payment_date", { ascending: false })
+      .limit(50);
+    setPayments(data || []);
+    setPaymentsLoaded(true);
+  };
+
+  // Load payments when financial tab is opened
+  useEffect(() => {
+    if (tab === "financial") loadPayments();
+    if (tab === "history") loadLogs();
+  }, [tab]);
+
   const saveForm = async () => {
     setSaving(true);
     await supabase.functions.invoke("admin-manage-user", {
@@ -70,7 +92,55 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     onSaved();
   };
 
-  const quickAction = async (action: string, data?: any) => {
+  const confirmPayment = async () => {
+    setSaving(true);
+    const months = Number(paymentForm.months);
+    const amount = paymentForm.amount ? Number(paymentForm.amount) : totalValue * months;
+
+    // Calculate period
+    const startDate = new Date();
+    let periodStart: string;
+    let periodEnd: string;
+
+    if (form.iptv_expiry && new Date(form.iptv_expiry) > startDate) {
+      // If not expired yet, extend from current expiry
+      periodStart = form.iptv_expiry;
+      const end = new Date(form.iptv_expiry);
+      end.setMonth(end.getMonth() + months);
+      periodEnd = end.toISOString().split("T")[0];
+    } else {
+      // If expired or no expiry, start from today
+      periodStart = startDate.toISOString().split("T")[0];
+      const end = new Date(startDate);
+      end.setMonth(end.getMonth() + months);
+      periodEnd = end.toISOString().split("T")[0];
+    }
+
+    await supabase.functions.invoke("admin-manage-user", {
+      body: {
+        action: "confirm_payment",
+        user_id: user.id,
+        data: {
+          amount,
+          months,
+          notes: paymentForm.notes,
+          period_start: periodStart,
+          period_end: periodEnd,
+        },
+      },
+    });
+
+    toast({ title: `✅ Pagamento confirmado — ${months} mês(es) até ${periodEnd}` });
+    setForm({ ...form, iptv_expiry: periodEnd, iptv_status: "active" });
+    setShowConfirmPayment(false);
+    setPaymentForm({ months: 1, amount: "", notes: "" });
+    setPaymentsLoaded(false);
+    loadPayments();
+    setSaving(false);
+    onSaved();
+  };
+
+  const quickAction = async (action: string) => {
     setSaving(true);
     if (action === "block") {
       await supabase.functions.invoke("admin-manage-user", {
@@ -99,6 +169,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const inputCls = "w-full rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all";
   const labelCls = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
+  // Check if expired
+  const isExpired = form.iptv_expiry && new Date(form.iptv_expiry) < new Date();
+
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-background/60 backdrop-blur-sm" onClick={onClose}>
       <motion.div
@@ -124,6 +197,20 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
             <X size={18} />
           </button>
         </div>
+
+        {/* Expired alert */}
+        {isExpired && (
+          <div className="flex items-center gap-2 border-b border-destructive/20 bg-destructive/5 px-5 py-2">
+            <ShieldAlert size={14} className="text-destructive shrink-0" />
+            <p className="text-xs font-medium text-destructive">Plano vencido em {form.iptv_expiry}</p>
+            <button
+              onClick={() => { setTab("financial"); setShowConfirmPayment(true); }}
+              className="ml-auto rounded-lg bg-primary/15 px-3 py-1 text-[10px] font-semibold text-primary hover:bg-primary/25 transition-colors"
+            >
+              Renovar
+            </button>
+          </div>
+        )}
 
         {/* Status badge + quick actions */}
         <div className="flex items-center gap-2 border-b border-border px-5 py-3">
@@ -152,7 +239,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
           {TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => { setTab(t.key); if (t.key === "history") loadLogs(); }}
+              onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-3 text-xs font-medium transition-all border-b-2 ${
                 tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
@@ -255,6 +342,89 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       <label className={labelCls}>Data de Expiração</label>
                       <input type="date" value={form.iptv_expiry || ""} onChange={(e) => setForm({ ...form, iptv_expiry: e.target.value })} className={inputCls} />
                     </div>
+                    {isExpired && (
+                      <div className="rounded-lg bg-destructive/10 p-2 text-center">
+                        <p className="text-xs font-medium text-destructive">⚠️ Plano vencido</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm Payment button */}
+                  <button
+                    onClick={() => setShowConfirmPayment(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/25 transition-all"
+                  >
+                    <CalendarCheck size={16} /> Confirmar Pagamento / Renovar
+                  </button>
+
+                  {/* Confirm Payment Modal */}
+                  <AnimatePresence>
+                    {showConfirmPayment && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                        <p className="text-xs font-semibold text-emerald-400">💳 Confirmar Pagamento</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={labelCls}>Meses</label>
+                            <select value={paymentForm.months} onChange={(e) => setPaymentForm({ ...paymentForm, months: Number(e.target.value) })} className={inputCls}>
+                              <option value={1}>1 mês</option>
+                              <option value={2}>2 meses</option>
+                              <option value={3}>3 meses</option>
+                              <option value={6}>6 meses</option>
+                              <option value={12}>12 meses</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={labelCls}>Valor (R$)</label>
+                            <input type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder={`${(totalValue * Number(paymentForm.months)).toFixed(2)}`} className={inputCls} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Observação</label>
+                          <input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} placeholder="PIX confirmado, etc." className={inputCls} />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={confirmPayment} disabled={saving}
+                            className="flex-1 rounded-xl bg-emerald-500/20 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition-all">
+                            {saving ? "Processando..." : "✅ Confirmar"}
+                          </button>
+                          <button onClick={() => setShowConfirmPayment(false)}
+                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+                            Cancelar
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Payment History */}
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Histórico de Pagamentos</p>
+                    {payments.length === 0 ? (
+                      <p className="text-center text-xs text-muted-foreground py-4">Nenhum pagamento registrado.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {payments.map((p: any) => {
+                          const date = new Date(p.payment_date);
+                          const formatted = date.toLocaleDateString("pt-BR");
+                          const endParts = p.period_end?.split("-");
+                          const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
+                          return (
+                            <div key={p.id} className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 border-b border-border/20 last:border-0">
+                              <div>
+                                <p className="text-xs font-medium text-foreground">{formatted}</p>
+                                <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
+                                {p.notes && <p className="text-[10px] text-muted-foreground/70 italic">{p.notes}</p>}
+                              </div>
+                              <div className="text-right">
+                                <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
+                                <span className="ml-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Saldo */}
