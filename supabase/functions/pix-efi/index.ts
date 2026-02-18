@@ -474,16 +474,16 @@ async function handleWebhook(req: Request) {
         continue;
       }
 
-      // Confirm payment
+      // Confirm payment - mark as paid but pending admin activation
       await adminSupa
         .from("iptv_payments")
-        .update({ status: "confirmed", payment_date: new Date().toISOString() })
+        .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
         .eq("id", payment.id);
 
-      // Update user iptv_expiry based on period_end
+      // Set user status to awaiting_activation (admin will manually update expiry)
       await adminSupa
         .from("profiles")
-        .update({ iptv_status: "active", iptv_expiry: payment.period_end })
+        .update({ iptv_status: "awaiting_activation" })
         .eq("id", payment.user_id);
 
       // Log in balance_history

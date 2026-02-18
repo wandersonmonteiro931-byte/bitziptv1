@@ -11,6 +11,7 @@ export const IPTV_STATUSES = [
 export const QUICK_FILTERS = [
   { key: "all", label: "Todos" },
   { key: "active", label: "Ativos" },
+  { key: "awaiting_activation", label: "Aguardando Ativação" },
   { key: "expiring_5d", label: "Vencendo em 5 dias" },
   { key: "expiring", label: "Vencendo Hoje" },
   { key: "expired", label: "Vencidos" },
