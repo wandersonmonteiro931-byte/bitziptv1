@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { InstallGate } from "@/components/InstallGate";
+import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 
 import LoginPage from "./pages/LoginPage";
 import ClientDashboard from "./pages/ClientDashboard";
@@ -53,6 +54,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
+        <PWAUpdatePrompt />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomeRedirect />} />

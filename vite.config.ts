@@ -17,11 +17,13 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["logo-bitz.jpg", "favicon.ico"],
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
+        skipWaiting: false,
+        clientsClaim: true,
       },
       manifest: {
         name: "Bitz IPTV",
