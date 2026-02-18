@@ -372,16 +372,13 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
       setLoading(true);
       setError(null);
       try {
-        // Use client's current expiry as base, fallback to today
-        const today = new Date();
+        // Always use client's registered expiry date as base
         let baseExpiry: Date;
         if (user?.iptv_expiry) {
           const [y, m, d] = user.iptv_expiry.split("-").map(Number);
           baseExpiry = new Date(y, m - 1, d);
-          // If already expired, use today as base
-          if (baseExpiry < today) baseExpiry = today;
         } else {
-          baseExpiry = today;
+          baseExpiry = new Date();
         }
         const periodStart = new Date(baseExpiry);
         const periodEnd = new Date(baseExpiry);
@@ -492,15 +489,13 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
         {paymentConfirmed ? (
           (() => {
-            // Same logic as charge creation: use client expiry, fallback to today if expired/missing
-            const todayCalc = new Date();
+            // Always use registered expiry date as base
             let baseExpiry: Date;
             if (user?.iptv_expiry) {
               const [y, m, d] = user.iptv_expiry.split("-").map(Number);
               baseExpiry = new Date(y, m - 1, d);
-              if (baseExpiry < todayCalc) baseExpiry = todayCalc;
             } else {
-              baseExpiry = todayCalc;
+              baseExpiry = new Date();
             }
             const newExpiry = new Date(baseExpiry);
             newExpiry.setMonth(newExpiry.getMonth() + pixModal.months);
