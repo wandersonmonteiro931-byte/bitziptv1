@@ -391,7 +391,7 @@ const ClientDashboard = () => {
           <div className="mb-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-muted/20 p-3">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">💰 Mensalidade</p>
-              <p className="mt-1 font-display text-lg font-bold text-secondary">R$ {monthlyValue.toFixed(2)}</p>
+              <p className="mt-1 font-display text-lg font-bold text-secondary">R$ {totalValue.toFixed(2)}</p>
             </div>
             <div className={`rounded-xl p-3 ${isDueSoon || isOverdue ? "bg-destructive/10 border border-destructive/20" : "bg-muted/20"}`}>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">📅 Validade</p>
@@ -403,7 +403,7 @@ const ClientDashboard = () => {
 
           {connections > 1 && (
             <div className="mb-3 rounded-xl bg-secondary/5 border border-secondary/20 p-2.5">
-              <p className="text-xs text-muted-foreground">Total com {connections} conexões: <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span></p>
+              <p className="text-xs text-muted-foreground">Valor por tela: <span className="font-bold text-secondary">R$ {monthlyValue.toFixed(2)}</span> × {connections} telas = <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span></p>
             </div>
           )}
 
@@ -426,9 +426,9 @@ const ClientDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                <Link2 size={14} className="text-accent" /> Conexões Ativas
+                <Link2 size={14} className="text-accent" /> Telas Ativas
               </div>
-              <p className="mt-0.5 text-[10px] text-muted-foreground/60">Valor multiplicado pela quantidade contratada</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/60">Será cobrado o valor integral da mensalidade por cada tela contratada.</p>
             </div>
             <div className="flex items-center gap-2">
               <span className="font-display text-3xl font-bold text-accent">{connections}</span>
