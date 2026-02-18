@@ -12,6 +12,27 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
+import appAssistPlus from "@/assets/app-assist-plus.webp";
+import appBlessedPlayer from "@/assets/app-blessed-player.png";
+import appMaxPlayer from "@/assets/app-max-player.png";
+import appSmarters from "@/assets/app-smarters-pro.png";
+
+const APP_LOGO_MAP: Record<string, string> = {
+  "assist plus": appAssistPlus,
+  "blessed player": appBlessedPlayer,
+  "max player": appMaxPlayer,
+  "smarters pro": appSmarters,
+};
+
+const getAppLogoSrc = (appName: string | undefined): string | null => {
+  if (!appName) return null;
+  const key = appName.toLowerCase().trim();
+  for (const [k, v] of Object.entries(APP_LOGO_MAP)) {
+    if (key.includes(k)) return v;
+  }
+  return null;
+};
+
 // --- Constants ---
 const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; bgColor: string; dotColor: string; pulse?: boolean }> = {
   active: { label: "Online", color: "text-green-400", bgColor: "bg-green-500/10 border-green-500/20", dotColor: "bg-green-400", pulse: true },
@@ -425,9 +446,14 @@ const ClientDashboard = () => {
           <div className="flex flex-wrap gap-2">
             {tvApps.map((app) => {
               const isActive = user?.iptv_tv_app === app.name;
+              const logo = getAppLogoSrc(app.name);
               return (
                 <div key={app.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all ${isActive ? "border-primary/30 bg-primary/10 text-primary" : "border-border/50 bg-muted/10 text-muted-foreground/40"}`}>
-                  <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
+                  {logo ? (
+                    <img src={logo} alt={app.name} className="h-7 w-7 rounded-md object-contain" />
+                  ) : (
+                    <span className="text-base">{TV_APP_ICONS[app.name] || app.icon}</span>
+                  )}
                   <span className="font-medium">{app.name}</span>
                   {isActive && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
                 </div>
@@ -435,7 +461,7 @@ const ClientDashboard = () => {
             })}
             {tvApps.length === 0 && user?.iptv_tv_app && (
               <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
-                <span>📺</span>
+                {(() => { const logo = getAppLogoSrc(user.iptv_tv_app); return logo ? <img src={logo} alt={user.iptv_tv_app} className="h-7 w-7 rounded-md object-contain" /> : <span>📺</span>; })()}
                 <span className="font-medium">{user.iptv_tv_app}</span>
               </div>
             )}
