@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.credit-system]
 verify_jwt = false
+
+[functions.sync-tv-guide]
+verify_jwt = false
+
+[functions.memory-game]
+verify_jwt = false
