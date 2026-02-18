@@ -19,6 +19,7 @@ const BENEFITS = [
 export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [showContinueMessage, setShowContinueMessage] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -66,11 +67,11 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     setInstalling(true);
     try {
       await deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === "accepted") setIsInstalled(true);
+      await deferredPrompt.userChoice;
     } catch {}
     setInstalling(false);
     setDeferredPrompt(null);
+    setShowContinueMessage(true);
   };
 
   return (
@@ -294,15 +295,34 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
       <div className="fixed bottom-0 left-0 right-0 z-[10000] border-t border-primary/20 bg-background/95 backdrop-blur-lg"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
         <div className="px-4 pb-2 pt-3">
-          <button onClick={handleInstallClick} disabled={installing}
-            className="relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-accent px-6 py-4 font-display text-sm font-bold tracking-wide text-primary-foreground shadow-[0_-4px_30px_hsl(210_100%_55%/0.3)] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60">
-            <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            <Download size={20} />
-            {installing ? "INSTALANDO..." : "INSTALAR APLICATIVO OFICIAL"}
-          </button>
-          <p className="mt-1.5 text-center text-[10px] text-muted-foreground/60">
-            Acesso liberado somente pelo app · Gratuito
-          </p>
+          {showContinueMessage ? (
+            <div className="flex w-full flex-col items-center gap-2 rounded-2xl border border-success/30 bg-success/10 px-6 py-4">
+              <CheckCircle2 size={24} className="text-success" />
+              <p className="text-sm font-bold text-success">App instalado com sucesso!</p>
+              <p className="text-xs text-muted-foreground text-center">Feche o navegador e continue pelo aplicativo na sua tela inicial.</p>
+              <div className="mt-1 flex items-center gap-2">
+                <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                  <div className="h-8 w-8 overflow-hidden rounded-xl border border-primary/30">
+                    <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                  </div>
+                </motion.div>
+                <ChevronRight size={14} className="text-muted-foreground" />
+                <span className="text-xs font-semibold text-foreground">Abra o Bitz IPTV</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button onClick={handleInstallClick} disabled={installing}
+                className="relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-accent px-6 py-4 font-display text-sm font-bold tracking-wide text-primary-foreground shadow-[0_-4px_30px_hsl(210_100%_55%/0.3)] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60">
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <Download size={20} />
+                {installing ? "INSTALANDO..." : "INSTALAR APLICATIVO OFICIAL"}
+              </button>
+              <p className="mt-1.5 text-center text-[10px] text-muted-foreground/60">
+                Acesso liberado somente pelo app · Gratuito
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
