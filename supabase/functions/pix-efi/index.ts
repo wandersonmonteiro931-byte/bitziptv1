@@ -21,16 +21,10 @@ let _cachedPem: { cert: string; key: string } | null = null;
 function getPemCredentials(): { cert: string; key: string } {
   if (_cachedPem) return _cachedPem;
 
-  // Try direct PEM secrets first
-  const certPem = Deno.env.get("EFI_CERT_PEM");
-  const keyPem = Deno.env.get("EFI_KEY_PEM");
-  if (certPem && keyPem) {
-    _cachedPem = { cert: ensurePemNewlines(certPem), key: ensurePemNewlines(keyPem) };
-    return _cachedPem;
-  }
-
-  // Fallback: convert .p12 from base64 using node-forge (pure JS, no openssl)
+  // Always extract from .p12 to guarantee PKCS#8 key format (required by Deno's rustls)
   const b64 = getEnv("EFI_CERTIFICATE_BASE64");
+  console.log("Extracting PEM from .p12 base64 (length:", b64.length, ")");
+  
   const derBytes = forge.util.decode64(b64);
   const asn1 = forge.asn1.fromDer(derBytes);
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, "");
@@ -41,7 +35,18 @@ function getPemCredentials(): { cert: string; key: string } {
   if (!certBag?.cert) throw new Error("No certificate found in .p12");
   const cert = forge.pki.certificateToPem(certBag.cert);
 
-  // Extract private key in PKCS#8 format (BEGIN PRIVATE KEY, not BEGIN RSA PRIVATE KEY)
+  // Extract ALL certificates for the full chain
+  const allCertBags = certBags[forge.pki.oids.certBag] || [];
+  let fullCertChain = cert;
+  if (allCertBags.length > 1) {
+    fullCertChain = allCertBags
+      .filter((b: any) => b.cert)
+      .map((b: any) => forge.pki.certificateToPem(b.cert))
+      .join("\n");
+    console.log(`Found ${allCertBags.length} certificates in chain`);
+  }
+
+  // Extract private key in PKCS#8 format (BEGIN PRIVATE KEY)
   const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
   if (!keyBag?.key) throw new Error("No private key found in .p12");
@@ -51,83 +56,174 @@ function getPemCredentials(): { cert: string; key: string } {
   const privateKeyInfo = forge.pki.wrapRsaPrivateKey(rsaPrivateKey);
   const key = forge.pki.privateKeyInfoToPem(privateKeyInfo);
 
-  _cachedPem = { cert, key };
-  console.log("Extracted PEM from .p12 successfully (PKCS#8 format)");
-  console.log("Cert header:", cert.substring(0, 30));
-  console.log("Key header:", key.substring(0, 30));
+  _cachedPem = { cert: fullCertChain, key };
+  
+  console.log("PEM extraction successful");
+  console.log("Cert starts with:", fullCertChain.substring(0, 27));
+  console.log("Key starts with:", key.substring(0, 27));
+  console.log("Cert length:", fullCertChain.length, "Key length:", key.length);
+  
+  // Log cert details for debugging
+  const certObj = certBag.cert;
+  console.log("Cert subject:", certObj.subject.getField("CN")?.value || "unknown");
+  console.log("Cert issuer:", certObj.issuer.getField("CN")?.value || "unknown");
+  console.log("Cert valid from:", certObj.validity.notBefore.toISOString());
+  console.log("Cert valid to:", certObj.validity.notAfter.toISOString());
+  
   return _cachedPem;
 }
 
-/** Ensure PEM strings have proper newlines (secrets might strip them) */
-function ensurePemNewlines(pem: string): string {
-  // If it already has proper newlines, return as-is
-  if (pem.includes("\n")) return pem;
-  // Otherwise reconstruct: header + base64 in 64-char lines + footer
-  const match = pem.match(/^(-----BEGIN [^-]+-----)(.+)(-----END [^-]+-----)$/);
-  if (!match) return pem;
-  const [, header, body, footer] = match;
-  const lines = body.match(/.{1,64}/g) || [];
-  return `${header}\n${lines.join("\n")}\n${footer}`;
-}
-
-// ── Efí API ──────────────────────────────────────────────────────────────
+// ── mTLS HTTP via Deno.connectTls ─────────────────────────────────────────
 
 const EFI_BASE_URL = "https://pix.api.efipay.com.br";
 const EFI_SANDBOX_URL = "https://pix-h.api.efipay.com.br";
 
 function getBaseUrl(): string {
-  // Use sandbox if EFI_SANDBOX env is "true"
   const sandbox = Deno.env.get("EFI_SANDBOX") === "true";
   return sandbox ? EFI_SANDBOX_URL : EFI_BASE_URL;
 }
 
-async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+function getHostname(): string {
+  const sandbox = Deno.env.get("EFI_SANDBOX") === "true";
+  return sandbox ? "pix-h.api.efipay.com.br" : "pix.api.efipay.com.br";
+}
+
+async function mtlsFetch(
+  path: string,
+  options: { method: string; headers?: Record<string, string>; body?: string }
+): Promise<{ status: number; body: string }> {
+  const { cert, key } = getPemCredentials();
+  const hostname = getHostname();
+
+  // Also get PKCS#1 key for compatibility
+  const pkcs1Key = forge.pki.privateKeyToPem(forge.pki.privateKeyFromPem(key));
+  
+  // Try multiple TLS connection approaches
+  const approaches = [
+    { name: "cert/key (PKCS#8)", opts: { hostname, port: 443, cert, key } },
+    { name: "cert/key (PKCS#1)", opts: { hostname, port: 443, cert, key: pkcs1Key } },
+    { name: "certChain/privateKey (PKCS#8)", opts: { hostname, port: 443, certChain: cert, privateKey: key } },
+    { name: "certChain/privateKey (PKCS#1)", opts: { hostname, port: 443, certChain: cert, privateKey: pkcs1Key } },
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const approach of approaches) {
+    try {
+      console.log(`Trying TLS approach: ${approach.name}`);
+      const conn = await Deno.connectTls(approach.opts as any);
+      
+      try {
+        const bodyBytes = options.body ? new TextEncoder().encode(options.body) : null;
+        const hdrs: Record<string, string> = {
+          Host: hostname,
+          Connection: "close",
+          ...options.headers,
+        };
+        if (bodyBytes) hdrs["Content-Length"] = String(bodyBytes.length);
+
+        let request = `${options.method} ${path} HTTP/1.1\r\n`;
+        for (const [k, v] of Object.entries(hdrs)) request += `${k}: ${v}\r\n`;
+        request += "\r\n";
+
+        await conn.write(new TextEncoder().encode(request));
+        if (bodyBytes) await conn.write(bodyBytes);
+
+        const chunks: Uint8Array[] = [];
+        const buf = new Uint8Array(8192);
+        while (true) {
+          const n = await conn.read(buf);
+          if (n === null) break;
+          chunks.push(buf.slice(0, n));
+        }
+
+        const rawResponse = new TextDecoder().decode(
+          chunks.reduce((acc, chunk) => {
+            const merged = new Uint8Array(acc.length + chunk.length);
+            merged.set(acc);
+            merged.set(chunk, acc.length);
+            return merged;
+          }, new Uint8Array(0))
+        );
+
+        const headerEnd = rawResponse.indexOf("\r\n\r\n");
+        if (headerEnd === -1) throw new Error("No HTTP response received");
+        
+        const statusLine = rawResponse.substring(0, rawResponse.indexOf("\r\n"));
+        const statusMatch = statusLine.match(/HTTP\/\d\.\d\s+(\d+)/);
+        const status = statusMatch ? parseInt(statusMatch[1]) : 0;
+        let responseBody = rawResponse.substring(headerEnd + 4);
+
+        if (rawResponse.substring(0, headerEnd).toLowerCase().includes("transfer-encoding: chunked")) {
+          responseBody = decodeChunked(responseBody);
+        }
+
+        console.log(`TLS approach "${approach.name}" succeeded! Status: ${status}`);
+        return { status, body: responseBody };
+      } finally {
+        try { conn.close(); } catch { /* ignore */ }
+      }
+    } catch (err) {
+      console.error(`TLS approach "${approach.name}" failed:`, err.message);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("All mTLS approaches failed");
+}
+
+function decodeChunked(data: string): string {
+  let result = "";
+  let remaining = data;
+  while (remaining.length > 0) {
+    const lineEnd = remaining.indexOf("\r\n");
+    if (lineEnd === -1) break;
+    const chunkSize = parseInt(remaining.substring(0, lineEnd), 16);
+    if (chunkSize === 0 || isNaN(chunkSize)) break;
+    result += remaining.substring(lineEnd + 2, lineEnd + 2 + chunkSize);
+    remaining = remaining.substring(lineEnd + 2 + chunkSize + 2);
+  }
+  return result;
+}
+
+async function mtlsFetchWithRetry(
+  path: string,
+  options: { method: string; headers?: Record<string, string>; body?: string },
+  maxRetries = 3
+): Promise<{ status: number; body: string }> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const resp = await fetch(url, options);
-      return resp;
+      return await mtlsFetch(path, options);
     } catch (err) {
-      console.error(`Fetch attempt ${attempt}/${maxRetries} failed:`, err.message);
+      console.error(`mTLS attempt ${attempt}/${maxRetries} failed:`, err.message);
       if (attempt >= maxRetries) throw err;
-      const delay = 2000 * Math.pow(2, attempt - 1);
-      await new Promise(r => setTimeout(r, delay));
+      await new Promise(r => setTimeout(r, 2000 * Math.pow(2, attempt - 1)));
     }
   }
   throw new Error("Unreachable");
 }
 
-function createMtlsClient(cert: string, key: string): Deno.HttpClient {
-  // Try newer Deno API first (cert/key), fallback to legacy (certChain/privateKey)
-  try {
-    return Deno.createHttpClient({ cert, key });
-  } catch {
-    console.log("Falling back to certChain/privateKey API");
-    return Deno.createHttpClient({ certChain: cert, privateKey: key } as any);
-  }
-}
+// ── Efí API ──────────────────────────────────────────────────────────────
 
-async function getAccessToken(httpClient: Deno.HttpClient): Promise<string> {
+async function getAccessToken(): Promise<string> {
   const clientId = getEnv("EFI_CLIENT_ID");
   const clientSecret = getEnv("EFI_CLIENT_SECRET");
   const credentials = btoa(`${clientId}:${clientSecret}`);
-  const baseUrl = getBaseUrl();
 
-  const resp = await fetchWithRetry(`${baseUrl}/oauth/token`, {
+  const resp = await mtlsFetchWithRetry("/oauth/token", {
     method: "POST",
-    client: httpClient,
     headers: {
       Authorization: `Basic ${credentials}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ grant_type: "client_credentials" }),
-  } as RequestInit & { client: Deno.HttpClient });
+  });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`OAuth failed (${resp.status}): ${text}`);
+  if (resp.status !== 200) {
+    throw new Error(`OAuth failed (${resp.status}): ${resp.body}`);
   }
 
-  const data = await resp.json();
+  const data = JSON.parse(resp.body);
   return data.access_token;
 }
 
@@ -150,48 +246,34 @@ interface CobResponse {
   pixCopiaECola?: string;
 }
 
-async function createPixCharge(
-  httpClient: Deno.HttpClient,
-  token: string,
-  payload: CobPayload
-): Promise<CobResponse> {
-  const baseUrl = getBaseUrl();
-  const resp = await fetchWithRetry(`${baseUrl}/v2/cob`, {
+async function createPixCharge(token: string, payload: CobPayload): Promise<CobResponse> {
+  const resp = await mtlsFetchWithRetry("/v2/cob", {
     method: "POST",
-    client: httpClient,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  } as RequestInit & { client: Deno.HttpClient });
+  });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Create cob failed (${resp.status}): ${text}`);
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`Create cob failed (${resp.status}): ${resp.body}`);
   }
 
-  return resp.json();
+  return JSON.parse(resp.body);
 }
 
-async function getQrCode(
-  httpClient: Deno.HttpClient,
-  token: string,
-  locId: number
-): Promise<{ qrcode: string; imagemQrcode: string }> {
-  const baseUrl = getBaseUrl();
-  const resp = await fetchWithRetry(`${baseUrl}/v2/loc/${locId}/qrcode`, {
+async function getQrCode(token: string, locId: number): Promise<{ qrcode: string; imagemQrcode: string }> {
+  const resp = await mtlsFetchWithRetry(`/v2/loc/${locId}/qrcode`, {
     method: "GET",
-    client: httpClient,
     headers: { Authorization: `Bearer ${token}` },
-  } as RequestInit & { client: Deno.HttpClient });
+  });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`QR code failed (${resp.status}): ${text}`);
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`QR code failed (${resp.status}): ${resp.body}`);
   }
 
-  return resp.json();
+  return JSON.parse(resp.body);
 }
 
 // ── Supabase helpers ─────────────────────────────────────────────────────
@@ -267,92 +349,72 @@ async function handleCreateCharge(userId: string, body: any) {
   }
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key: privKey } = getPemCredentials();
-  console.log("PEM cert length:", cert.length, "has newlines:", cert.includes("\n"));
-  console.log("PEM key length:", privKey.length, "has newlines:", privKey.includes("\n"));
 
-  const httpClient = createMtlsClient(cert, privKey);
+  const accessToken = await getAccessToken();
 
-  try {
-    const accessToken = await getAccessToken(httpClient);
+  const cobPayload: CobPayload = {
+    calendario: { expiracao: 3600 },
+    valor: { original: Number(amount).toFixed(2) },
+    chave: pixKey,
+    solicitacaoPagador: descricao || "Pagamento IPTV",
+  };
 
-    const cobPayload: CobPayload = {
-      calendario: { expiracao: 3600 }, // 1 hour
-      valor: { original: Number(amount).toFixed(2) },
-      chave: pixKey,
-      solicitacaoPagador: descricao || "Pagamento IPTV",
-    };
-
-    if (devedor_nome && devedor_cpf) {
-      cobPayload.devedor = { cpf: devedor_cpf, nome: devedor_nome };
-    }
-
-    const cob = await createPixCharge(httpClient, accessToken, cobPayload);
-
-    // Get QR code
-    const qr = await getQrCode(httpClient, accessToken, cob.loc.id);
-
-    // Update payment record with PIX data
-    const adminSupa = getAdminSupabase();
-    await adminSupa
-      .from("iptv_payments")
-      .update({
-        pix_txid: cob.txid,
-        pix_location: cob.loc.location,
-        pix_copia_cola: qr.qrcode,
-        status: "pending",
-      })
-      .eq("id", payment_id);
-
-    return jsonResp({
-      txid: cob.txid,
-      qrcode: qr.qrcode,
-      qrcode_image: qr.imagemQrcode,
-      location: cob.loc.location,
-      expiracao: cob.calendario.expiracao,
-    });
-  } finally {
-    httpClient.close();
+  if (devedor_nome && devedor_cpf) {
+    cobPayload.devedor = { cpf: devedor_cpf, nome: devedor_nome };
   }
+
+  const cob = await createPixCharge(accessToken, cobPayload);
+
+  // Get QR code
+  const qr = await getQrCode(accessToken, cob.loc.id);
+
+  // Update payment record with PIX data
+  const adminSupa = getAdminSupabase();
+  await adminSupa
+    .from("iptv_payments")
+    .update({
+      pix_txid: cob.txid,
+      pix_location: cob.loc.location,
+      pix_copia_cola: qr.qrcode,
+      status: "pending",
+    })
+    .eq("id", payment_id);
+
+  return jsonResp({
+    txid: cob.txid,
+    qrcode: qr.qrcode,
+    qrcode_image: qr.imagemQrcode,
+    location: cob.loc.location,
+    expiracao: cob.calendario.expiracao,
+  });
 }
 
 async function handleRegisterWebhook(userId: string) {
-  // Verify user is admin
   const adminSupa = getAdminSupabase();
   const { data: isAdmin } = await adminSupa.rpc("has_role", { _role: "admin", _user_id: userId });
   if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = getPemCredentials();
-  const httpClient = createMtlsClient(cert, key);
+  const accessToken = await getAccessToken();
+  const supabaseUrl = getEnv("SUPABASE_URL");
+  const webhookUrl = `${supabaseUrl}/functions/v1/pix-efi/webhook`;
 
-  try {
-    const accessToken = await getAccessToken(httpClient);
-    const baseUrl = getBaseUrl();
-    const supabaseUrl = getEnv("SUPABASE_URL");
-    const webhookUrl = `${supabaseUrl}/functions/v1/pix-efi/webhook`;
+  const resp = await mtlsFetchWithRetry(`/v2/webhook/${pixKey}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ webhookUrl }),
+  });
 
-    const resp = await fetchWithRetry(`${baseUrl}/v2/webhook/${pixKey}`, {
-      method: "PUT",
-      client: httpClient,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ webhookUrl }),
-    } as RequestInit & { client: Deno.HttpClient });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      return jsonResp({ error: `Falha ao registrar webhook (${resp.status}): ${text}` }, 400);
-    }
-
-    const data = await resp.json();
-    console.log("Webhook registered:", JSON.stringify(data));
-    return jsonResp({ ok: true, webhookUrl, data });
-  } finally {
-    httpClient.close();
+  if (resp.status < 200 || resp.status >= 300) {
+    return jsonResp({ error: `Falha ao registrar webhook (${resp.status}): ${resp.body}` }, 400);
   }
+
+  const data = JSON.parse(resp.body);
+  console.log("Webhook registered:", JSON.stringify(data));
+  return jsonResp({ ok: true, webhookUrl, data });
 }
 
 async function handleCheckWebhook(userId: string) {
@@ -361,29 +423,19 @@ async function handleCheckWebhook(userId: string) {
   if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = getPemCredentials();
-  const httpClient = createMtlsClient(cert, key);
+  const accessToken = await getAccessToken();
 
-  try {
-    const accessToken = await getAccessToken(httpClient);
-    const baseUrl = getBaseUrl();
+  const resp = await mtlsFetchWithRetry(`/v2/webhook/${pixKey}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
-    const resp = await fetchWithRetry(`${baseUrl}/v2/webhook/${pixKey}`, {
-      method: "GET",
-      client: httpClient,
-      headers: { Authorization: `Bearer ${accessToken}` },
-    } as RequestInit & { client: Deno.HttpClient });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      return jsonResp({ error: `Falha ao consultar webhook (${resp.status}): ${text}` }, 400);
-    }
-
-    const data = await resp.json();
-    return jsonResp({ ok: true, data });
-  } finally {
-    httpClient.close();
+  if (resp.status < 200 || resp.status >= 300) {
+    return jsonResp({ error: `Falha ao consultar webhook (${resp.status}): ${resp.body}` }, 400);
   }
+
+  const data = JSON.parse(resp.body);
+  return jsonResp({ ok: true, data });
 }
 
 async function handleWebhook(req: Request) {
