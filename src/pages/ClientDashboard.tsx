@@ -438,9 +438,22 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
     const poll = setInterval(async () => {
       try {
-        const { data } = await supabase.functions.invoke("pix-efi/check-status", {
-          body: { payment_id: paymentId },
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const resp = await fetch(`${supabaseUrl}/functions/v1/pix-efi/check-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ payment_id: paymentId }),
         });
+        
+        const data = await resp.json();
+        console.log("Poll check-status response:", data);
         if (data?.confirmed) {
           setPaymentConfirmed(true);
         }
