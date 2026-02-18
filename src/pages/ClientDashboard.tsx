@@ -2,15 +2,15 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Satellite, Shield, CreditCard, Link2, Tv, Headphones,
-  RefreshCw, Phone, MessageCircle, Wallet, Gamepad2, History,
-  AlertTriangle, ChevronRight, Zap, Award, Eye, EyeOff, Lock,
-  Copy, Check, FileText, ChevronDown, ChevronUp, Radio, Bell,
-  Diamond, Star, Clock, CalendarClock, Receipt
+  Shield, CreditCard, Tv, Headphones,
+  Phone, MessageCircle, History,
+  ChevronRight, Eye, EyeOff, Lock,
+  Copy, Check, FileText, ChevronDown, ChevronUp, Receipt
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -33,23 +33,18 @@ const getAppLogoSrc = (appName: string | undefined): string | null => {
   return null;
 };
 
-// --- Constants ---
-const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; bgColor: string; dotColor: string; pulse?: boolean }> = {
-  active: { label: "Online", color: "text-green-400", bgColor: "bg-green-500/10 border-green-500/20", dotColor: "bg-green-400", pulse: true },
-  maintenance: { label: "Em Manutenção", color: "text-yellow-400", bgColor: "bg-yellow-500/10 border-yellow-500/20", dotColor: "bg-yellow-400" },
-  unstable: { label: "Instabilidade", color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20", dotColor: "bg-red-400" },
-  update: { label: "Atualização Programada", color: "text-gray-300", bgColor: "bg-gray-500/10 border-gray-500/20", dotColor: "bg-gray-400" },
-  blocked: { label: "Bloqueado", color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20", dotColor: "bg-red-400" },
-  disabled: { label: "Desativado", color: "text-gray-400", bgColor: "bg-gray-500/10 border-gray-500/20", dotColor: "bg-gray-400" },
-  awaiting_activation: { label: "Aguardando Ativação", color: "text-blue-400", bgColor: "bg-blue-500/10 border-blue-500/20", dotColor: "bg-blue-400" },
-  awaiting_payment: { label: "Aguardando Pagamento", color: "text-purple-400", bgColor: "bg-purple-500/10 border-purple-500/20", dotColor: "bg-purple-400" },
+const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; dotColor: string; pulse?: boolean }> = {
+  active: { label: "Online", color: "text-emerald-400", dotColor: "bg-emerald-400", pulse: true },
+  maintenance: { label: "Em Manutenção", color: "text-amber-400", dotColor: "bg-amber-400" },
+  unstable: { label: "Instabilidade", color: "text-red-400", dotColor: "bg-red-400" },
+  update: { label: "Atualização", color: "text-muted-foreground", dotColor: "bg-muted-foreground" },
+  blocked: { label: "Bloqueado", color: "text-red-400", dotColor: "bg-red-400" },
+  disabled: { label: "Desativado", color: "text-muted-foreground", dotColor: "bg-muted-foreground" },
+  awaiting_activation: { label: "Aguardando Ativação", color: "text-primary", dotColor: "bg-primary" },
+  awaiting_payment: { label: "Aguardando Pagamento", color: "text-amber-400", dotColor: "bg-amber-400" },
 };
 
-const TV_APP_ICONS: Record<string, string> = {
-  "Blessed Player": "🎬", "Max Player": "📺", "Assist Plus": "🔧", "Smarters PRO": "⭐",
-};
-
-// --- Sub-components ---
+// --- Copy Button ---
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -58,12 +53,13 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={copy} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-primary active:scale-95">
+    <button onClick={copy} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-primary active:scale-95">
       {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
     </button>
   );
 }
 
+// --- Banner Carousel (minimal) ---
 function BannerCarousel() {
   const [banners, setBanners] = useState<any[]>([]);
   const [current, setCurrent] = useState(0);
@@ -83,22 +79,11 @@ function BannerCarousel() {
     setBanners(active);
   };
 
-  useEffect(() => {
-    loadBanners();
-    const channel = supabase
-      .channel("banners-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "content" }, () => {
-        loadBanners();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  useEffect(() => { loadBanners(); }, []);
 
   useEffect(() => {
     if (banners.length <= 1) return;
-    intervalRef.current = setInterval(() => {
-      setCurrent(c => (c + 1) % banners.length);
-    }, 5000);
+    intervalRef.current = setInterval(() => setCurrent(c => (c + 1) % banners.length), 5000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [banners.length]);
 
@@ -107,30 +92,24 @@ function BannerCarousel() {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartRef.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) {
-      setCurrent(c => diff > 0 ? (c + 1) % banners.length : (c - 1 + banners.length) % banners.length);
-    }
+    if (Math.abs(diff) > 50) setCurrent(c => diff > 0 ? (c + 1) % banners.length : (c - 1 + banners.length) % banners.length);
   };
 
   const banner = banners[current];
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-      className="overflow-hidden rounded-xl"
-      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
+      className="overflow-hidden rounded-2xl" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="relative block w-full aspect-[16/6] overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 to-accent/10"
-      >
+        className="relative block w-full aspect-[16/7] overflow-hidden rounded-2xl bg-muted/30">
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
-            className="absolute inset-0"
-          >
+          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
+            className="absolute inset-0">
             {banner.banner_url ? (
               <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center p-4">
-                <p className="text-center font-display text-sm font-bold text-foreground">{banner.title}</p>
+                <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
             )}
@@ -141,8 +120,7 @@ function BannerCarousel() {
         <div className="mt-2 flex items-center justify-center gap-1">
           {banners.map((_, i) => (
             <button key={i} onClick={() => setCurrent(i)}
-              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-4 bg-primary/60" : "w-1 bg-muted-foreground/20"}`}
-            />
+              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-4 bg-primary/50" : "w-1 bg-muted-foreground/15"}`} />
           ))}
         </div>
       )}
@@ -150,6 +128,7 @@ function BannerCarousel() {
   );
 }
 
+// --- Access Data Block ---
 function AccessDataBlock({ user }: { user: any }) {
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -166,7 +145,7 @@ function AccessDataBlock({ user }: { user: any }) {
 
   const maskUser = (val: string) => {
     if (!val || val.length <= 4) return val || "—";
-    return val.slice(0, 4) + "*".repeat(Math.min(val.length - 4, 6));
+    return val.slice(0, 4) + "•".repeat(Math.min(val.length - 4, 6));
   };
 
   const clientCode = user?.iptv_client_code || "—";
@@ -174,28 +153,27 @@ function AccessDataBlock({ user }: { user: any }) {
   const iptvPass = user?.iptv_password || "—";
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-      className="overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-card to-muted/20 p-4"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <Lock size={14} className="text-primary" /> Dados de Acesso
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border bg-card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Lock size={13} /> Dados de Acesso
         </div>
         <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-          <Shield size={10} /> Protegido
+          <Shield size={9} /> Protegido
         </span>
       </div>
 
       <div className="space-y-2">
         {[
-          { label: "🆔 Código do Cliente", value: clientCode, masked: "••••••••" },
-          { label: "👤 Usuário", value: iptvUser, masked: maskUser(iptvUser) },
-          { label: "🔑 Senha", value: iptvPass, masked: "••••••••••" },
+          { label: "Código do Cliente", value: clientCode, masked: "••••••••" },
+          { label: "Usuário", value: iptvUser, masked: maskUser(iptvUser) },
+          { label: "Senha", value: iptvPass, masked: "••••••••••" },
         ].map((field) => (
           <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{field.label}</p>
-              <p className="truncate font-mono text-sm font-semibold text-foreground">
+              <p className="text-[10px] text-muted-foreground">{field.label}</p>
+              <p className="truncate font-mono text-sm text-foreground">
                 {revealed ? field.value : field.masked}
               </p>
             </div>
@@ -206,26 +184,26 @@ function AccessDataBlock({ user }: { user: any }) {
 
       <AnimatePresence mode="wait">
         {confirming ? (
-          <motion.div key="confirm" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-3 flex items-center gap-2">
-            <button onClick={reveal} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98]">
+          <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4 flex items-center gap-2">
+            <button onClick={reveal} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]">
               <Eye size={16} /> Sim, mostrar
             </button>
-            <button onClick={() => setConfirming(false)} className="rounded-xl bg-muted/50 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground">
+            <button onClick={() => setConfirming(false)} className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
               Cancelar
             </button>
           </motion.div>
         ) : revealed ? (
-          <motion.div key="hide" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-3">
+          <motion.div key="hide" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4">
             <button onClick={() => { setRevealed(false); if (timerRef.current) clearTimeout(timerRef.current); }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/30 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:text-foreground active:scale-[0.98]">
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]">
               <EyeOff size={16} /> Ocultar dados
             </button>
-            <p className="mt-1 text-center text-[10px] text-muted-foreground/50">Oculta automaticamente em 60s</p>
+            <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
           </motion.div>
         ) : (
-          <motion.div key="show" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-3">
+          <motion.div key="show" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4">
             <button onClick={() => setConfirming(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/20 active:scale-[0.98]">
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]">
               <Eye size={16} /> Mostrar dados
             </button>
           </motion.div>
@@ -235,28 +213,27 @@ function AccessDataBlock({ user }: { user: any }) {
   );
 }
 
+// --- Admin Notes ---
 function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
   const [open, setOpen] = useState(false);
   if (!notes) return null;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm transition-all hover:border-primary/20 active:scale-[0.99]">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]">
         <div className="flex items-center gap-2">
           <FileText size={14} className="text-muted-foreground" />
-          <span className="font-medium text-foreground">Ver Observações</span>
-          {urgent && <span className="rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">⚠️ Atenção</span>}
+          <span className="font-medium text-foreground">Observações</span>
+          {urgent && <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">Atenção</span>}
         </div>
         {open ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
       </button>
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/20 bg-destructive/5" : "border-border bg-muted/10"}`}>
+            <div className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}>
               <div className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm text-foreground">{notes}</div>
-              <button onClick={() => setOpen(false)} className="mt-3 w-full rounded-xl bg-muted/30 py-2 text-xs text-muted-foreground hover:text-foreground">
-                Fechar
-              </button>
+              <button onClick={() => setOpen(false)} className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground">Fechar</button>
             </div>
           </motion.div>
         )}
@@ -265,197 +242,10 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
   );
 }
 
-// --- Expiry Countdown (separate card) ---
-function ExpiryCountdown({ daysUntilDue, formattedDueDate, isDueToday, isOverdue }: {
-  daysUntilDue: number; formattedDueDate: string; isDueToday: boolean; isOverdue: boolean;
-}) {
-  let bgClass = "bg-yellow-500/5 border-yellow-500/15";
-  let textColor = "text-yellow-400";
-  let message = `⏳ Faltam ${daysUntilDue} dias para o vencimento`;
-
-  if (isOverdue) {
-    bgClass = "bg-destructive/5 border-destructive/20";
-    textColor = "text-destructive";
-    message = `⏳ Vencido há ${Math.abs(daysUntilDue)} dia(s)`;
-  } else if (isDueToday) {
-    bgClass = "bg-destructive/5 border-destructive/20";
-    textColor = "text-destructive";
-    message = "🔥 Último dia para pagamento!";
-  } else if (daysUntilDue <= 3) {
-    bgClass = "bg-orange-500/5 border-orange-500/15";
-    textColor = "text-orange-400";
-  } else if (daysUntilDue <= 7) {
-    bgClass = "bg-yellow-500/5 border-yellow-500/15";
-    textColor = "text-yellow-400";
-  } else {
-    bgClass = "bg-muted/20 border-border";
-    textColor = "text-foreground";
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-      className={`rounded-xl border p-4 ${bgClass}`}
-    >
-      <p className={`text-sm font-bold ${textColor}`}>{message}</p>
-      <p className="mt-1.5 text-[10px] text-muted-foreground/70">
-        ⚠️ Bloqueio automático às 23:59 caso não identificado pagamento.
-      </p>
-    </motion.div>
-  );
-}
-
-// --- Payment Section with PIX Modal ---
-function PaymentSection({ totalValue, supportInfo }: { totalValue: number; supportInfo: any }) {
-  const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900);
-
-  const value3m = totalValue * 3;
-  const discount3m = value3m * 0.05;
-  const final3m = value3m - discount3m;
-
-  const value6m = totalValue * 6;
-  const discount6m = value6m * 0.10;
-  const final6m = value6m - discount6m;
-
-  useEffect(() => {
-    if (!pixModal) return;
-    setTimeLeft(900);
-    const interval = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) { clearInterval(interval); setPixModal(null); return 0; }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [pixModal]);
-
-  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
-  const pixKey = supportInfo?.support_phone?.replace(/\D/g, "") || "00000000000";
-
-  const copyPix = () => {
-    navigator.clipboard.writeText(pixKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const openPix = (months: number, value: number, discount: number) => {
-    setCopied(false);
-    setPixModal({ months, value, discount });
-  };
-
-  return (
-    <>
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-        className="space-y-2.5"
-      >
-        <button onClick={() => openPix(1, totalValue, 0)}
-          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-primary/15 to-primary/5 border border-primary/20 px-4 py-4 text-left transition-all hover:from-primary/20 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-foreground">Renovar 1 mês</p>
-          </div>
-          <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
-        </button>
-
-        <button onClick={() => openPix(3, final3m, discount3m)}
-          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-purple-500/10 to-purple-500/5 border border-purple-500/15 px-4 py-4 text-left transition-all hover:from-purple-500/15 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-foreground">Renovar 3 meses</p>
-            <p className="text-[10px] text-purple-400 font-medium">5% OFF</p>
-          </div>
-          <div className="text-right">
-            <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
-          </div>
-        </button>
-
-        <button onClick={() => openPix(6, final6m, discount6m)}
-          className="flex w-full items-center justify-between rounded-xl bg-gradient-to-r from-green-500/10 to-green-500/5 border border-green-500/15 px-4 py-4 text-left transition-all hover:from-green-500/15 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-foreground">Renovar 6 meses</p>
-            <p className="text-[10px] text-green-400 font-medium">10% OFF</p>
-          </div>
-          <div className="text-right">
-            <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
-          </div>
-        </button>
-      </motion.div>
-
-      {/* PIX Modal */}
-      <AnimatePresence>
-        {pixModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
-            onClick={() => setPixModal(null)}>
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}
-              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
-              onClick={e => e.stopPropagation()}>
-              
-              <div className="mb-4 text-center">
-                <p className="text-lg font-bold text-foreground">💳 Pagamento PIX</p>
-                <p className="text-xs text-muted-foreground">
-                  {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
-                </p>
-              </div>
-
-              <div className="mb-4 rounded-xl bg-muted/20 p-4 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
-                <p className="mt-1 font-display text-3xl font-bold text-primary">R$ {pixModal.value.toFixed(2)}</p>
-                {pixModal.discount > 0 && (
-                  <p className="mt-1 text-xs font-semibold text-success">💰 Você economiza R$ {pixModal.discount.toFixed(2)}</p>
-                )}
-              </div>
-
-              <div className="mb-4 flex justify-center">
-                <div className="flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10">
-                  <div className="text-center">
-                    <p className="text-4xl">📱</p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">QR Code PIX</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-muted-foreground">Chave PIX (Copia e Cola)</p>
-                <div className="flex items-center gap-2 rounded-xl bg-muted/30 px-3 py-2.5">
-                  <p className="flex-1 truncate font-mono text-xs text-foreground">{pixKey}</p>
-                  <button onClick={copyPix}
-                    className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 active:scale-95">
-                    {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mb-4 text-center">
-                <p className="text-[10px] text-muted-foreground">⏱️ Tempo restante para pagamento</p>
-                <p className={`mt-1 font-mono text-xl font-bold ${timeLeft <= 120 ? "text-destructive animate-pulse" : "text-foreground"}`}>
-                  {formatTime(timeLeft)}
-                </p>
-              </div>
-
-              <div className="mb-4 rounded-xl bg-primary/5 border border-primary/15 p-3">
-                <p className="text-[10px] text-muted-foreground text-center">
-                  ✅ Após o pagamento, seu status mudará para <span className="font-bold text-blue-400">AGUARDANDO ATIVAÇÃO</span> e o administrador será notificado.
-                </p>
-              </div>
-
-              <button onClick={() => setPixModal(null)}
-                className="w-full rounded-xl bg-muted/30 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground">
-                Fechar
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-}
-
-// --- Payment History (Collapsible) ---
+// --- Payment History (Collapsible, simple list) ---
 function PaymentHistory() {
   const [payments, setPayments] = useState<any[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -470,70 +260,38 @@ function PaymentHistory() {
     load();
   }, []);
 
-  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-      <button
-        onClick={() => setHistoryOpen(!historyOpen)}
-        className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3.5 text-sm transition-all hover:border-primary/20 active:scale-[0.99]"
-      >
-        <div className="flex items-center gap-2">
-          <Receipt size={15} className="text-muted-foreground" />
-          <span className="font-medium text-foreground">📑 Mensalidades Pagas</span>
-          {payments.length > 0 && (
-            <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground">{payments.length}</span>
-          )}
-        </div>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+      <button onClick={() => setHistoryOpen(!historyOpen)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-sm active:scale-[0.99]">
+        <span className="font-medium text-foreground">Mensalidades pagas</span>
         <ChevronDown size={16} className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`} />
       </button>
 
       <AnimatePresence>
         {historyOpen && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className="mt-1 space-y-1.5 rounded-xl border border-border bg-card p-3">
+            <div className="mt-1 rounded-2xl border border-border bg-card p-4">
               {payments.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
               ) : (
-                payments.map((p, i) => {
-                  const date = new Date(p.created_at);
-                  const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-                  const refMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-                  return (
-                    <div key={p.id}
-                      onClick={() => setExpanded(expanded === p.id ? null : p.id)}
-                      className="cursor-pointer rounded-lg bg-muted/15 px-3 py-2.5 transition-all hover:bg-muted/25"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-success/15 text-xs text-success">✔</span>
-                          <div>
-                            <p className="text-xs font-semibold text-foreground">{refMonth}</p>
-                            <p className="text-[10px] text-muted-foreground">{formatted}</p>
-                          </div>
+                <div className="space-y-2">
+                  {payments.map((p) => {
+                    const date = new Date(p.created_at);
+                    const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+                    return (
+                      <div key={p.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                        <div>
+                          <p className="text-sm text-foreground">{formatted}</p>
                         </div>
-                        <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold text-foreground">R$ {Math.abs(p.amount).toFixed(2)}</span>
+                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Pago</span>
+                        </div>
                       </div>
-                      <AnimatePresence>
-                        {expanded === p.id && (
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden">
-                            <div className="mt-2 space-y-1 border-t border-border/30 pt-2">
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-muted-foreground">💳 Pagamento</span>
-                                <span className="font-medium text-foreground">PIX</span>
-                              </div>
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-muted-foreground">✅ Status</span>
-                                <span className="rounded-full bg-success/15 px-2 py-0.5 font-bold text-success">Confirmado</span>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </motion.div>
@@ -546,39 +304,124 @@ function PaymentHistory() {
 // --- TV App Mini Icons ---
 function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-      className="rounded-xl border border-border bg-card p-4"
-    >
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">📺 App na sua TV</p>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border bg-card p-5">
+      <p className="mb-3 text-xs font-medium text-muted-foreground">App na sua TV</p>
       <div className="flex flex-wrap gap-2">
         {tvApps.map((app) => {
           const isActive = userApp === app.name;
           const logo = getAppLogoSrc(app.name);
           return (
             <div key={app.id}
-              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${
                 isActive
-                  ? "border-primary/30 bg-primary/10 text-primary font-semibold"
-                  : "border-border/30 bg-muted/5 text-muted-foreground/40"
-              }`}
-            >
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "bg-muted/15 text-muted-foreground/40"
+              }`}>
               {logo ? (
-                <img src={logo} alt={app.name} className="h-5 w-5 rounded object-contain" />
+                <img src={logo} alt={app.name} className="h-4 w-4 rounded-full object-contain" />
               ) : (
-                <span className="text-sm">{TV_APP_ICONS[app.name] || app.icon}</span>
+                <Tv size={12} />
               )}
               <span>{app.name}</span>
-              {isActive && <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
             </div>
           );
         })}
         {tvApps.length === 0 && userApp && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary font-semibold">
-            {(() => { const logo = getAppLogoSrc(userApp); return logo ? <img src={logo} alt={userApp} className="h-5 w-5 rounded object-contain" /> : <span>📺</span>; })()}
+          <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary font-medium">
+            {(() => { const logo = getAppLogoSrc(userApp); return logo ? <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain" /> : <Tv size={12} />; })()}
             <span>{userApp}</span>
           </div>
         )}
       </div>
+    </motion.div>
+  );
+}
+
+// --- PIX Payment Modal ---
+function PixModal({ pixModal, onClose, supportInfo }: {
+  pixModal: { months: number; value: number; discount: number };
+  onClose: () => void;
+  supportInfo: any;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(900);
+
+  useEffect(() => {
+    setTimeLeft(900);
+    const interval = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) { clearInterval(interval); onClose(); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const pixKey = supportInfo?.support_phone?.replace(/\D/g, "") || "00000000000";
+
+  const copyPix = () => {
+    navigator.clipboard.writeText(pixKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+        className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
+        onClick={e => e.stopPropagation()}>
+
+        <div className="mb-5 text-center">
+          <p className="text-lg font-bold text-foreground">Pagamento PIX</p>
+          <p className="text-xs text-muted-foreground">
+            {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
+          </p>
+        </div>
+
+        <div className="mb-5 rounded-2xl bg-muted/15 p-5 text-center">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
+          <p className="mt-2 text-3xl font-bold text-foreground">R$ {pixModal.value.toFixed(2)}</p>
+          {pixModal.discount > 0 && (
+            <p className="mt-1 text-xs text-success">Você economiza R$ {pixModal.discount.toFixed(2)}</p>
+          )}
+        </div>
+
+        <div className="mb-5 flex justify-center">
+          <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
+            <div className="text-center">
+              <p className="text-3xl">📱</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">QR Code PIX</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-5">
+          <p className="mb-1.5 text-center text-[10px] text-muted-foreground">Chave PIX (Copia e Cola)</p>
+          <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
+            <p className="flex-1 truncate font-mono text-xs text-foreground">{pixKey}</p>
+            <button onClick={copyPix}
+              className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
+              {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-5 text-center">
+          <p className="text-[10px] text-muted-foreground">Tempo restante</p>
+          <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
+            {formatTime(timeLeft)}
+          </p>
+        </div>
+
+        <button onClick={onClose}
+          className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
+          Fechar
+        </button>
+      </motion.div>
     </motion.div>
   );
 }
@@ -588,8 +431,8 @@ const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [supportInfo, setSupportInfo] = useState<any>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [tvApps, setTvApps] = useState<any[]>([]);
+  const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -612,12 +455,6 @@ const ClientDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refreshProfile();
-    setIsRefreshing(false);
-  };
-
   const status = SYSTEM_STATUS_MAP[user?.iptv_status || "active"] || SYSTEM_STATUS_MAP.active;
   const now = new Date();
 
@@ -634,117 +471,188 @@ const ClientDashboard = () => {
   }
 
   const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  const isDueToday = daysUntilDue === 0;
   const isOverdue = daysUntilDue < 0;
+  const isDueToday = daysUntilDue === 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
   const connections = user?.iptv_connections || 1;
   const totalValue = monthlyValue * connections;
 
   const formattedDueDate = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
 
+  // Progress bar: 30 days cycle
+  const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
+
+  const value3m = totalValue * 3;
+  const discount3m = value3m * 0.05;
+  const final3m = value3m - discount3m;
+  const value6m = totalValue * 6;
+  const discount6m = value6m * 0.10;
+  const final6m = value6m - discount6m;
+
   return (
     <AppLayout>
-      <div className="space-y-5">
-        {/* 1️⃣ GREETING */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="text-xl font-bold text-foreground">
-            Olá, {user?.name?.split(" ")[0]} 👋
-          </h1>
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Star size={10} className="text-secondary" />
-            <span className="text-secondary font-medium">Cliente Premium</span>
-          </p>
+      <div className="space-y-6">
+        {/* GREETING */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              Olá, {user?.name?.split(" ")[0]}
+            </h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Cliente Premium
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
+            <span className={`text-xs ${status.color}`}>{status.label}</span>
+          </div>
         </motion.div>
 
-        {/* 2️⃣ BANNERS */}
+        {/* BANNERS (optional, minimal) */}
         <BannerCarousel />
 
-        {/* 3️⃣ STATUS STRIP */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className={`flex items-center justify-between rounded-lg border px-3 py-2 ${status.bgColor}`}
-        >
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
-            <span className={`text-xs font-semibold ${status.color}`}>Sistema {status.label}</span>
-          </div>
-          <span className="text-[10px] text-muted-foreground">Ao vivo</span>
-        </motion.div>
-
-        {/* 4️⃣ SUBSCRIPTION SUMMARY - 3 mini cards */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl border border-border bg-card p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Servidor</p>
-              <p className="mt-1 text-sm font-bold text-primary">{user?.iptv_server || "—"}</p>
+        {/* MAIN CARD — Plan */}
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Plano IPTV</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">
+                R$ {totalValue.toFixed(2)}
+                <span className="text-sm font-normal text-muted-foreground"> / mês</span>
+              </p>
             </div>
-            <div className="rounded-xl border border-border bg-card p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Vencimento</p>
-              <p className="mt-1 text-sm font-bold text-foreground">{formattedDueDate}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-3 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Telas</p>
-              <p className="mt-1 text-sm font-bold text-accent">{connections}</p>
+            <div className="text-right">
+              {isOverdue ? (
+                <span className="text-sm font-semibold text-destructive">Vencido</span>
+              ) : isDueToday ? (
+                <span className="text-sm font-semibold text-destructive">Vence hoje</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Vence em <span className="font-semibold text-foreground">{daysUntilDue} dias</span></span>
+              )}
             </div>
           </div>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            💰 Mensalidade: <span className="font-bold text-secondary">R$ {totalValue.toFixed(2)}</span>
-          </p>
+
+          {/* Progress bar */}
+          <div className="mt-4">
+            <Progress value={progressValue} className="h-1.5 bg-muted/20" />
+          </div>
+
+          {/* Renew button */}
+          <button
+            onClick={() => setPixModal({ months: 1, value: totalValue, discount: 0 })}
+            className="mt-5 w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground transition-all active:scale-[0.98]">
+            Renovar Plano
+          </button>
         </motion.div>
 
-        {/* 5️⃣ COUNTDOWN */}
-        <ExpiryCountdown daysUntilDue={daysUntilDue} formattedDueDate={formattedDueDate} isDueToday={isDueToday} isOverdue={isOverdue} />
+        {/* PLAN DETAILS (simple text) */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="rounded-2xl border border-border bg-card px-5 py-4">
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-muted-foreground">Servidor</span>
+            <span className="text-sm font-medium text-foreground">{user?.iptv_server || "—"}</span>
+          </div>
+          <div className="border-t border-border/30" />
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-muted-foreground">Telas ativas</span>
+            <span className="text-sm font-medium text-foreground">{connections}</span>
+          </div>
+          <div className="border-t border-border/30" />
+          <div className="flex items-center justify-between py-1.5">
+            <span className="text-sm text-muted-foreground">Validade</span>
+            <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
+          </div>
+        </motion.div>
 
-        {/* 6️⃣ PAYMENT BUTTONS */}
-        <PaymentSection totalValue={totalValue} supportInfo={supportInfo} />
+        {/* COUNTDOWN WARNING (only if close to due) */}
+        {daysUntilDue <= 7 && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className={`rounded-2xl border p-4 ${
+              isOverdue || isDueToday
+                ? "border-destructive/15 bg-destructive/5"
+                : "border-warning/15 bg-warning/5"
+            }`}>
+            <p className={`text-sm font-medium ${isOverdue || isDueToday ? "text-destructive" : "text-warning"}`}>
+              {isOverdue ? `Vencido há ${Math.abs(daysUntilDue)} dia(s)` : isDueToday ? "Último dia para pagamento" : `Faltam ${daysUntilDue} dias para o vencimento`}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Bloqueio automático às 23:59 caso não identificado pagamento.
+            </p>
+          </motion.div>
+        )}
 
-        {/* 7️⃣ PAYMENT HISTORY (collapsible) */}
+        {/* RENEWAL OPTIONS (3m, 6m) */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+          className="space-y-2">
+          <button onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
+            className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-left active:scale-[0.99]">
+            <div>
+              <p className="text-sm font-medium text-foreground">Renovar 3 meses</p>
+              <p className="text-[11px] text-primary">5% de desconto</p>
+            </div>
+            <span className="text-sm font-semibold text-foreground">R$ {final3m.toFixed(2)}</span>
+          </button>
+
+          <button onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
+            className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 text-left active:scale-[0.99]">
+            <div>
+              <p className="text-sm font-medium text-foreground">Renovar 6 meses</p>
+              <p className="text-[11px] text-primary">10% de desconto</p>
+            </div>
+            <span className="text-sm font-semibold text-foreground">R$ {final6m.toFixed(2)}</span>
+          </button>
+        </motion.div>
+
+        {/* PAYMENT HISTORY (collapsible) */}
         <PaymentHistory />
 
-        {/* 8️⃣ TV APP MINI ICONS */}
+        {/* TV APP */}
         <TvAppIcons tvApps={tvApps} userApp={user?.iptv_tv_app} />
 
-        {/* === ACCESS DATA === */}
+        {/* ACCESS DATA */}
         <AccessDataBlock user={user} />
 
-        {/* === ADMIN NOTES === */}
+        {/* ADMIN NOTES */}
         <AdminNotesBlock notes={user?.admin_notes || ""} urgent={user?.admin_notes_urgent || false} />
 
-        {/* === SUPPORT === */}
+        {/* SUPPORT */}
         {supportInfo && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-            className="rounded-xl border border-border bg-card p-4"
-          >
-            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Headphones size={14} className="text-secondary" /> Suporte
-            </div>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+            className="rounded-2xl border border-border bg-card p-5">
+            <p className="mb-3 text-xs font-medium text-muted-foreground">Suporte</p>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/30 text-lg">👤</div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/20 text-sm">👤</div>
               <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">{supportInfo.support_name}</p>
+                <p className="text-sm font-medium text-foreground">{supportInfo.support_name}</p>
                 <p className="text-xs text-muted-foreground">{supportInfo.support_phone}</p>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <a href={supportInfo.whatsapp_link} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-lg bg-success/10 px-3 py-2.5 text-sm font-medium text-success transition-all hover:bg-success/20 active:scale-[0.98]">
-                <MessageCircle size={16} /> WhatsApp
+                className="flex items-center justify-center gap-2 rounded-xl bg-success/10 px-3 py-2.5 text-sm font-medium text-success active:scale-[0.98]">
+                <MessageCircle size={15} /> WhatsApp
               </a>
               <a href={`tel:${supportInfo.support_phone.replace(/\D/g, "")}`}
-                className="flex items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary transition-all hover:bg-primary/20 active:scale-[0.98]">
-                <Phone size={16} /> Ligar
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]">
+                <Phone size={15} /> Ligar
               </a>
             </div>
           </motion.div>
         )}
 
-        {/* === FOOTER === */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-          className="pb-2 text-center">
-          <p className="text-[10px] text-muted-foreground/30 flex items-center justify-center gap-1">
+        {/* FOOTER */}
+        <div className="pb-2 text-center">
+          <p className="text-[10px] text-muted-foreground/25 flex items-center justify-center gap-1">
             <Shield size={8} /> Conexão segura · Dados protegidos
           </p>
-        </motion.div>
+        </div>
       </div>
+
+      {/* PIX Modal */}
+      <AnimatePresence>
+        {pixModal && <PixModal pixModal={pixModal} onClose={() => setPixModal(null)} supportInfo={supportInfo} />}
+      </AnimatePresence>
     </AppLayout>
   );
 };
