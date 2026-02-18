@@ -118,9 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
     setUser(null);
     setRole(null);
+    setLoading(false);
+    await supabase.auth.signOut({ scope: 'local' });
   };
 
   return (

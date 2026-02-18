@@ -70,7 +70,8 @@ const LoginPage = () => {
         setSubmitting(false);
         return;
       }
-      // Success — useEffect handles redirect
+      // Success — useEffect handles redirect, but add safety timeout
+      setTimeout(() => setSubmitting(false), 8000);
     } catch {
       setError("Erro ao conectar. Tente novamente.");
       setSubmitting(false);
