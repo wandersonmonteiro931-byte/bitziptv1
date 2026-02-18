@@ -70,20 +70,28 @@ function BannerCarousel() {
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const touchStartRef = useRef(0);
 
+  const loadBanners = async () => {
+    const now = new Date().toISOString();
+    const { data } = await supabase
+      .from("content")
+      .select("*")
+      .eq("is_active", true)
+      .eq("content_type", "banner")
+      .lte("starts_at", now)
+      .order("sort_order");
+    const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
+    setBanners(active);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const now = new Date().toISOString();
-      const { data } = await supabase
-        .from("content")
-        .select("*")
-        .eq("is_active", true)
-        .eq("content_type", "banner")
-        .lte("starts_at", now)
-        .order("sort_order");
-      const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
-      setBanners(active);
-    };
-    load();
+    loadBanners();
+    const channel = supabase
+      .channel("banners-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "content" }, () => {
+        loadBanners();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
