@@ -429,9 +429,10 @@ Deno.serve(async (req) => {
           admin_id: caller.id,
         }).eq("id", payment_id);
 
-        // Set profile to active
+        // Set profile to active AND update expiry date from the payment's period_end
         await supabaseAdmin.from("profiles").update({
           iptv_status: "active",
+          iptv_expiry: payment.period_end,
         }).eq("id", user_id);
 
         result = { success: true };
