@@ -34,6 +34,8 @@ import AdminRoulettePage from "./pages/admin/AdminRoulettePage";
 import AdminIptvPage from "./pages/admin/AdminIptvPage";
 import AdminGamesPage from "./pages/admin/AdminGamesPage";
 import MemoryGamePage from "./pages/MemoryGamePage";
+import TvGuidePage from "./pages/TvGuidePage";
+import AdminTvGuidePage from "./pages/admin/AdminTvGuidePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,6 +73,7 @@ const App = () => (
             <Route path="/cup-game" element={<ProtectedRoute><CupGamePage /></ProtectedRoute>} />
             <Route path="/roulette" element={<ProtectedRoute><RoulettePage /></ProtectedRoute>} />
             <Route path="/memory-game" element={<ProtectedRoute><MemoryGamePage /></ProtectedRoute>} />
+            <Route path="/tv-guide" element={<ProtectedRoute><TvGuidePage /></ProtectedRoute>} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
@@ -86,6 +89,7 @@ const App = () => (
             <Route path="/admin/roulette" element={<ProtectedRoute requireAdmin><AdminRoulettePage /></ProtectedRoute>} />
             <Route path="/admin/iptv" element={<ProtectedRoute requireAdmin><AdminIptvPage /></ProtectedRoute>} />
             <Route path="/admin/games" element={<ProtectedRoute requireAdmin><AdminGamesPage /></ProtectedRoute>} />
+            <Route path="/admin/tv-guide" element={<ProtectedRoute requireAdmin><AdminTvGuidePage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

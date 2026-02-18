@@ -950,6 +950,86 @@ export type Database = {
         }
         Relationships: []
       }
+      tv_channels: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      tv_programs: {
+        Row: {
+          category: string
+          channel_id: string
+          created_at: string
+          description: string | null
+          end_time: string
+          id: string
+          is_active: boolean
+          is_highlight: boolean
+          name: string
+          program_date: string
+          start_time: string
+          thumbnail_url: string | null
+        }
+        Insert: {
+          category?: string
+          channel_id: string
+          created_at?: string
+          description?: string | null
+          end_time: string
+          id?: string
+          is_active?: boolean
+          is_highlight?: boolean
+          name: string
+          program_date: string
+          start_time: string
+          thumbnail_url?: string | null
+        }
+        Update: {
+          category?: string
+          channel_id?: string
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          is_highlight?: boolean
+          name?: string
+          program_date?: string
+          start_time?: string
+          thumbnail_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tv_programs_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "tv_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string

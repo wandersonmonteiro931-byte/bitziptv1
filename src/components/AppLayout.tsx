@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image } from "lucide-react";
+import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ const clientLinks = [
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
+  { to: "/tv-guide", label: "Programação TV", icon: MonitorPlay },
   { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
 
@@ -27,6 +28,7 @@ const adminLinks = [
   { to: "/admin", label: "Painel", icon: LayoutDashboard },
   { to: "/admin/users", label: "Usuários", icon: Users },
   { to: "/admin/iptv", label: "IPTV", icon: Tv },
+  { to: "/admin/tv-guide", label: "Programação", icon: MonitorPlay },
   { to: "/admin/games", label: "Jogos", icon: Gamepad2 },
   { to: "/admin/missions", label: "Missões", icon: Target },
   { to: "/admin/credits", label: "Créditos", icon: Diamond },
@@ -56,6 +58,7 @@ const clientMenuLinks = [
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
+  { to: "/tv-guide", label: "Programação TV", icon: MonitorPlay },
   { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
 
