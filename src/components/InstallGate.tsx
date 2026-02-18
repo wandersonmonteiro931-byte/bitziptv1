@@ -57,7 +57,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (isInstalled || isStandalone || isDesktop || adminBypass) {
+  if (isStandalone || adminBypass) {
     return <>{children}</>;
   }
 
