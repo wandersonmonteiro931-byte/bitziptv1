@@ -104,11 +104,11 @@ function BannerCarousel() {
         className="block w-full">
         <AnimatePresence mode="wait">
           <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
-            className="w-full aspect-[16/7] overflow-hidden rounded-[20px]"
+            className="w-full overflow-hidden rounded-[20px]"
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
             {banner.banner_url ? (
               <img src={banner.banner_url} alt={banner.title}
-                className="block w-full h-full object-cover" />
+                className="block w-full h-auto object-contain rounded-[20px]" />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
