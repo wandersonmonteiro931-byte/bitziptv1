@@ -99,16 +99,18 @@ function BannerCarousel() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
-      onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+      className="mx-4 mt-2 mb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="block w-full overflow-hidden rounded-3xl"
-        style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+        className="block w-full">
         <AnimatePresence mode="wait">
           <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             {banner.banner_url ? (
-              <img src={banner.banner_url} alt={banner.title} className="block w-full h-auto rounded-3xl object-contain" />
+              <img src={banner.banner_url} alt={banner.title}
+                className="block w-full aspect-[16/7] object-cover rounded-[20px]"
+                style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }} />
             ) : (
-              <div className="flex w-full flex-col items-center justify-center rounded-3xl bg-muted/30 p-8">
+              <div className="w-full aspect-[16/7] flex flex-col items-center justify-center rounded-[20px] bg-muted/30"
+                style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
