@@ -343,30 +343,94 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
 }
 
 // --- PIX Payment Modal ---
-function PixModal({ pixModal, onClose, supportInfo }: {
+function PixModal({ pixModal, onClose, supportInfo, user }: {
   pixModal: { months: number; value: number; discount: number };
   onClose: () => void;
   supportInfo: any;
+  user: any;
 }) {
   const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900);
+  const [timeLeft, setTimeLeft] = useState(3600);
+  const [loading, setLoading] = useState(true);
+  const [pixData, setPixData] = useState<{
+    qrcode: string;
+    qrcode_image: string;
+    txid: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTimeLeft(900);
+    const createCharge = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // First create the iptv_payment record
+        const periodStart = new Date();
+        const periodEnd = new Date();
+        periodEnd.setMonth(periodEnd.getMonth() + pixModal.months);
+
+        const { data: payment, error: insertError } = await supabase
+          .from("iptv_payments")
+          .insert({
+            user_id: user.id,
+            amount: pixModal.value,
+            months: pixModal.months,
+            period_start: periodStart.toISOString().split("T")[0],
+            period_end: periodEnd.toISOString().split("T")[0],
+            status: "pending",
+            payment_method: "pix",
+            notes: `Renovação ${pixModal.months} mês(es) via PIX automático`,
+          })
+          .select("id")
+          .single();
+
+        if (insertError || !payment) {
+          throw new Error(insertError?.message || "Erro ao criar pagamento");
+        }
+
+        // Call edge function to create PIX charge
+        const { data, error: fnError } = await supabase.functions.invoke("pix-efi/create-charge", {
+          body: {
+            payment_id: payment.id,
+            amount: pixModal.value,
+            devedor_nome: user.name || undefined,
+            descricao: `IPTV Bitz - ${pixModal.months} mês(es)`,
+          },
+        });
+
+        if (fnError || data?.error) {
+          throw new Error(data?.error || fnError?.message || "Erro ao gerar PIX");
+        }
+
+        setPixData(data);
+        setTimeLeft(data.expiracao || 3600);
+      } catch (err: any) {
+        console.error("PIX charge error:", err);
+        setError(err.message || "Erro ao gerar cobrança PIX");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    createCharge();
+  }, []);
+
+  useEffect(() => {
+    if (loading || error) return;
     const interval = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) { clearInterval(interval); onClose(); return 0; }
+        if (t <= 1) { clearInterval(interval); return 0; }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loading, error]);
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-  const pixKey = supportInfo?.support_phone?.replace(/\D/g, "") || "00000000000";
 
   const copyPix = () => {
-    navigator.clipboard.writeText(pixKey);
+    if (!pixData?.qrcode) return;
+    navigator.clipboard.writeText(pixData.qrcode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -394,32 +458,56 @@ function PixModal({ pixModal, onClose, supportInfo }: {
           )}
         </div>
 
-        <div className="mb-5 flex justify-center">
-          <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
-            <div className="text-center">
-              <p className="text-3xl">📱</p>
-              <p className="mt-1 text-[10px] text-muted-foreground">QR Code PIX</p>
+        {loading ? (
+          <div className="mb-5 flex flex-col items-center justify-center py-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="mt-3 text-sm text-muted-foreground">Gerando cobrança PIX...</p>
+          </div>
+        ) : error ? (
+          <div className="mb-5 rounded-2xl bg-destructive/10 p-4 text-center">
+            <p className="text-sm text-destructive">{error}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Entre em contato com o suporte para pagamento manual.
+            </p>
+          </div>
+        ) : pixData ? (
+          <>
+            <div className="mb-5 flex justify-center">
+              {pixData.qrcode_image ? (
+                <img
+                  src={`data:image/png;base64,${pixData.qrcode_image}`}
+                  alt="QR Code PIX"
+                  className="h-40 w-40 rounded-2xl"
+                />
+              ) : (
+                <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
+                  <div className="text-center">
+                    <p className="text-3xl">📱</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
 
-        <div className="mb-5">
-          <p className="mb-1.5 text-center text-[10px] text-muted-foreground">Chave PIX (Copia e Cola)</p>
-          <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
-            <p className="flex-1 truncate font-mono text-xs text-foreground">{pixKey}</p>
-            <button onClick={copyPix}
-              className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
-              {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
-            </button>
-          </div>
-        </div>
+            <div className="mb-5">
+              <p className="mb-1.5 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
+              <div className="flex items-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5">
+                <p className="flex-1 truncate font-mono text-xs text-foreground">{pixData.qrcode}</p>
+                <button onClick={copyPix}
+                  className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary active:scale-95">
+                  {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
+                </button>
+              </div>
+            </div>
 
-        <div className="mb-5 text-center">
-          <p className="text-[10px] text-muted-foreground">Tempo restante</p>
-          <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
-            {formatTime(timeLeft)}
-          </p>
-        </div>
+            <div className="mb-5 text-center">
+              <p className="text-[10px] text-muted-foreground">Tempo restante</p>
+              <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
+                {formatTime(timeLeft)}
+              </p>
+            </div>
+          </>
+        ) : null}
 
         <button onClick={onClose}
           className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
@@ -660,7 +748,7 @@ const ClientDashboard = () => {
 
       {/* PIX Modal */}
       <AnimatePresence>
-        {pixModal && <PixModal pixModal={pixModal} onClose={() => setPixModal(null)} supportInfo={supportInfo} />}
+        {pixModal && <PixModal pixModal={pixModal} onClose={() => setPixModal(null)} supportInfo={supportInfo} user={user} />}
       </AnimatePresence>
     </AppLayout>
   );
