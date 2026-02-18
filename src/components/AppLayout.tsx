@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay } from "lucide-react";
+import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay, Bell } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -44,10 +44,10 @@ const adminLinks = [
 // Bottom nav: show first 4 + TV Guide + "Menu" for the rest
 const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
+  { to: "/tv-guide", label: "TV", icon: MonitorPlay },
+  { to: "/challenges", label: "Jogos", icon: Gamepad2 },
   { to: "/missions", label: "Missões", icon: Target },
   { to: "/credits", label: "Créditos", icon: Diamond },
-  { to: "/challenges", label: "Jogos", icon: Gamepad2 },
-  { to: "/tv-guide", label: "TV", icon: MonitorPlay },
 ];
 
 const clientMenuLinks = [
@@ -77,7 +77,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background">
       {/* === TOP HEADER BAR === */}
       <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-3 md:left-64" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
-        {/* Mobile: Logo + hamburger */}
+        {/* Mobile: Logo */}
         <div className="flex items-center gap-2 md:hidden">
           <img src={logo} alt="Bitz IPTV" className="h-8 w-8 rounded-lg object-cover" />
           <span className="font-display text-xs font-bold tracking-wider text-foreground">BITZ IPTV</span>
@@ -93,22 +93,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        {/* Right side: Saque button + Balance */}
+        {/* Right side: clean icons for client, admin badge for admin */}
         {!isAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate("/withdrawals")}
-              className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-md transition-all hover:brightness-110"
-            >
-              <Wallet size={13} />
-              Saque
+          <div className="flex items-center gap-1.5">
+            <button className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+              <Bell size={18} />
             </button>
-            <div className="flex items-center gap-1 rounded-full bg-muted/70 px-3 py-1.5 text-xs font-bold text-foreground">
-              💎 {(user as any)?.credits || 0}
-            </div>
-            <div className="flex items-center gap-1 rounded-full bg-muted/70 px-3 py-1.5 text-xs font-bold text-foreground">
-              💰 R$&nbsp;{balance.toFixed(2)}
-            </div>
+            <button onClick={() => navigate("/iptv-info")} className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+              <Settings size={18} />
+            </button>
           </div>
         )}
         {isAdmin && (
