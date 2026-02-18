@@ -483,24 +483,7 @@ async function handleCheckStatus(userId: string, body: any) {
         
         // Efí statuses: ATIVA, CONCLUIDA, REMOVIDA_PELO_USUARIO_RECEBEDOR, REMOVIDA_PELO_PSP
         if (cobData.status === "CONCLUIDA") {
-          // Payment confirmed! Update records
-          await adminSupa
-            .from("iptv_payments")
-            .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
-            .eq("id", payment.id);
-
-          await adminSupa
-            .from("profiles")
-            .update({ iptv_status: "awaiting_activation" })
-            .eq("id", payment.user_id);
-
-          await adminSupa.from("balance_history").insert({
-            user_id: payment.user_id,
-            amount: -payment.amount,
-            type: "iptv_payment",
-            description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
-          });
-
+          await confirmPaymentAndUpdateExpiry(adminSupa, payment);
           return jsonResp({ status: "paid_pending_activation", confirmed: true });
         }
       }
@@ -510,6 +493,52 @@ async function handleCheckStatus(userId: string, body: any) {
   }
 
   return jsonResp({ status: "pending", confirmed: false });
+}
+
+// Shared function: confirm payment, update expiry, set awaiting_activation
+async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
+  // 1. Mark payment as paid_pending_activation
+  await adminSupa
+    .from("iptv_payments")
+    .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
+    .eq("id", payment.id);
+
+  // 2. Calculate new expiry based on registered expiry date
+  const { data: profile } = await adminSupa
+    .from("profiles")
+    .select("iptv_expiry")
+    .eq("id", payment.user_id)
+    .single();
+
+  let baseExpiry: Date;
+  if (profile?.iptv_expiry) {
+    const [y, m, d] = profile.iptv_expiry.split("-").map(Number);
+    baseExpiry = new Date(y, m - 1, d);
+  } else {
+    baseExpiry = new Date();
+  }
+  const newExpiry = new Date(baseExpiry);
+  newExpiry.setMonth(newExpiry.getMonth() + (payment.months || 1));
+  const newExpiryStr = `${newExpiry.getFullYear()}-${String(newExpiry.getMonth() + 1).padStart(2, '0')}-${String(newExpiry.getDate()).padStart(2, '0')}`;
+
+  // 3. Update profile: new expiry + awaiting_activation status (admin still needs to update server)
+  await adminSupa
+    .from("profiles")
+    .update({ 
+      iptv_expiry: newExpiryStr,
+      iptv_status: "awaiting_activation" 
+    })
+    .eq("id", payment.user_id);
+
+  // 4. Log in balance_history
+  await adminSupa.from("balance_history").insert({
+    user_id: payment.user_id,
+    amount: -payment.amount,
+    type: "iptv_payment",
+    description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
+  });
+
+  console.log(`Payment ${payment.id} confirmed. New expiry: ${newExpiryStr}`);
 }
 
 async function handleWebhook(req: Request) {
@@ -548,26 +577,7 @@ async function handleWebhook(req: Request) {
         continue;
       }
 
-      // Confirm payment - mark as paid but pending admin activation
-      await adminSupa
-        .from("iptv_payments")
-        .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
-        .eq("id", payment.id);
-
-      // Set user status to awaiting_activation (admin will manually update expiry)
-      await adminSupa
-        .from("profiles")
-        .update({ iptv_status: "awaiting_activation" })
-        .eq("id", payment.user_id);
-
-      // Log in balance_history
-      await adminSupa.from("balance_history").insert({
-        user_id: payment.user_id,
-        amount: -payment.amount,
-        type: "iptv_payment",
-        description: `Pagamento IPTV confirmado via PIX (txid: ${txid})`,
-      });
-
+      await confirmPaymentAndUpdateExpiry(adminSupa, payment);
       console.log(`Payment ${payment.id} confirmed via webhook`);
     }
 
