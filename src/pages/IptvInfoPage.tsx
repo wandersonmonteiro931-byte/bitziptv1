@@ -27,12 +27,14 @@ const getAppLogo = (appName: string | undefined) => {
 const IptvInfoPage = () => {
   const { user } = useAuth();
 
-  const appLogo = getAppLogo(user?.iptv_app || user?.iptv_tv_app);
+  const appLogo = getAppLogo(user?.iptv_app);
+  const tvAppLogo = getAppLogo(user?.iptv_tv_app);
 
   const info = [
     { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
     { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
     { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
+    { label: "App TV", value: user?.iptv_tv_app || "-", icon: Tv },
     { label: "Validade", value: user?.iptv_expiry ? (() => { const [y, m, d] = user.iptv_expiry.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("pt-BR"); })() : "-", icon: Calendar },
   ];
 
@@ -48,7 +50,7 @@ const IptvInfoPage = () => {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card glow-border rounded-xl p-6">
         <div className="mb-4 flex items-center gap-3">
           {appLogo ? (
-            <img src={appLogo} alt={user?.iptv_app || "App"} className="h-12 w-12 rounded-xl object-cover" />
+            <img src={appLogo} alt={user?.iptv_app || "App"} className="h-12 w-12 rounded-xl object-contain" />
           ) : (
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
               <Tv size={24} className="text-primary" />
@@ -74,11 +76,22 @@ const IptvInfoPage = () => {
           ))}
         </div>
 
-        {appLogo && (
-          <div className="mt-6 flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
-            <p className="text-xs text-muted-foreground">Aplicativo parceiro</p>
-            <img src={appLogo} alt={user?.iptv_app || "App"} className="h-16 w-16 rounded-xl object-cover" />
-            <p className="text-sm font-semibold text-foreground">{user?.iptv_app || user?.iptv_tv_app}</p>
+        {(appLogo || tvAppLogo) && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {appLogo && (
+              <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Aplicativo Mobile</p>
+                <img src={appLogo} alt={user?.iptv_app || "App"} className="h-16 w-16 rounded-xl object-contain" />
+                <p className="text-sm font-semibold text-foreground">{user?.iptv_app}</p>
+              </div>
+            )}
+            {tvAppLogo && (
+              <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Aplicativo TV</p>
+                <img src={tvAppLogo} alt={user?.iptv_tv_app || "App TV"} className="h-16 w-16 rounded-xl object-contain" />
+                <p className="text-sm font-semibold text-foreground">{user?.iptv_tv_app}</p>
+              </div>
+            )}
           </div>
         )}
       </motion.div>
