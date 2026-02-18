@@ -79,17 +79,10 @@ const TvGuidePage = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string>("all");
-  const selectedDate = new Date();
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
-  // Use BRT
-  const getBRTDate = () => {
-    const n = new Date();
-    // Adjust to BRT (UTC-3)
-    const brt = new Date(n.getTime() - 3 * 60 * 60 * 1000 + n.getTimezoneOffset() * 60 * 1000);
-    return brt;
-  };
+  const todayStr = format(new Date(), "yyyy-MM-dd");
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 30000);
@@ -98,11 +91,8 @@ const TvGuidePage = () => {
 
   useEffect(() => {
     loadChannels();
-  }, []);
-
-  useEffect(() => {
     loadPrograms();
-  }, [selectedDate]);
+  }, []);
 
   // Realtime
   useEffect(() => {
@@ -111,7 +101,7 @@ const TvGuidePage = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "tv_channels" }, () => loadChannels())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [selectedDate]);
+  }, []);
 
   const loadChannels = async () => {
     const { data } = await supabase.from("tv_channels").select("*").eq("is_active", true).order("sort_order");
@@ -120,13 +110,12 @@ const TvGuidePage = () => {
 
   const loadPrograms = async () => {
     setLoading(true);
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
-    const { data } = await supabase.from("tv_programs").select("*").eq("program_date", dateStr).eq("is_active", true).order("start_time");
+    const { data } = await supabase.from("tv_programs").select("*").eq("program_date", todayStr).eq("is_active", true).order("start_time");
     setPrograms((data as any[]) || []);
     setLoading(false);
   };
 
-  const todayLabel = format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+  const todayLabel = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const filteredPrograms = useMemo(() => {
     if (selectedChannel === "all") return programs;

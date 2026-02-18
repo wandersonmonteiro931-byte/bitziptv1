@@ -41,12 +41,13 @@ const adminLinks = [
   { to: "/admin/settings", label: "Config", icon: Settings },
 ];
 
-// Bottom nav: show first 4 + "Menu" for the rest
+// Bottom nav: show first 4 + TV Guide + "Menu" for the rest
 const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
   { to: "/credits", label: "Créditos", icon: Diamond },
   { to: "/challenges", label: "Jogos", icon: Gamepad2 },
+  { to: "/tv-guide", label: "TV", icon: MonitorPlay },
 ];
 
 const clientMenuLinks = [
@@ -58,7 +59,6 @@ const clientMenuLinks = [
   { to: "/referrals", label: "Indicações", icon: Users },
   { to: "/withdrawals", label: "Saques", icon: Wallet },
   { to: "/history", label: "Histórico", icon: History },
-  { to: "/tv-guide", label: "Programação TV", icon: MonitorPlay },
   { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
 
