@@ -244,7 +244,7 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
   );
 }
 
-// --- Payment History (Collapsible, simple list) ---
+// --- Payment History (Collapsible — from iptv_payments + balance_history) ---
 function PaymentHistory() {
   const [payments, setPayments] = useState<any[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -252,11 +252,10 @@ function PaymentHistory() {
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
-        .from("balance_history")
+        .from("iptv_payments")
         .select("*")
-        .eq("type", "payment")
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .order("payment_date", { ascending: false })
+        .limit(20);
       setPayments(data || []);
     };
     load();
@@ -279,16 +278,19 @@ function PaymentHistory() {
               ) : (
                 <div className="space-y-2">
                   {payments.map((p) => {
-                    const date = new Date(p.created_at);
+                    const date = new Date(p.payment_date);
                     const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+                    const endParts = p.period_end?.split("-");
+                    const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
                     return (
                       <div key={p.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
                         <div>
                           <p className="text-sm text-foreground">{formatted}</p>
+                          <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-foreground">R$ {Math.abs(p.amount).toFixed(2)}</span>
-                          <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Pago</span>
+                          <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
                         </div>
                       </div>
                     );
@@ -457,7 +459,6 @@ const ClientDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
-  const status = SYSTEM_STATUS_MAP[user?.iptv_status || "active"] || SYSTEM_STATUS_MAP.active;
   const now = new Date();
 
   let dueDate: Date;
@@ -474,6 +475,10 @@ const ClientDashboard = () => {
 
   const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   const isOverdue = daysUntilDue < 0;
+
+  // Auto-block: if expired and still "active", update status locally
+  const effectiveStatus = (isOverdue && user?.iptv_status === "active") ? "blocked" : (user?.iptv_status || "active");
+  const status = SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
   const isDueToday = daysUntilDue === 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
   const connections = user?.iptv_connections || 1;

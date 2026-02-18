@@ -57,13 +57,22 @@ const AdminIptvPage = () => {
   }, []);
 
   const filtered = useMemo(() => {
-    const today = new Date().getDate();
+    const today = new Date();
+    const todayDay = today.getDate();
+    const todayStr = today.toISOString().split("T")[0];
+    const fiveDays = new Date(today);
+    fiveDays.setDate(fiveDays.getDate() + 5);
+    const fiveDaysStr = fiveDays.toISOString().split("T")[0];
+
     let list = users;
 
-    // Quick filter
     if (activeFilter === "active") list = list.filter((u) => u.iptv_status === "active");
     else if (activeFilter === "blocked") list = list.filter((u) => u.iptv_status === "blocked");
-    else if (activeFilter === "expiring") list = list.filter((u) => u.iptv_due_day === today && u.iptv_status === "active");
+    else if (activeFilter === "expiring") list = list.filter((u) => u.iptv_due_day === todayDay && u.iptv_status === "active");
+    else if (activeFilter === "expiring_5d") list = list.filter((u) => {
+      if (!u.iptv_expiry || u.iptv_status === "blocked") return false;
+      return u.iptv_expiry >= todayStr && u.iptv_expiry <= fiveDaysStr;
+    });
     else if (activeFilter === "expired") list = list.filter((u) => {
       if (!u.iptv_expiry) return false;
       return new Date(u.iptv_expiry) < new Date();
@@ -71,7 +80,6 @@ const AdminIptvPage = () => {
     else if (activeFilter === "unstable") list = list.filter((u) => u.iptv_status === "unstable");
     else if (activeFilter === "awaiting_payment") list = list.filter((u) => u.iptv_status === "awaiting_payment");
 
-    // Search
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(

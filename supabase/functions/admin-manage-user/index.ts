@@ -50,12 +50,10 @@ Deno.serve(async (req) => {
       if (Number(profile.balance) < Number(amount)) throw new Error("Saldo insuficiente");
       if (Number(amount) < 30) throw new Error("Valor mínimo de R$ 30,00");
 
-      // Deduct balance immediately
       await supabaseAdmin.from("profiles").update({
         balance: roundMoney(Number(profile.balance) - Number(amount)),
       }).eq("id", user_id);
 
-      // Create withdrawal record
       await supabaseAdmin.from("withdrawals").insert({
         user_id,
         amount: Number(amount),
@@ -63,7 +61,6 @@ Deno.serve(async (req) => {
         status: "pending",
       });
 
-      // Log in balance_history
       await supabaseAdmin.from("balance_history").insert({
         user_id,
         type: "withdrawal",
@@ -99,6 +96,62 @@ Deno.serve(async (req) => {
         const { error } = await supabaseAdmin.from("profiles").update(data).eq("id", user_id);
         if (error) throw new Error(error.message);
         result = { success: true };
+        break;
+      }
+      case "confirm_payment": {
+        // Admin confirms a payment and renews the plan
+        const { amount, months, notes, period_start, period_end } = data;
+        if (!amount || !months || !period_start || !period_end) {
+          throw new Error("amount, months, period_start e period_end são obrigatórios");
+        }
+
+        // Insert payment record
+        await supabaseAdmin.from("iptv_payments").insert({
+          user_id,
+          amount: Number(amount),
+          months: Number(months),
+          period_start,
+          period_end,
+          status: "confirmed",
+          payment_method: "pix",
+          admin_id: caller.id,
+          notes: notes || "",
+        });
+
+        // Update user profile: set new expiry date + activate
+        await supabaseAdmin.from("profiles").update({
+          iptv_expiry: period_end,
+          iptv_status: "active",
+        }).eq("id", user_id);
+
+        // Log in balance_history for client visibility
+        await supabaseAdmin.from("balance_history").insert({
+          user_id,
+          type: "payment",
+          amount: Number(amount),
+          description: `Mensalidade confirmada - ${months} mês(es) até ${period_end}`,
+          admin_id: caller.id,
+        });
+
+        result = { success: true };
+        break;
+      }
+      case "auto_block_expired": {
+        // Block all expired users automatically
+        const today = new Date().toISOString().split("T")[0];
+        const { data: expiredUsers } = await supabaseAdmin
+          .from("profiles")
+          .select("id, name, iptv_expiry")
+          .lt("iptv_expiry", today)
+          .eq("iptv_status", "active");
+
+        const blocked: string[] = [];
+        for (const u of (expiredUsers || [])) {
+          await supabaseAdmin.from("profiles").update({ iptv_status: "blocked" }).eq("id", u.id);
+          blocked.push(u.id);
+        }
+
+        result = { success: true, blocked_count: blocked.length, blocked_ids: blocked };
         break;
       }
       case "adjust_balance": {

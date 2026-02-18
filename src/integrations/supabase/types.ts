@@ -615,6 +615,66 @@ export type Database = {
         }
         Relationships: []
       }
+      iptv_payments: {
+        Row: {
+          admin_id: string | null
+          amount: number
+          created_at: string
+          id: string
+          months: number
+          notes: string | null
+          payment_date: string
+          payment_method: string
+          period_end: string
+          period_start: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          months?: number
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string
+          period_end: string
+          period_start: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          months?: number
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string
+          period_end?: string
+          period_start?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iptv_payments_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "iptv_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       iptv_servers: {
         Row: {
           created_at: string
