@@ -308,8 +308,8 @@ const RoulettePage = () => {
                   description: result.reward_type === "balance"
                     ? `+R$ ${Number(result.balance_won).toFixed(2)} adicionados ao seu saldo!`
                     : result.reward_type === "multiplier"
-                      ? `x${result.reward_value} = +${result.credits_won} créditos!`
-                      : `+${result.credits_won} créditos!`,
+                      ? `x${result.reward_value} = +${result.credits_won} 💎!`
+                      : `+${result.credits_won} 💎!`,
                 });
               } else {
                 sfx.lose();
@@ -511,7 +511,7 @@ const RoulettePage = () => {
                     <p className="text-sm text-muted-foreground mt-1">
                       {spinResult.reward_type === "balance"
                         ? `+R$ ${Number(spinResult.balance_won).toFixed(2)} ao saldo!`
-                        : `+${spinResult.credits_won} créditos!`}
+                        : `+${spinResult.credits_won} 💎!`}
                     </p>
                   </>
                 ) : (
