@@ -403,22 +403,45 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     {payments.length === 0 ? (
                       <p className="text-center text-xs text-muted-foreground py-4">Nenhum pagamento registrado.</p>
                     ) : (
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
                         {payments.map((p: any) => {
                           const date = new Date(p.payment_date);
                           const formatted = date.toLocaleDateString("pt-BR");
                           const endParts = p.period_end?.split("-");
                           const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
+                          const isReversed = p.status === "reversed";
                           return (
-                            <div key={p.id} className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 border-b border-border/20 last:border-0">
-                              <div>
+                            <div key={p.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${isReversed ? "bg-destructive/5 border-destructive/20" : "bg-muted/30 border-border/20"}`}>
+                              <div className="flex-1 min-w-0">
                                 <p className="text-xs font-medium text-foreground">{formatted}</p>
                                 <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
-                                {p.notes && <p className="text-[10px] text-muted-foreground/70 italic">{p.notes}</p>}
+                                {p.notes && <p className="text-[10px] text-muted-foreground/70 italic truncate">{p.notes}</p>}
                               </div>
-                              <div className="text-right">
-                                <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
-                                <span className="ml-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right">
+                                  <span className={`text-sm font-semibold ${isReversed ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
+                                  <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${isReversed ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-400"}`}>
+                                    {isReversed ? "Revertido" : "Pago"}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    await supabase.functions.invoke("admin-manage-user", {
+                                      body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
+                                    });
+                                    toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
+                                    setPaymentsLoaded(false);
+                                    await loadPayments();
+                                    setSaving(false);
+                                    onSaved();
+                                  }}
+                                  disabled={saving}
+                                  className={`rounded-lg p-1.5 transition-colors ${isReversed ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-destructive/10 text-destructive hover:bg-destructive/20"}`}
+                                  title={isReversed ? "Re-confirmar pagamento" : "Reverter pagamento"}
+                                >
+                                  <RotateCcw size={12} />
+                                </button>
                               </div>
                             </div>
                           );
