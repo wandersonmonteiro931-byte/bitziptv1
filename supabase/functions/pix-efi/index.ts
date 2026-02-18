@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,55 +15,11 @@ function getEnv(name: string): string {
   return v;
 }
 
-/** Convert DER bytes → PEM with given label */
-function derToPem(der: Uint8Array, label: string): string {
-  const b64 = btoa(String.fromCharCode(...der));
-  const lines = b64.match(/.{1,64}/g) || [];
-  return `-----BEGIN ${label}-----\n${lines.join("\n")}\n-----END ${label}-----`;
-}
-
-/**
- * Minimal ASN.1/DER parser to extract cert + key from a PKCS#12 (.p12) file.
- * Deno doesn't have built-in PKCS12, so we use a PEM-based approach:
- *   1. Decode base64 → raw .p12 bytes
- *   2. Use `openssl` CLI (available in Deno Deploy) to convert to PEM
- * 
- * Fallback: if openssl isn't available, we store pre-extracted PEM in secrets.
- */
-async function getP12Pem(): Promise<{ cert: string; key: string }> {
-  const b64 = getEnv("EFI_CERTIFICATE_BASE64");
-  const p12Bytes = base64Decode(b64);
-
-  // Write .p12 to temp file
-  const tmpP12 = await Deno.makeTempFile({ suffix: ".p12" });
-  const tmpPem = await Deno.makeTempFile({ suffix: ".pem" });
-
-  try {
-    await Deno.writeFile(tmpP12, p12Bytes);
-
-    // Extract cert
-    const certProc = new Deno.Command("openssl", {
-      args: ["pkcs12", "-in", tmpP12, "-clcerts", "-nokeys", "-passin", "pass:"],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const certResult = await certProc.output();
-    const certPem = new TextDecoder().decode(certResult.stdout);
-
-    // Extract key
-    const keyProc = new Deno.Command("openssl", {
-      args: ["pkcs12", "-in", tmpP12, "-nocerts", "-nodes", "-passin", "pass:"],
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const keyResult = await keyProc.output();
-    const keyPem = new TextDecoder().decode(keyResult.stdout);
-
-    return { cert: certPem, key: keyPem };
-  } finally {
-    try { await Deno.remove(tmpP12); } catch { /* ignore */ }
-    try { await Deno.remove(tmpPem); } catch { /* ignore */ }
-  }
+function getPemCredentials(): { cert: string; key: string } {
+  return {
+    cert: getEnv("EFI_CERT_PEM"),
+    key: getEnv("EFI_KEY_PEM"),
+  };
 }
 
 // ── Efí API ──────────────────────────────────────────────────────────────
@@ -239,7 +194,7 @@ async function handleCreateCharge(userId: string, body: any) {
   }
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = await getP12Pem();
+  const { cert, key } = getPemCredentials();
 
   const httpClient = Deno.createHttpClient({
     certChain: cert,
@@ -296,7 +251,7 @@ async function handleRegisterWebhook(userId: string) {
   if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = await getP12Pem();
+  const { cert, key } = getPemCredentials();
   const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
 
   try {
@@ -334,7 +289,7 @@ async function handleCheckWebhook(userId: string) {
   if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = await getP12Pem();
+  const { cert, key } = getPemCredentials();
   const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
 
   try {
