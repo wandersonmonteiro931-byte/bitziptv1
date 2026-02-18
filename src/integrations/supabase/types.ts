@@ -539,6 +539,7 @@ export type Database = {
       }
       game_memory_settings: {
         Row: {
+          cost_per_game: number
           daily_limit: number | null
           id: string
           is_active: boolean | null
@@ -549,6 +550,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          cost_per_game?: number
           daily_limit?: number | null
           id?: string
           is_active?: boolean | null
@@ -559,6 +561,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          cost_per_game?: number
           daily_limit?: number | null
           id?: string
           is_active?: boolean | null
