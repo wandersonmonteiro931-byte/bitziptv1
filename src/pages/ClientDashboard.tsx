@@ -432,35 +432,58 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     createCharge();
   }, []);
 
-  // Poll every 3s via edge function that checks Efí API directly
+  // Poll every 3s - first try edge function (checks Efí API), fallback to DB check
   useEffect(() => {
     if (!paymentId || paymentConfirmed) return;
 
-    const poll = setInterval(async () => {
+    const checkPayment = async () => {
       try {
+        // Try edge function first (checks Efí API directly)
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const resp = await fetch(`${supabaseUrl}/functions/v1/pix-efi/check-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({ payment_id: paymentId }),
-        });
-        
-        const data = await resp.json();
-        console.log("Poll check-status response:", data);
-        if (data?.confirmed) {
+        if (session) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const resp = await fetch(`${supabaseUrl}/functions/v1/pix-efi/check-status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${session.access_token}`,
+              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ payment_id: paymentId }),
+          });
+          
+          if (resp.ok) {
+            const data = await resp.json();
+            console.log("Poll check-status response:", data);
+            if (data?.confirmed) {
+              setPaymentConfirmed(true);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Poll edge function error:", err);
+      }
+
+      // Fallback: check DB directly
+      try {
+        const { data } = await supabase
+          .from("iptv_payments")
+          .select("status")
+          .eq("id", paymentId)
+          .maybeSingle();
+        if (data?.status && data.status !== "pending") {
+          console.log("Payment confirmed via DB fallback:", data.status);
           setPaymentConfirmed(true);
         }
       } catch (err) {
-        console.error("Poll check-status error:", err);
+        console.error("Poll DB fallback error:", err);
       }
-    }, 3000);
+    };
+
+    const poll = setInterval(checkPayment, 3000);
+    // Also check immediately
+    checkPayment();
 
     return () => clearInterval(poll);
   }, [paymentId, paymentConfirmed]);
