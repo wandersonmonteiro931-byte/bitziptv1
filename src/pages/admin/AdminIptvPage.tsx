@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Search, X, Users, Filter } from "lucide-react";
+import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,30 @@ const AdminIptvPage = () => {
   const [bulkField, setBulkField] = useState("iptv_status");
   const [bulkValue, setBulkValue] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [webhookLoading, setWebhookLoading] = useState(false);
+
+  const handleRegisterWebhook = async () => {
+    setWebhookLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("pix-efi/register-webhook", {
+        method: "POST",
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({
+        title: "✅ Webhook configurado!",
+        description: "O webhook PIX foi registrado automaticamente na Efí.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "❌ Erro ao configurar webhook",
+        description: err.message || "Tente novamente mais tarde.",
+        variant: "destructive",
+      });
+    } finally {
+      setWebhookLoading(false);
+    }
+  };
 
   const loadData = async () => {
     const [u, s, a] = await Promise.all([
@@ -144,11 +168,21 @@ const AdminIptvPage = () => {
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{users.length} clientes cadastrados</p>
         </div>
-        {selectedUsers.size > 0 && (
-          <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 rounded-xl bg-secondary/15 px-4 py-2.5 text-xs font-semibold text-secondary hover:bg-secondary/25 transition-colors">
-            <Users size={14} /> Massa ({selectedUsers.size})
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRegisterWebhook}
+            disabled={webhookLoading}
+            className="flex items-center gap-1.5 rounded-xl bg-accent/15 px-3 py-2.5 text-xs font-semibold text-accent-foreground hover:bg-accent/25 transition-colors disabled:opacity-50"
+          >
+            {webhookLoading ? <Loader2 size={14} className="animate-spin" /> : <Webhook size={14} />}
+            Webhook PIX
           </button>
-        )}
+          {selectedUsers.size > 0 && (
+            <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 rounded-xl bg-secondary/15 px-4 py-2.5 text-xs font-semibold text-secondary hover:bg-secondary/25 transition-colors">
+              <Users size={14} /> Massa ({selectedUsers.size})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stats Cards */}
