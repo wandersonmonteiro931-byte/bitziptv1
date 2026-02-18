@@ -41,14 +41,20 @@ function getPemCredentials(): { cert: string; key: string } {
   if (!certBag?.cert) throw new Error("No certificate found in .p12");
   const cert = forge.pki.certificateToPem(certBag.cert);
 
-  // Extract private key  
+  // Extract private key in PKCS#8 format (BEGIN PRIVATE KEY, not BEGIN RSA PRIVATE KEY)
   const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
   if (!keyBag?.key) throw new Error("No private key found in .p12");
-  const key = forge.pki.privateKeyToPem(keyBag.key);
+  
+  // Convert to PKCS#8 format which Deno's rustls requires
+  const rsaPrivateKey = forge.pki.privateKeyToAsn1(keyBag.key);
+  const privateKeyInfo = forge.pki.wrapRsaPrivateKey(rsaPrivateKey);
+  const key = forge.pki.privateKeyInfoToPem(privateKeyInfo);
 
   _cachedPem = { cert, key };
-  console.log("Extracted PEM from .p12 successfully");
+  console.log("Extracted PEM from .p12 successfully (PKCS#8 format)");
+  console.log("Cert header:", cert.substring(0, 30));
+  console.log("Key header:", key.substring(0, 30));
   return _cachedPem;
 }
 
@@ -75,13 +81,38 @@ function getBaseUrl(): string {
   return sandbox ? EFI_SANDBOX_URL : EFI_BASE_URL;
 }
 
+async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const resp = await fetch(url, options);
+      return resp;
+    } catch (err) {
+      console.error(`Fetch attempt ${attempt}/${maxRetries} failed:`, err.message);
+      if (attempt >= maxRetries) throw err;
+      const delay = 2000 * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+function createMtlsClient(cert: string, key: string): Deno.HttpClient {
+  // Try newer Deno API first (cert/key), fallback to legacy (certChain/privateKey)
+  try {
+    return Deno.createHttpClient({ cert, key });
+  } catch {
+    console.log("Falling back to certChain/privateKey API");
+    return Deno.createHttpClient({ certChain: cert, privateKey: key } as any);
+  }
+}
+
 async function getAccessToken(httpClient: Deno.HttpClient): Promise<string> {
   const clientId = getEnv("EFI_CLIENT_ID");
   const clientSecret = getEnv("EFI_CLIENT_SECRET");
   const credentials = btoa(`${clientId}:${clientSecret}`);
   const baseUrl = getBaseUrl();
 
-  const resp = await fetch(`${baseUrl}/oauth/token`, {
+  const resp = await fetchWithRetry(`${baseUrl}/oauth/token`, {
     method: "POST",
     client: httpClient,
     headers: {
@@ -125,7 +156,7 @@ async function createPixCharge(
   payload: CobPayload
 ): Promise<CobResponse> {
   const baseUrl = getBaseUrl();
-  const resp = await fetch(`${baseUrl}/v2/cob`, {
+  const resp = await fetchWithRetry(`${baseUrl}/v2/cob`, {
     method: "POST",
     client: httpClient,
     headers: {
@@ -149,7 +180,7 @@ async function getQrCode(
   locId: number
 ): Promise<{ qrcode: string; imagemQrcode: string }> {
   const baseUrl = getBaseUrl();
-  const resp = await fetch(`${baseUrl}/v2/loc/${locId}/qrcode`, {
+  const resp = await fetchWithRetry(`${baseUrl}/v2/loc/${locId}/qrcode`, {
     method: "GET",
     client: httpClient,
     headers: { Authorization: `Bearer ${token}` },
@@ -240,10 +271,7 @@ async function handleCreateCharge(userId: string, body: any) {
   console.log("PEM cert length:", cert.length, "has newlines:", cert.includes("\n"));
   console.log("PEM key length:", privKey.length, "has newlines:", privKey.includes("\n"));
 
-  const httpClient = Deno.createHttpClient({
-    certChain: cert,
-    privateKey: privKey,
-  });
+  const httpClient = createMtlsClient(cert, privKey);
 
   try {
     const accessToken = await getAccessToken(httpClient);
@@ -296,7 +324,7 @@ async function handleRegisterWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+  const httpClient = createMtlsClient(cert, key);
 
   try {
     const accessToken = await getAccessToken(httpClient);
@@ -304,7 +332,7 @@ async function handleRegisterWebhook(userId: string) {
     const supabaseUrl = getEnv("SUPABASE_URL");
     const webhookUrl = `${supabaseUrl}/functions/v1/pix-efi/webhook`;
 
-    const resp = await fetch(`${baseUrl}/v2/webhook/${pixKey}`, {
+    const resp = await fetchWithRetry(`${baseUrl}/v2/webhook/${pixKey}`, {
       method: "PUT",
       client: httpClient,
       headers: {
@@ -334,13 +362,13 @@ async function handleCheckWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+  const httpClient = createMtlsClient(cert, key);
 
   try {
     const accessToken = await getAccessToken(httpClient);
     const baseUrl = getBaseUrl();
 
-    const resp = await fetch(`${baseUrl}/v2/webhook/${pixKey}`, {
+    const resp = await fetchWithRetry(`${baseUrl}/v2/webhook/${pixKey}`, {
       method: "GET",
       client: httpClient,
       headers: { Authorization: `Bearer ${accessToken}` },
