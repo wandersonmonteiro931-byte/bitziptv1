@@ -297,10 +297,19 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const path = url.pathname.split("/").pop();
+    const pathSegments = url.pathname.split("/").filter(Boolean);
+    const path = pathSegments[pathSegments.length - 1];
+    
+    // Efí appends /pix to webhook URL, so match both "webhook" and "pix"
+    const isWebhook = path === "webhook" || path === "pix" || 
+      (pathSegments.length >= 2 && pathSegments[pathSegments.length - 2] === "webhook");
 
     // ── Webhook (public, called by Efí) ──
-    if (path === "webhook" && req.method === "POST") {
+    if (isWebhook && (req.method === "POST" || req.method === "GET")) {
+      if (req.method === "GET") {
+        // Efí sends GET to verify webhook URL exists
+        return jsonResp({ ok: true });
+      }
       return await handleWebhook(req);
     }
 
@@ -322,6 +331,10 @@ serve(async (req) => {
 
     if (path === "create-charge") {
       return await handleCreateCharge(userId, body);
+    }
+
+    if (path === "check-status") {
+      return await handleCheckStatus(userId, body);
     }
 
     if (path === "register-webhook") {
@@ -436,6 +449,67 @@ async function handleCheckWebhook(userId: string) {
 
   const data = JSON.parse(resp.body);
   return jsonResp({ ok: true, data });
+}
+
+async function handleCheckStatus(userId: string, body: any) {
+  const { payment_id } = body;
+  if (!payment_id) return jsonResp({ error: "payment_id required" }, 400);
+
+  const adminSupa = getAdminSupabase();
+  const { data: payment } = await adminSupa
+    .from("iptv_payments")
+    .select("*")
+    .eq("id", payment_id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!payment) return jsonResp({ error: "Payment not found" }, 404);
+  if (payment.status !== "pending") {
+    return jsonResp({ status: payment.status, confirmed: true });
+  }
+
+  // If we have a txid, check with Efí API directly
+  if (payment.pix_txid) {
+    try {
+      const accessToken = await getAccessToken();
+      const resp = await mtlsFetchWithRetry(`/v2/cob/${payment.pix_txid}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (resp.status >= 200 && resp.status < 300) {
+        const cobData = JSON.parse(resp.body);
+        console.log(`Check status for txid ${payment.pix_txid}: ${cobData.status}`);
+        
+        // Efí statuses: ATIVA, CONCLUIDA, REMOVIDA_PELO_USUARIO_RECEBEDOR, REMOVIDA_PELO_PSP
+        if (cobData.status === "CONCLUIDA") {
+          // Payment confirmed! Update records
+          await adminSupa
+            .from("iptv_payments")
+            .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
+            .eq("id", payment.id);
+
+          await adminSupa
+            .from("profiles")
+            .update({ iptv_status: "awaiting_activation" })
+            .eq("id", payment.user_id);
+
+          await adminSupa.from("balance_history").insert({
+            user_id: payment.user_id,
+            amount: -payment.amount,
+            type: "iptv_payment",
+            description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
+          });
+
+          return jsonResp({ status: "paid_pending_activation", confirmed: true });
+        }
+      }
+    } catch (err) {
+      console.error("Check status API error:", err.message);
+    }
+  }
+
+  return jsonResp({ status: "pending", confirmed: false });
 }
 
 async function handleWebhook(req: Request) {

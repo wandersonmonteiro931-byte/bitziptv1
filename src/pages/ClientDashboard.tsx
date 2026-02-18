@@ -432,20 +432,22 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     createCharge();
   }, []);
 
-  // Poll every 1s to check payment status
+  // Poll every 3s via edge function that checks Efí API directly
   useEffect(() => {
     if (!paymentId || paymentConfirmed) return;
 
     const poll = setInterval(async () => {
-      const { data } = await supabase
-        .from("iptv_payments")
-        .select("status")
-        .eq("id", paymentId)
-        .maybeSingle();
-      if (data?.status && data.status !== "pending") {
-        setPaymentConfirmed(true);
+      try {
+        const { data } = await supabase.functions.invoke("pix-efi/check-status", {
+          body: { payment_id: paymentId },
+        });
+        if (data?.confirmed) {
+          setPaymentConfirmed(true);
+        }
+      } catch (err) {
+        console.error("Poll check-status error:", err);
       }
-    }, 1000);
+    }, 3000);
 
     return () => clearInterval(poll);
   }, [paymentId, paymentConfirmed]);
