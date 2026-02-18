@@ -432,40 +432,16 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
     createCharge();
   }, []);
 
-  // Poll every 3s - first try edge function (checks Efí API), fallback to DB check
+  // Poll every 1s checking DB + edge function for payment confirmation
   useEffect(() => {
     if (!paymentId || paymentConfirmed) return;
 
-    const checkPayment = async () => {
-      try {
-        // Try edge function first (checks Efí API directly)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const resp = await fetch(`${supabaseUrl}/functions/v1/pix-efi/check-status`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${session.access_token}`,
-              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            body: JSON.stringify({ payment_id: paymentId }),
-          });
-          
-          if (resp.ok) {
-            const data = await resp.json();
-            console.log("Poll check-status response:", data);
-            if (data?.confirmed) {
-              setPaymentConfirmed(true);
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Poll edge function error:", err);
-      }
+    let active = true;
 
-      // Fallback: check DB directly
+    const checkPayment = async () => {
+      if (!active) return;
+
+      // 1. Always check DB first (fastest, most reliable)
       try {
         const { data } = await supabase
           .from("iptv_payments")
@@ -473,19 +449,49 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
           .eq("id", paymentId)
           .maybeSingle();
         if (data?.status && data.status !== "pending") {
-          console.log("Payment confirmed via DB fallback:", data.status);
-          setPaymentConfirmed(true);
+          if (active) setPaymentConfirmed(true);
+          return;
         }
       } catch (err) {
-        console.error("Poll DB fallback error:", err);
+        console.error("DB poll error:", err);
+      }
+
+      // 2. If still pending, actively check Efí API via edge function
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const resp = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+              body: JSON.stringify({ payment_id: paymentId }),
+            }
+          );
+          if (resp.ok) {
+            const result = await resp.json();
+            if (result?.confirmed && active) {
+              setPaymentConfirmed(true);
+            }
+          }
+        }
+      } catch (err) {
+        // Edge function failed — DB check above is the fallback
       }
     };
 
-    const poll = setInterval(checkPayment, 3000);
-    // Also check immediately
+    // Check immediately, then every 1 second
     checkPayment();
+    const poll = setInterval(checkPayment, 1000);
 
-    return () => clearInterval(poll);
+    return () => {
+      active = false;
+      clearInterval(poll);
+    };
   }, [paymentId, paymentConfirmed]);
 
   useEffect(() => {
