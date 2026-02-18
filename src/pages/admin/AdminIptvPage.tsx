@@ -32,6 +32,8 @@ const AdminIptvPage = () => {
   const [bulkValue, setBulkValue] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [webhookLoading, setWebhookLoading] = useState(false);
+  const [pendingActivations, setPendingActivations] = useState<any[]>([]);
+  const [confirmingPayment, setConfirmingPayment] = useState<string | null>(null);
 
   const handleRegisterWebhook = async () => {
     setWebhookLoading(true);
@@ -57,14 +59,16 @@ const AdminIptvPage = () => {
   };
 
   const loadData = async () => {
-    const [u, s, a] = await Promise.all([
+    const [u, s, a, pa] = await Promise.all([
       supabase.from("profiles").select("*").order("name"),
       supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
+      supabase.from("iptv_payments").select("*, profiles!iptv_payments_user_id_fkey(name, iptv_server, iptv_connections, iptv_expiry)").eq("status", "paid_pending_activation").order("payment_date", { ascending: false }),
     ]);
     setUsers(u.data || []);
     setServers(s.data || []);
     setTvApps(a.data || []);
+    setPendingActivations(pa.data || []);
   };
 
   useEffect(() => { loadData(); }, []);
@@ -76,9 +80,28 @@ const AdminIptvPage = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
         loadData();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        loadData();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
+
+  const confirmActivation = async (paymentId: string, userId: string) => {
+    setConfirmingPayment(paymentId);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "confirm_activation", user_id: userId, data: { payment_id: paymentId } },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      toast({ title: "✅ Ativação confirmada!" });
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setConfirmingPayment(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const today = new Date();
@@ -189,43 +212,57 @@ const AdminIptvPage = () => {
       {/* Stats Cards */}
       <StatsCards users={users} />
 
-      {/* Awaiting Activation Highlight */}
-      {(() => {
-        const awaitingUsers = users.filter(u => u.iptv_status === "awaiting_activation");
-        if (awaitingUsers.length === 0) return null;
-        return (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 rounded-2xl border-2 border-blue-500/30 bg-blue-500/5 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <AlertCircle size={16} className="text-blue-400" />
-              <h3 className="text-sm font-bold text-blue-400">
-                Aguardando Ativação ({awaitingUsers.length})
-              </h3>
-            </div>
-            <p className="mb-3 text-[10px] text-muted-foreground">
-              Clientes que pagaram via PIX e aguardam ativação no servidor.
-            </p>
-            <div className="space-y-2">
-              {awaitingUsers.map((u) => (
-                <div key={u.id} className="flex items-center justify-between rounded-xl border border-blue-500/20 bg-card/80 p-3">
+      {/* Awaiting Support Section - based on iptv_payments */}
+      {pendingActivations.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          className="mt-4 rounded-2xl border-2 border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-400" />
+            <h3 className="text-sm font-bold text-amber-400">
+              Aguardando Suporte ({pendingActivations.length})
+            </h3>
+          </div>
+          <p className="mb-3 text-[10px] text-muted-foreground">
+            Pagamentos PIX recebidos. Confirme após atualizar o servidor.
+          </p>
+          <div className="space-y-2">
+            {pendingActivations.map((p) => {
+              const profile = p.profiles as any;
+              const endParts = p.period_end?.split("-");
+              const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "—";
+              const dateParts = p.payment_date ? new Date(p.payment_date) : null;
+              const dateFormatted = dateParts ? `${String(dateParts.getDate()).padStart(2,'0')}/${String(dateParts.getMonth()+1).padStart(2,'0')}` : "";
+              return (
+                <div key={p.id} className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-card/80 p-3">
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{u.name}</p>
+                    <p className="text-sm font-semibold text-foreground">{profile?.name || "—"}</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {u.iptv_server || "—"} · {u.iptv_connections || 1} tela{(u.iptv_connections || 1) > 1 ? "s" : ""} · Validade: {u.iptv_expiry ? u.iptv_expiry.split("-").reverse().join("/") : "—"}
+                      {profile?.iptv_server || "—"} · {p.months} mês(es) · até {endFormatted}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      R$ {Number(p.amount).toFixed(2)} · Pago em {dateFormatted}
                     </p>
                   </div>
                   <button
-                    onClick={() => setEditUser(u)}
-                    className="rounded-lg bg-blue-500/15 px-3 py-2 text-xs font-semibold text-blue-400 hover:bg-blue-500/25 transition-colors"
+                    onClick={() => confirmActivation(p.id, p.user_id)}
+                    disabled={confirmingPayment === p.id}
+                    className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
                   >
-                    Ativar
+                    {confirmingPayment === p.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <>
+                        <CheckCircle size={12} className="inline mr-1" />
+                        Confirmar
+                      </>
+                    )}
                   </button>
                 </div>
-              ))}
-            </div>
-          </motion.div>
-        );
-      })()}
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Quick Filters */}
       <div className="mt-4 flex gap-2 overflow-x-auto scrollbar-none pb-1">

@@ -410,6 +410,33 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "confirm_activation": {
+        // Admin confirms a specific paid_pending_activation payment
+        const { payment_id } = data;
+        if (!payment_id) throw new Error("payment_id é obrigatório");
+
+        const { data: payment } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("*")
+          .eq("id", payment_id)
+          .eq("status", "paid_pending_activation")
+          .single();
+        if (!payment) throw new Error("Pagamento não encontrado ou já confirmado");
+
+        // Update payment status to confirmed (just update the existing row, no new lines)
+        await supabaseAdmin.from("iptv_payments").update({
+          status: "confirmed",
+          admin_id: caller.id,
+        }).eq("id", payment_id);
+
+        // Set profile to active
+        await supabaseAdmin.from("profiles").update({
+          iptv_status: "active",
+        }).eq("id", user_id);
+
+        result = { success: true };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
