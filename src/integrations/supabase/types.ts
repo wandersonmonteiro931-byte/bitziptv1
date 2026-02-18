@@ -151,8 +151,12 @@ export type Database = {
           body: string | null
           content_type: string
           created_at: string
+          ends_at: string | null
           id: string
           is_active: boolean
+          redirect_url: string | null
+          sort_order: number | null
+          starts_at: string | null
           target_audience: string
           title: string
           updated_at: string
@@ -162,8 +166,12 @@ export type Database = {
           body?: string | null
           content_type?: string
           created_at?: string
+          ends_at?: string | null
           id?: string
           is_active?: boolean
+          redirect_url?: string | null
+          sort_order?: number | null
+          starts_at?: string | null
           target_audience?: string
           title: string
           updated_at?: string
@@ -173,8 +181,12 @@ export type Database = {
           body?: string | null
           content_type?: string
           created_at?: string
+          ends_at?: string | null
           id?: string
           is_active?: boolean
+          redirect_url?: string | null
+          sort_order?: number | null
+          starts_at?: string | null
           target_audience?: string
           title?: string
           updated_at?: string
