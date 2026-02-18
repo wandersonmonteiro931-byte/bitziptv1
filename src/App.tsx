@@ -31,6 +31,7 @@ import CupGamePage from "./pages/CupGamePage";
 import RoulettePage from "./pages/RoulettePage";
 import AdminRoulettePage from "./pages/admin/AdminRoulettePage";
 import AdminIptvPage from "./pages/admin/AdminIptvPage";
+import AdminGamesPage from "./pages/admin/AdminGamesPage";
 import MemoryGamePage from "./pages/MemoryGamePage";
 import NotFound from "./pages/NotFound";
 
@@ -82,6 +83,7 @@ const App = () => (
             <Route path="/admin/credits" element={<ProtectedRoute requireAdmin><AdminCreditsPage /></ProtectedRoute>} />
             <Route path="/admin/roulette" element={<ProtectedRoute requireAdmin><AdminRoulettePage /></ProtectedRoute>} />
             <Route path="/admin/iptv" element={<ProtectedRoute requireAdmin><AdminIptvPage /></ProtectedRoute>} />
+            <Route path="/admin/games" element={<ProtectedRoute requireAdmin><AdminGamesPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

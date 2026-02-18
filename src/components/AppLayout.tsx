@@ -27,6 +27,7 @@ const adminLinks = [
   { to: "/admin", label: "Painel", icon: LayoutDashboard },
   { to: "/admin/users", label: "Usuários", icon: Users },
   { to: "/admin/iptv", label: "IPTV", icon: Tv },
+  { to: "/admin/games", label: "Jogos", icon: Gamepad2 },
   { to: "/admin/missions", label: "Missões", icon: Target },
   { to: "/admin/credits", label: "Créditos", icon: Diamond },
   { to: "/admin/roulette", label: "Roleta", icon: CircleDot },
