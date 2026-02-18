@@ -48,7 +48,6 @@ function HomeRedirect() {
 }
 
 const App = () => (
-  <InstallGate>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
@@ -97,7 +96,6 @@ const App = () => (
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
-  </InstallGate>
 );
 
 export default App;
