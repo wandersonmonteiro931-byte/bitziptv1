@@ -7,11 +7,11 @@ export function PWAUpdatePrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, registration) {
-      // Check for updates every 30 seconds
+      // Check for updates every 5 seconds
       if (registration) {
         setInterval(() => {
           registration.update();
-        }, 30 * 1000);
+        }, 5 * 1000);
       }
     },
     onRegisterError(error) {
