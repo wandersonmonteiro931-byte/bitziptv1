@@ -319,13 +319,13 @@ serve(async (req) => {
       return jsonResp({ error: "Unauthorized" }, 401);
     }
 
-    const supabase = getUserSupabase(authHeader);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const userSupa = getUserSupabase(authHeader);
+    const { data: { user: authUser }, error: authError } = await userSupa.auth.getUser();
+    if (authError || !authUser) {
+      console.error("Auth error:", authError?.message);
       return jsonResp({ error: "Unauthorized" }, 401);
     }
-    const userId = claimsData.claims.sub as string;
+    const userId = authUser.id;
 
     const body = await req.json();
 
