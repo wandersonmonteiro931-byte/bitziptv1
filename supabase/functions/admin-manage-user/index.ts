@@ -232,6 +232,70 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "reverse_payment": {
+        const { payment_id } = data;
+        if (!payment_id) throw new Error("payment_id é obrigatório");
+
+        const { data: payment } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("*")
+          .eq("id", payment_id)
+          .single();
+        if (!payment) throw new Error("Pagamento não encontrado");
+
+        const currentStatus = payment.status;
+        const newStatus = currentStatus === "confirmed" ? "reversed" : "confirmed";
+
+        // Update payment status
+        await supabaseAdmin.from("iptv_payments").update({ status: newStatus }).eq("id", payment_id);
+
+        if (newStatus === "reversed") {
+          // Find the latest confirmed payment to recalculate expiry
+          const { data: latestPayment } = await supabaseAdmin
+            .from("iptv_payments")
+            .select("period_end")
+            .eq("user_id", user_id)
+            .eq("status", "confirmed")
+            .neq("id", payment_id)
+            .order("period_end", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const newExpiry = latestPayment?.period_end || null;
+          const today = new Date().toISOString().split("T")[0];
+          const isExpired = !newExpiry || newExpiry < today;
+
+          await supabaseAdmin.from("profiles").update({
+            iptv_expiry: newExpiry,
+            iptv_status: isExpired ? "blocked" : "active",
+          }).eq("id", user_id);
+
+          await supabaseAdmin.from("balance_history").insert({
+            user_id,
+            type: "reversal",
+            amount: Number(payment.amount),
+            description: `Pagamento revertido pelo admin — R$ ${Number(payment.amount).toFixed(2)}`,
+            admin_id: caller.id,
+          });
+        } else {
+          // Re-confirming: restore expiry from this payment
+          await supabaseAdmin.from("profiles").update({
+            iptv_expiry: payment.period_end,
+            iptv_status: "active",
+          }).eq("id", user_id);
+
+          await supabaseAdmin.from("balance_history").insert({
+            user_id,
+            type: "payment",
+            amount: Number(payment.amount),
+            description: `Pagamento re-confirmado pelo admin — R$ ${Number(payment.amount).toFixed(2)}`,
+            admin_id: caller.id,
+          });
+        }
+
+        result = { success: true, new_status: newStatus };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
