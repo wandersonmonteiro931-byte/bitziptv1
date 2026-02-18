@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tv, ChevronLeft, ChevronRight, Radio, Clock, CheckCircle2, FastForward } from "lucide-react";
-import { format, addDays, isToday, isTomorrow } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Channel {
@@ -79,7 +79,7 @@ const TvGuidePage = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string>("all");
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedDate = new Date();
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
@@ -126,13 +126,7 @@ const TvGuidePage = () => {
     setLoading(false);
   };
 
-  const dateLabel = (d: Date) => {
-    if (isToday(d)) return "Hoje";
-    if (isTomorrow(d)) return "Amanhã";
-    return format(d, "EEE, dd/MM", { locale: ptBR });
-  };
-
-  const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(), i)), []);
+  const todayLabel = format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const filteredPrograms = useMemo(() => {
     if (selectedChannel === "all") return programs;
@@ -203,25 +197,9 @@ const TvGuidePage = () => {
         ))}
       </div>
 
-      {/* Date selector */}
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {dates.map((d, i) => {
-          const active = format(d, "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd");
-          return (
-            <button
-              key={i}
-              onClick={() => setSelectedDate(d)}
-              className={`flex flex-shrink-0 flex-col items-center rounded-xl px-4 py-2 text-xs transition-all ${
-                active
-                  ? "bg-accent text-accent-foreground shadow-md"
-                  : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
-              }`}
-            >
-              <span className="text-[10px] font-semibold uppercase">{dateLabel(d)}</span>
-              <span className="text-lg font-bold">{format(d, "dd")}</span>
-            </button>
-          );
-        })}
+      {/* Today label */}
+      <div className="mb-5 rounded-xl bg-muted/30 px-4 py-2 text-center">
+        <span className="text-xs font-semibold capitalize text-muted-foreground">{todayLabel}</span>
       </div>
 
       {/* Programs */}
