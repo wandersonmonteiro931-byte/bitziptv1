@@ -149,6 +149,7 @@ export type Database = {
         Row: {
           banner_url: string | null
           body: string | null
+          click_count: number | null
           content_type: string
           created_at: string
           ends_at: string | null
@@ -157,6 +158,7 @@ export type Database = {
           redirect_url: string | null
           sort_order: number | null
           starts_at: string | null
+          subtitle: string | null
           target_audience: string
           title: string
           updated_at: string
@@ -164,6 +166,7 @@ export type Database = {
         Insert: {
           banner_url?: string | null
           body?: string | null
+          click_count?: number | null
           content_type?: string
           created_at?: string
           ends_at?: string | null
@@ -172,6 +175,7 @@ export type Database = {
           redirect_url?: string | null
           sort_order?: number | null
           starts_at?: string | null
+          subtitle?: string | null
           target_audience?: string
           title: string
           updated_at?: string
@@ -179,6 +183,7 @@ export type Database = {
         Update: {
           banner_url?: string | null
           body?: string | null
+          click_count?: number | null
           content_type?: string
           created_at?: string
           ends_at?: string | null
@@ -187,6 +192,7 @@ export type Database = {
           redirect_url?: string | null
           sort_order?: number | null
           starts_at?: string | null
+          subtitle?: string | null
           target_audience?: string
           title?: string
           updated_at?: string

@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain } from "lucide-react";
+import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ const adminLinks = [
   { to: "/admin/withdrawals", label: "Saques", icon: Wallet },
   { to: "/admin/referrals", label: "Indicações", icon: Gift },
   { to: "/admin/content", label: "Conteúdo", icon: Megaphone },
+  { to: "/admin/banners", label: "Banners", icon: Image },
   { to: "/admin/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/admin/settings", label: "Config", icon: Settings },
 ];

@@ -314,8 +314,12 @@ function ExpiryCountdown({ daysUntilDue, formattedDueDate, isDueToday, isOverdue
   );
 }
 
-// --- Payment Section ---
+// --- Payment Section with PIX Modal ---
 function PaymentSection({ totalValue, supportInfo }: { totalValue: number; supportInfo: any }) {
+  const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(900); // 15 min
+
   const value3m = totalValue * 3;
   const discount3m = value3m * 0.05;
   const final3m = value3m - discount3m;
@@ -324,63 +328,152 @@ function PaymentSection({ totalValue, supportInfo }: { totalValue: number; suppo
   const discount6m = value6m * 0.10;
   const final6m = value6m - discount6m;
 
-  const handleRenew = (months: number, value: number) => {
-    if (supportInfo?.whatsapp_link) {
-      const msg = months === 1
-        ? `Olá! Gostaria de renovar meu plano IPTV (1 mês) - R$ ${value.toFixed(2)}`
-        : `Olá! Gostaria de renovar meu plano IPTV por ${months} meses - R$ ${value.toFixed(2)}`;
-      window.open(supportInfo.whatsapp_link + "?text=" + encodeURIComponent(msg), "_blank");
-    }
+  useEffect(() => {
+    if (!pixModal) return;
+    setTimeLeft(900);
+    const interval = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) { clearInterval(interval); setPixModal(null); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [pixModal]);
+
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  const pixKey = supportInfo?.support_phone?.replace(/\D/g, "") || "00000000000";
+
+  const copyPix = () => {
+    navigator.clipboard.writeText(pixKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const openPix = (months: number, value: number, discount: number) => {
+    setCopied(false);
+    setPixModal({ months, value, discount });
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-      className="overflow-hidden rounded-2xl border border-border bg-card p-4"
-    >
-      <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        <Wallet size={14} className="text-secondary" /> 💳 Pagamento Rápido
-      </div>
+    <>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+        className="overflow-hidden rounded-2xl border border-border bg-card p-4"
+      >
+        <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <Wallet size={14} className="text-secondary" /> 💳 Pagamento Rápido
+        </div>
 
-      <div className="space-y-2.5">
-        {/* 1 month */}
-        <button onClick={() => handleRenew(1, totalValue)}
-          className="flex w-full items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-4 py-3.5 text-left transition-all hover:bg-primary/20 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-primary">🔵 Renovar Plano</p>
-            <p className="text-xs text-muted-foreground">1 mês</p>
-          </div>
-          <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
-        </button>
+        <div className="space-y-2.5">
+          <button onClick={() => openPix(1, totalValue, 0)}
+            className="flex w-full items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-4 py-3.5 text-left transition-all hover:bg-primary/20 active:scale-[0.98]">
+            <div>
+              <p className="text-sm font-bold text-primary">🔵 Renovar Plano</p>
+              <p className="text-xs text-muted-foreground">1 mês</p>
+            </div>
+            <span className="font-display text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
+          </button>
 
-        {/* 3 months */}
-        <button onClick={() => handleRenew(3, final3m)}
-          className="relative flex w-full items-center justify-between rounded-xl bg-purple-500/10 border border-purple-500/20 px-4 py-3.5 text-left transition-all hover:bg-purple-500/20 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-purple-400">🟣 3 Meses</p>
-            <p className="text-xs text-muted-foreground">5% de desconto</p>
-          </div>
-          <div className="text-right">
-            <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
-            <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
-              className="text-[10px] font-semibold text-success">💰 Economize R$ {discount3m.toFixed(2)}</motion.p>
-          </div>
-        </button>
+          <button onClick={() => openPix(3, final3m, discount3m)}
+            className="relative flex w-full items-center justify-between rounded-xl bg-purple-500/10 border border-purple-500/20 px-4 py-3.5 text-left transition-all hover:bg-purple-500/20 active:scale-[0.98]">
+            <div>
+              <p className="text-sm font-bold text-purple-400">🟣 3 Meses</p>
+              <p className="text-xs text-muted-foreground">5% de desconto</p>
+            </div>
+            <div className="text-right">
+              <span className="font-display text-lg font-bold text-purple-400">R$ {final3m.toFixed(2)}</span>
+              <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
+                className="text-[10px] font-semibold text-success">💰 Economize R$ {discount3m.toFixed(2)}</motion.p>
+            </div>
+          </button>
 
-        {/* 6 months */}
-        <button onClick={() => handleRenew(6, final6m)}
-          className="relative flex w-full items-center justify-between rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3.5 text-left transition-all hover:bg-green-500/20 active:scale-[0.98]">
-          <div>
-            <p className="text-sm font-bold text-green-400">🟢 6 Meses</p>
-            <p className="text-xs text-muted-foreground">10% de desconto</p>
-          </div>
-          <div className="text-right">
-            <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
-            <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
-              className="text-[10px] font-semibold text-success">💰 Economize R$ {discount6m.toFixed(2)}</motion.p>
-          </div>
-        </button>
-      </div>
-    </motion.div>
+          <button onClick={() => openPix(6, final6m, discount6m)}
+            className="relative flex w-full items-center justify-between rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3.5 text-left transition-all hover:bg-green-500/20 active:scale-[0.98]">
+            <div>
+              <p className="text-sm font-bold text-green-400">🟢 6 Meses</p>
+              <p className="text-xs text-muted-foreground">10% de desconto</p>
+            </div>
+            <div className="text-right">
+              <span className="font-display text-lg font-bold text-green-400">R$ {final6m.toFixed(2)}</span>
+              <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.05, 1] }} transition={{ repeat: Infinity, duration: 2 }}
+                className="text-[10px] font-semibold text-success">💰 Economize R$ {discount6m.toFixed(2)}</motion.p>
+            </div>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* PIX Modal */}
+      <AnimatePresence>
+        {pixModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm p-4"
+            onClick={() => setPixModal(null)}>
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
+              onClick={e => e.stopPropagation()}>
+              
+              <div className="mb-4 text-center">
+                <p className="text-lg font-bold text-foreground">💳 Pagamento PIX</p>
+                <p className="text-xs text-muted-foreground">
+                  {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
+                </p>
+              </div>
+
+              <div className="mb-4 rounded-xl bg-muted/20 p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
+                <p className="mt-1 font-display text-3xl font-bold text-primary">R$ {pixModal.value.toFixed(2)}</p>
+                {pixModal.discount > 0 && (
+                  <motion.p initial={{ scale: 0.9 }} animate={{ scale: [0.9, 1.1, 1] }} transition={{ repeat: Infinity, duration: 2 }}
+                    className="mt-1 text-xs font-semibold text-success">💰 Você economiza R$ {pixModal.discount.toFixed(2)}</motion.p>
+                )}
+              </div>
+
+              {/* QR Code placeholder */}
+              <div className="mb-4 flex justify-center">
+                <div className="flex h-40 w-40 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10">
+                  <div className="text-center">
+                    <p className="text-4xl">📱</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">QR Code PIX</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* PIX Key */}
+              <div className="mb-4">
+                <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-muted-foreground">Chave PIX (Copia e Cola)</p>
+                <div className="flex items-center gap-2 rounded-xl bg-muted/30 px-3 py-2.5">
+                  <p className="flex-1 truncate font-mono text-xs text-foreground">{pixKey}</p>
+                  <button onClick={copyPix}
+                    className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 active:scale-95">
+                    {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Timer */}
+              <div className="mb-4 text-center">
+                <p className="text-[10px] text-muted-foreground">⏱️ Tempo restante para pagamento</p>
+                <p className={`mt-1 font-mono text-xl font-bold ${timeLeft <= 120 ? "text-destructive animate-pulse" : "text-foreground"}`}>
+                  {formatTime(timeLeft)}
+                </p>
+              </div>
+
+              {/* Status info */}
+              <div className="mb-4 rounded-xl bg-primary/5 border border-primary/15 p-3">
+                <p className="text-[10px] text-muted-foreground text-center">
+                  ✅ Após o pagamento, seu status mudará para <span className="font-bold text-blue-400">AGUARDANDO ATIVAÇÃO</span> e o administrador será notificado.
+                </p>
+              </div>
+
+              <button onClick={() => setPixModal(null)}
+                className="w-full rounded-xl bg-muted/30 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Fechar
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -402,48 +495,99 @@ function PaymentHistory() {
     load();
   }, []);
 
-  if (payments.length === 0) return null;
+  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
       className="overflow-hidden rounded-2xl border border-border bg-card p-4"
     >
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        <Receipt size={14} className="text-secondary" /> 📜 Histórico de Mensalidades
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <Receipt size={14} className="text-secondary" /> 📜 Histórico de Mensalidades
+        </div>
+        {payments.length > 0 && (
+          <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+            {payments.length} registros
+          </span>
+        )}
       </div>
-      <div className="space-y-2">
-        {payments.map((p, i) => {
-          const date = new Date(p.created_at);
-          const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-          return (
-            <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              onClick={() => setExpanded(expanded === p.id ? null : p.id)}
-              className="cursor-pointer rounded-xl bg-muted/20 px-3 py-2.5 transition-all hover:bg-muted/30"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-success/15 text-xs text-success">✔</span>
-                  <div>
-                    <p className="text-xs font-medium text-foreground">{formatted}</p>
-                    <p className="text-[10px] text-muted-foreground">{p.description || "Mensalidade"}</p>
+
+      {payments.length === 0 ? (
+        <div className="py-6 text-center">
+          <p className="text-3xl mb-2">📜</p>
+          <p className="text-xs text-muted-foreground">Nenhum pagamento registrado ainda.</p>
+        </div>
+      ) : (
+        <>
+          {/* Last payment badge */}
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-success/5 border border-success/15 px-3 py-2">
+            <Check size={12} className="text-success" />
+            <p className="text-[10px] text-muted-foreground">
+              Último pagamento em{" "}
+              <span className="font-bold text-success">
+                {(() => { const d = new Date(payments[0].created_at); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })()}
+              </span>
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {payments.map((p, i) => {
+              const date = new Date(p.created_at);
+              const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+              const refMonth = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+              return (
+                <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  onClick={() => setExpanded(expanded === p.id ? null : p.id)}
+                  className="cursor-pointer rounded-xl bg-muted/20 px-3 py-2.5 transition-all hover:bg-muted/30 active:scale-[0.99]"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 text-sm text-success">✔</span>
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">{refMonth}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatted}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
+                      <p className="text-[10px] text-muted-foreground">{expanded === p.id ? "▲" : "▼"}</p>
+                    </div>
                   </div>
-                </div>
-                <span className="text-sm font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
-              </div>
-              <AnimatePresence>
-                {expanded === p.id && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                    className="mt-2 border-t border-border/30 pt-2 text-[10px] text-muted-foreground">
-                    <p>Data: {formatted}</p>
-                    <p>Valor: R$ {Math.abs(p.amount).toFixed(2)}</p>
-                    <p>Status: Confirmado</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
-      </div>
+                  <AnimatePresence>
+                    {expanded === p.id && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden">
+                        <div className="mt-2 space-y-1.5 border-t border-border/30 pt-2">
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">📅 Data Pagamento</span>
+                            <span className="font-medium text-foreground">{formatted}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">📋 Referente a</span>
+                            <span className="font-medium text-foreground">{refMonth}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">💰 Valor Pago</span>
+                            <span className="font-bold text-success">R$ {Math.abs(p.amount).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">💳 Forma de Pagamento</span>
+                            <span className="font-medium text-foreground">PIX</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-muted-foreground">✅ Status</span>
+                            <span className="rounded-full bg-success/15 px-2 py-0.5 font-bold text-success">Confirmado</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </motion.div>
   );
 }
