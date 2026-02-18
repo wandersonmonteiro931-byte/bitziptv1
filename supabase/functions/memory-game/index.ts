@@ -111,15 +111,20 @@ Deno.serve(async (req) => {
 
       let rewarded = false;
       if (won) {
-        const today = new Date().toISOString().split("T")[0];
+        // Use Brazil timezone (UTC-3) so daily limit resets at 0h BRT
+        const nowBRT = new Date(Date.now() - 3 * 60 * 60 * 1000);
+        const todayBRT = nowBRT.toISOString().split("T")[0];
+        const dayStartUTC = todayBRT + "T03:00:00Z"; // 0h BRT = 03h UTC
+        const tomorrowBRT = new Date(nowBRT.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const dayEndUTC = tomorrowBRT + "T03:00:00Z";
         const { data: todaySessions } = await supabaseAdmin
           .from("game_memory_sessions")
           .select("id")
           .eq("user_id", user.id)
           .eq("won", true)
           .gt("reward_amount", 0)
-          .gte("created_at", today + "T00:00:00Z")
-          .lte("created_at", today + "T23:59:59Z");
+          .gte("created_at", dayStartUTC)
+          .lt("created_at", dayEndUTC);
 
         if (!todaySessions || todaySessions.length < settings.daily_limit) {
           rewarded = true;
@@ -164,21 +169,26 @@ Deno.serve(async (req) => {
     }
 
     if (action === "check_daily") {
-      const today = new Date().toISOString().split("T")[0];
+      // Use Brazil timezone (UTC-3) so daily limit resets at 0h BRT
+      const nowBRT = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      const todayBRT = nowBRT.toISOString().split("T")[0];
       const { data: settings } = await supabaseAdmin
         .from("game_memory_settings")
         .select("*")
         .limit(1)
         .single();
 
+      const dayStartUTC = todayBRT + "T03:00:00Z"; // 0h BRT = 03h UTC
+      const tomorrowBRT = new Date(nowBRT.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const dayEndUTC = tomorrowBRT + "T03:00:00Z";
       const { data: todayWins } = await supabaseAdmin
         .from("game_memory_sessions")
         .select("id")
         .eq("user_id", user.id)
         .eq("won", true)
         .gt("reward_amount", 0)
-        .gte("created_at", today + "T00:00:00Z")
-        .lte("created_at", today + "T23:59:59Z");
+        .gte("created_at", dayStartUTC)
+        .lt("created_at", dayEndUTC);
 
       return new Response(JSON.stringify({
         already_won_today: (todayWins?.length || 0) >= (settings?.daily_limit || 1),
