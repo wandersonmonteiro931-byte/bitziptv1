@@ -372,8 +372,19 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
       setLoading(true);
       setError(null);
       try {
-        const periodStart = new Date();
-        const periodEnd = new Date();
+        // Use client's current expiry as base, fallback to today
+        const today = new Date();
+        let baseExpiry: Date;
+        if (user?.iptv_expiry) {
+          const [y, m, d] = user.iptv_expiry.split("-").map(Number);
+          baseExpiry = new Date(y, m - 1, d);
+          // If already expired, use today as base
+          if (baseExpiry < today) baseExpiry = today;
+        } else {
+          baseExpiry = today;
+        }
+        const periodStart = new Date(baseExpiry);
+        const periodEnd = new Date(baseExpiry);
         periodEnd.setMonth(periodEnd.getMonth() + pixModal.months);
 
         const { data: payment, error: insertError } = await supabase
@@ -481,11 +492,17 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
         {paymentConfirmed ? (
           (() => {
-            // Calculate the new expiry date based on current expiry or today
-            const baseDate = user?.iptv_expiry
-              ? (() => { const [y, m, d] = user.iptv_expiry.split("-").map(Number); return new Date(y, m - 1, d); })()
-              : new Date();
-            const newExpiry = new Date(baseDate);
+            // Same logic as charge creation: use client expiry, fallback to today if expired/missing
+            const todayCalc = new Date();
+            let baseExpiry: Date;
+            if (user?.iptv_expiry) {
+              const [y, m, d] = user.iptv_expiry.split("-").map(Number);
+              baseExpiry = new Date(y, m - 1, d);
+              if (baseExpiry < todayCalc) baseExpiry = todayCalc;
+            } else {
+              baseExpiry = todayCalc;
+            }
+            const newExpiry = new Date(baseExpiry);
             newExpiry.setMonth(newExpiry.getMonth() + pixModal.months);
             const formattedNewExpiry = `${String(newExpiry.getDate()).padStart(2, '0')}/${String(newExpiry.getMonth() + 1).padStart(2, '0')}/${newExpiry.getFullYear()}`;
 
