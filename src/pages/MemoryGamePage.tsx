@@ -114,7 +114,7 @@ const MemoryGamePage = () => {
       body: { action: "start_game" },
     });
     if (error || data?.error) {
-      toast({ title: data?.error || "Erro ao iniciar", description: data?.required ? `Necessário: R$ ${Number(data.required).toFixed(2)}` : undefined, variant: "destructive" });
+      toast({ title: data?.error || "Erro ao iniciar", description: data?.required ? `Necessário: ${data.required} 💎` : undefined, variant: "destructive" });
       setLoading(false);
       return;
     }
@@ -307,7 +307,7 @@ const MemoryGamePage = () => {
                 🏆 R$ {Number(rewardAmount).toFixed(2)}
               </span>
               <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">
-                🎮 R$ {Number(costPerGame).toFixed(2)}
+                🎮 {Number(costPerGame)} 💎
               </span>
             </div>
 
@@ -324,7 +324,7 @@ const MemoryGamePage = () => {
             )}
 
             <div className="mb-4 rounded-xl bg-white/5 px-3 py-2 text-xs text-white/40">
-              💰 Saldo: R$ {balance.toFixed(2)}
+              💎 Créditos: {Number((user as any)?.credits || 0)} | 💰 Saldo: R$ {balance.toFixed(2)}
             </div>
 
             <button
