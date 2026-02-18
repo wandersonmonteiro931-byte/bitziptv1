@@ -223,11 +223,13 @@ async function handleCreateCharge(userId: string, body: any) {
   }
 
   const pixKey = getEnv("EFI_PIX_KEY");
-  const { cert, key } = getPemCredentials();
+  const { cert, key: privKey } = getPemCredentials();
+  console.log("PEM cert starts with:", cert.substring(0, 40));
+  console.log("PEM key starts with:", privKey.substring(0, 40));
 
   const httpClient = Deno.createHttpClient({
-    certChain: cert,
-    privateKey: key,
+    cert: cert,
+    key: privKey,
   });
 
   try {
@@ -281,7 +283,7 @@ async function handleRegisterWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+  const httpClient = Deno.createHttpClient({ cert, key });
 
   try {
     const accessToken = await getAccessToken(httpClient);
@@ -319,7 +321,7 @@ async function handleCheckWebhook(userId: string) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const { cert, key } = getPemCredentials();
-  const httpClient = Deno.createHttpClient({ certChain: cert, privateKey: key });
+  const httpClient = Deno.createHttpClient({ cert, key });
 
   try {
     const accessToken = await getAccessToken(httpClient);
