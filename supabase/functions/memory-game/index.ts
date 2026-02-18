@@ -36,8 +36,54 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, duration_seconds, pairs_found } = body;
 
+    if (action === "start_game") {
+      // Deduct credits to start a game
+      const { data: settings } = await supabaseAdmin
+        .from("game_memory_settings")
+        .select("*")
+        .limit(1)
+        .single();
+
+      if (!settings || !settings.is_active) {
+        return new Response(JSON.stringify({ error: "Jogo desativado" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const cost = Number(settings.cost_per_game || 0);
+
+      if (cost > 0) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("balance")
+          .eq("id", user.id)
+          .single();
+
+        if (!profile || Number(profile.balance) < cost) {
+          return new Response(JSON.stringify({ error: "Saldo insuficiente", required: cost }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Deduct
+        await supabaseAdmin.from("profiles").update({
+          balance: Number(profile.balance) - cost,
+        }).eq("id", user.id);
+
+        await supabaseAdmin.from("balance_history").insert({
+          user_id: user.id,
+          type: "debit",
+          amount: cost,
+          description: `🎮 Jogo da Memória – entrada`,
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, cost, settings }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "complete_game") {
-      // Get settings
       const { data: settings } = await supabaseAdmin
         .from("game_memory_settings")
         .select("*")
@@ -52,14 +98,13 @@ Deno.serve(async (req) => {
 
       // Anti-fraud: check minimum time
       if (duration_seconds < settings.min_time_seconds) {
-        return new Response(JSON.stringify({ error: "Tempo impossível detectado. Ação registrada." }), {
+        return new Response(JSON.stringify({ error: "Tempo impossível detectado." }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const won = pairs_found === 25 && duration_seconds <= settings.time_limit_seconds;
+      const won = pairs_found === 10 && duration_seconds <= settings.time_limit_seconds;
 
-      // Check daily limit
       let rewarded = false;
       if (won) {
         const today = new Date().toISOString().split("T")[0];
@@ -75,7 +120,6 @@ Deno.serve(async (req) => {
         if (!todaySessions || todaySessions.length < settings.daily_limit) {
           rewarded = true;
 
-          // Credit balance
           const { data: profile } = await supabaseAdmin
             .from("profiles")
             .select("balance, total_earned")
@@ -92,13 +136,12 @@ Deno.serve(async (req) => {
               user_id: user.id,
               type: "credit",
               amount: Number(settings.reward_amount),
-              description: `🎮 Jogo da Memória – completou em ${duration_seconds}s`,
+              description: `🎮 Jogo da Memória – vitória em ${duration_seconds}s`,
             });
           }
         }
       }
 
-      // Record session
       await supabaseAdmin.from("game_memory_sessions").insert({
         user_id: user.id,
         duration_seconds,

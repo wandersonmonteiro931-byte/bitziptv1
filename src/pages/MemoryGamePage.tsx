@@ -1,18 +1,15 @@
-import { AppLayout } from "@/components/AppLayout";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Volume2, VolumeX, Trophy, Clock, Brain } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, Trophy, Clock, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { sfx } from "@/lib/sounds";
+import { Progress } from "@/components/ui/progress";
 
-const EMOJIS = [
-  "🐶","🐱","🐼","🐸","🦄","🦊","🐯","🦁","🐵","🐔",
-  "🍕","🍩","🍔","🍟","🍉","🍓","🍒","🍍","🍪","🍫",
-  "⚽","🎮","🎧","🚗","🚀",
-];
+const EMOJIS = ["🐶","🐱","🐼","🦊","🐯","🦁","🍕","🍩","⚽","🚀"];
+const TOTAL_PAIRS = 10;
 
 type Card = { id: number; emoji: string; pairId: number; flipped: boolean; matched: boolean };
 type Phase = "idle" | "memorize" | "playing" | "won" | "lost";
@@ -23,7 +20,6 @@ function createDeck(): Card[] {
     pairs.push({ id: i * 2, emoji, pairId: i, flipped: false, matched: false });
     pairs.push({ id: i * 2 + 1, emoji, pairId: i, flipped: false, matched: false });
   });
-  // Shuffle
   for (let i = pairs.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
@@ -33,26 +29,29 @@ function createDeck(): Card[] {
 
 const MemoryGamePage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
   const [cards, setCards] = useState<Card[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [matchedPairs, setMatchedPairs] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [memorizeTime, setMemorizeTime] = useState(5);
+  const [memorizeTime, setMemorizeTime] = useState(3);
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
   const [alreadyWonToday, setAlreadyWonToday] = useState(false);
   const [rewardAmount, setRewardAmount] = useState(1.5);
+  const [costPerGame, setCostPerGame] = useState(0.5);
   const [gameResult, setGameResult] = useState<{ won: boolean; rewarded: boolean; reward_amount: number } | null>(null);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [combo, setCombo] = useState(0);
   const timerRef = useRef<any>(null);
   const startTimeRef = useRef<number>(0);
   const lockRef = useRef(false);
+  const memTimerRef = useRef<any>(null);
 
-  // Check daily status
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase.functions.invoke("memory-game", {
@@ -63,15 +62,15 @@ const MemoryGamePage = () => {
         if (data.settings) {
           setSettings(data.settings);
           setRewardAmount(data.settings.reward_amount);
+          setCostPerGame(data.settings.cost_per_game || 0.5);
           setTimeLeft(data.settings.time_limit_seconds);
-          setMemorizeTime(data.settings.memorize_seconds);
+          setMemorizeTime(data.settings.memorize_seconds || 3);
         }
       }
     };
     check();
   }, []);
 
-  // Load personal best
   useEffect(() => {
     const load = async () => {
       if (!user) return;
@@ -91,11 +90,24 @@ const MemoryGamePage = () => {
     if (!muted && sfx[name as keyof typeof sfx]) sfx[name as keyof typeof sfx]();
   }, [muted]);
 
-  const startGame = () => {
+  const startGame = async () => {
     if (settings && !settings.is_active) {
-      toast({ title: "Jogo desativado pelo administrador", variant: "destructive" });
+      toast({ title: "Jogo desativado", variant: "destructive" });
       return;
     }
+    setLoading(true);
+    // Deduct credits via edge function
+    const { data, error } = await supabase.functions.invoke("memory-game", {
+      body: { action: "start_game" },
+    });
+    if (error || data?.error) {
+      toast({ title: data?.error || "Erro ao iniciar", description: data?.required ? `Necessário: R$ ${Number(data.required).toFixed(2)}` : undefined, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+    refreshProfile();
+    setLoading(false);
+
     const deck = createDeck();
     setCards(deck.map((c) => ({ ...c, flipped: true })));
     setPhase("memorize");
@@ -103,23 +115,22 @@ const MemoryGamePage = () => {
     setSelected([]);
     setGameResult(null);
     setDuration(0);
+    setCombo(0);
     sound("gameStart");
 
-    // Memorize countdown
-    let mem = settings?.memorize_seconds || 5;
+    let mem = settings?.memorize_seconds || 3;
     setMemorizeTime(mem);
-    const memTimer = setInterval(() => {
+    memTimerRef.current = setInterval(() => {
       mem--;
       setMemorizeTime(mem);
       if (mem <= 0) {
-        clearInterval(memTimer);
-        // Flip all cards down
+        clearInterval(memTimerRef.current);
+        // Cascade close
         setCards((prev) => prev.map((c) => ({ ...c, flipped: false })));
         setPhase("playing");
         setTimeLeft(settings?.time_limit_seconds || 60);
         startTimeRef.current = Date.now();
         sound("shuffle");
-        // Start game timer
         timerRef.current = setInterval(() => {
           setTimeLeft((prev) => {
             if (prev <= 1) {
@@ -128,7 +139,7 @@ const MemoryGamePage = () => {
               sound("lose");
               return 0;
             }
-            if (prev === 16) sound("click"); // tension sound
+            if (prev === 6) sound("click");
             return prev - 1;
           });
         }, 1000);
@@ -157,8 +168,8 @@ const MemoryGamePage = () => {
       const c2 = newCards[second];
 
       if (c1.pairId === c2.pairId) {
-        // Match!
         sound("win");
+        setCombo((c) => c + 1);
         setTimeout(() => {
           setCards((prev) =>
             prev.map((c, i) =>
@@ -168,22 +179,21 @@ const MemoryGamePage = () => {
           const newMatched = matchedPairs + 1;
           setMatchedPairs(newMatched);
 
-          if (newMatched === 25) {
-            // Won!
+          if (newMatched === TOTAL_PAIRS) {
             clearInterval(timerRef.current);
             const dur = Math.round((Date.now() - startTimeRef.current) / 1000);
             setDuration(dur);
             setPhase("won");
             sound("jackpot");
-            completeGame(dur, 25);
+            completeGame(dur, TOTAL_PAIRS);
           }
 
           lockRef.current = false;
           setSelected([]);
-        }, 300);
+        }, 350);
       } else {
-        // No match
         sound("lose");
+        setCombo(0);
         setTimeout(() => {
           setCards((prev) =>
             prev.map((c, i) =>
@@ -192,7 +202,7 @@ const MemoryGamePage = () => {
           );
           lockRef.current = false;
           setSelected([]);
-        }, 800);
+        }, 700);
       }
     }
   };
@@ -204,7 +214,8 @@ const MemoryGamePage = () => {
       });
       if (data) {
         setGameResult(data);
-        if (data.rewarded && personalBest === null || (dur < (personalBest || Infinity))) {
+        if (data.rewarded) refreshProfile();
+        if (personalBest === null || dur < (personalBest || Infinity)) {
           setPersonalBest(dur);
         }
       }
@@ -213,224 +224,257 @@ const MemoryGamePage = () => {
     }
   };
 
-  // Cleanup
   useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (memTimerRef.current) clearInterval(memTimerRef.current);
+    };
   }, []);
 
   const timePercent = ((settings?.time_limit_seconds || 60) - timeLeft) / (settings?.time_limit_seconds || 60) * 100;
   const isUrgent = timeLeft <= 15;
   const isCritical = timeLeft <= 5;
+  const balance = Number((user as any)?.balance || 0);
 
   return (
-    <AppLayout>
-      <div className="mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft size={16} /> Voltar
-          </button>
-          <button onClick={() => setMuted(!muted)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-            {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-        </div>
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-br from-[hsl(240,30%,8%)] via-[hsl(260,25%,12%)] to-[hsl(220,30%,10%)] text-foreground overflow-hidden"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      
+      {/* ===== TOP BAR ===== */}
+      <div className="flex items-center justify-between px-3 py-2 shrink-0">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-xs text-white/60 hover:text-white/90 transition-colors">
+          <ArrowLeft size={16} /> Sair
+        </button>
+        {phase === "playing" && (
+          <div className="flex items-center gap-2">
+            {combo >= 2 && (
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold text-orange-400">
+                <Zap size={10} /> x{combo}
+              </motion.div>
+            )}
+            <span className={`text-lg font-bold tabular-nums ${isCritical ? "text-red-400 animate-pulse" : isUrgent ? "text-yellow-400" : "text-white"}`}>
+              {timeLeft}s
+            </span>
+          </div>
+        )}
+        <button onClick={() => setMuted(!muted)} className="rounded-lg p-1.5 text-white/60 hover:text-white/90 transition-colors">
+          {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
+      </div>
 
-        {/* ===== IDLE SCREEN ===== */}
+      {/* ===== PROGRESS BAR (playing) ===== */}
+      {phase === "playing" && (
+        <div className="px-3 shrink-0">
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full ${isCritical ? "bg-red-500" : isUrgent ? "bg-yellow-500" : "bg-primary"}`}
+              style={{ width: `${100 - timePercent}%` }}
+              transition={{ duration: 0.5 }}
+            />
+          </div>
+          <div className="flex justify-between mt-1 text-[10px] text-white/40">
+            <span>{matchedPairs}/{TOTAL_PAIRS} pares</span>
+            <span>💰 R$ {balance.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MAIN CONTENT ===== */}
+      <div className="flex-1 flex items-center justify-center px-2">
+        
+        {/* IDLE SCREEN */}
         {phase === "idle" && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-8">
-            <motion.div animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }} className="mb-4">
-              <Brain size={64} className="mx-auto text-primary" />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center w-full max-w-sm px-4">
+            <motion.div animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 2.5, repeat: Infinity }} className="mb-3">
+              <span className="text-5xl">🧠</span>
             </motion.div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">🎮 Desafio da Memória</h1>
-            <p className="text-sm text-muted-foreground mb-1">
-              Encontre os 25 pares em {settings?.time_limit_seconds || 60} segundos
+            <h1 className="text-xl font-bold text-white mb-1">Desafio da Memória</h1>
+            <p className="text-xs text-white/50 mb-1">
+              Encontre os {TOTAL_PAIRS} pares em {settings?.time_limit_seconds || 60}s
             </p>
-            <p className="text-lg font-bold text-primary mb-6">
-              💰 Ganhe R$ {Number(rewardAmount).toFixed(2)}
-            </p>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <span className="rounded-full bg-primary/20 px-3 py-1 text-xs font-bold text-primary">
+                🏆 R$ {Number(rewardAmount).toFixed(2)}
+              </span>
+              <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-bold text-red-400">
+                🎮 R$ {Number(costPerGame).toFixed(2)}
+              </span>
+            </div>
 
             {alreadyWonToday && (
-              <div className="mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-4 py-3 text-sm text-yellow-400">
-                ⚠️ Você já ganhou hoje. Pode jogar, mas sem recompensa.
+              <div className="mb-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 px-3 py-2 text-xs text-yellow-400">
+                ⚠️ Já ganhou hoje – pode jogar sem recompensa
               </div>
             )}
 
             {personalBest && (
-              <div className="mb-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">
-                🏆 Seu recorde: {personalBest}s
+              <div className="mb-3 rounded-xl bg-primary/10 px-3 py-2 text-xs text-primary">
+                🏆 Recorde: {personalBest}s
               </div>
             )}
 
+            <div className="mb-4 rounded-xl bg-white/5 px-3 py-2 text-xs text-white/40">
+              💰 Saldo: R$ {balance.toFixed(2)}
+            </div>
+
             <button
               onClick={startGame}
-              className="rounded-xl bg-primary px-8 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:brightness-110 transition-all"
+              disabled={loading}
+              className="w-full rounded-2xl bg-gradient-to-r from-primary to-[hsl(280,80%,55%)] px-8 py-4 text-base font-bold text-white shadow-lg shadow-primary/30 hover:brightness-110 transition-all disabled:opacity-50"
             >
-              ▶️ COMEÇAR
+              {loading ? "Iniciando..." : "▶️ JOGAR"}
             </button>
 
-            <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-muted/50 p-3">
-                <p className="text-lg font-bold text-foreground">50</p>
-                <p className="text-[10px] text-muted-foreground">Cartas</p>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-white/5 p-2">
+                <p className="text-base font-bold text-white">20</p>
+                <p className="text-[9px] text-white/40">Cartas</p>
               </div>
-              <div className="rounded-xl bg-muted/50 p-3">
-                <p className="text-lg font-bold text-foreground">25</p>
-                <p className="text-[10px] text-muted-foreground">Pares</p>
+              <div className="rounded-xl bg-white/5 p-2">
+                <p className="text-base font-bold text-white">{TOTAL_PAIRS}</p>
+                <p className="text-[9px] text-white/40">Pares</p>
               </div>
-              <div className="rounded-xl bg-muted/50 p-3">
-                <p className="text-lg font-bold text-foreground">{settings?.time_limit_seconds || 60}s</p>
-                <p className="text-[10px] text-muted-foreground">Tempo</p>
+              <div className="rounded-xl bg-white/5 p-2">
+                <p className="text-base font-bold text-white">{settings?.time_limit_seconds || 60}s</p>
+                <p className="text-[9px] text-white/40">Tempo</p>
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* ===== MEMORIZE PHASE ===== */}
+        {/* MEMORIZE PHASE */}
         {phase === "memorize" && (
-          <div>
-            <div className="mb-4 text-center">
-              <motion.p animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 1, repeat: Infinity }} className="text-xl font-bold text-yellow-400">
-                ⏳ Memorize! {memorizeTime}s
+          <div className="w-full max-w-[340px]">
+            <div className="mb-3 text-center">
+              <motion.p animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="text-lg font-bold text-yellow-400">
+                ⏳ Memorize! {memorizeTime}
               </motion.p>
-              <p className="text-xs text-muted-foreground mt-1">As cartas serão viradas em breve...</p>
             </div>
-            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10 sm:gap-2">
+            <div className="grid grid-cols-4 gap-[6px]">
               {cards.map((card, i) => (
-                <div key={card.id} className="aspect-square rounded-lg bg-primary/15 border border-primary/20 flex items-center justify-center text-lg sm:text-xl">
-                  {card.emoji}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ===== PLAYING PHASE ===== */}
-        {phase === "playing" && (
-          <div>
-            {/* Timer */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Clock size={14} className={isCritical ? "text-red-400 animate-pulse" : isUrgent ? "text-yellow-400" : "text-primary"} />
-                  <span className={`text-lg font-bold ${isCritical ? "text-red-400 animate-pulse" : isUrgent ? "text-yellow-400" : "text-foreground"}`}>
-                    {timeLeft}s
-                  </span>
-                </div>
-                <span className="text-xs text-muted-foreground">{matchedPairs}/25 pares</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
                 <motion.div
-                  className={`h-full rounded-full transition-colors ${isCritical ? "bg-red-500" : isUrgent ? "bg-yellow-500" : "bg-primary"}`}
-                  style={{ width: `${100 - timePercent}%` }}
-                  transition={{ duration: 0.3 }}
-                />
-              </div>
-            </div>
-
-            {/* Cards Grid */}
-            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10 sm:gap-2">
-              {cards.map((card, i) => (
-                <motion.button
                   key={card.id}
-                  onClick={() => handleCardClick(i)}
-                  whileTap={{ scale: 0.95 }}
-                  className={`aspect-square rounded-lg text-lg sm:text-xl flex items-center justify-center transition-all duration-300 ${
-                    card.matched
-                      ? "bg-emerald-500/20 border border-emerald-500/30 shadow-sm shadow-emerald-500/20"
-                      : card.flipped
-                      ? "bg-card border border-primary/30 shadow-md"
-                      : "bg-muted/80 border border-border hover:border-primary/30 hover:bg-muted cursor-pointer"
-                  }`}
-                  style={{
-                    perspective: "600px",
-                    transformStyle: "preserve-3d",
-                  }}
+                  initial={{ rotateY: 180, opacity: 0 }}
+                  animate={{ rotateY: 0, opacity: 1 }}
+                  transition={{ delay: i * 0.03, duration: 0.4 }}
+                  className="aspect-square rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center text-2xl shadow-lg"
+                  style={{ perspective: "800px" }}
                 >
-                  <AnimatePresence mode="wait">
-                    {card.flipped || card.matched ? (
-                      <motion.span
-                        key="front"
-                        initial={{ rotateY: 90, opacity: 0 }}
-                        animate={{ rotateY: 0, opacity: 1 }}
-                        exit={{ rotateY: -90, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        {card.emoji}
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="back"
-                        initial={{ rotateY: -90, opacity: 0 }}
-                        animate={{ rotateY: 0, opacity: 1 }}
-                        exit={{ rotateY: 90, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-muted-foreground text-xs"
-                      >
-                        ?
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
+                  {card.emoji}
+                </motion.div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ===== WON SCREEN ===== */}
+        {/* PLAYING PHASE */}
+        {phase === "playing" && (
+          <div className="w-full max-w-[340px]">
+            <div className="grid grid-cols-4 gap-[6px]">
+              {cards.map((card, i) => {
+                const isFlipped = card.flipped || card.matched;
+                return (
+                  <motion.button
+                    key={card.id}
+                    onClick={() => handleCardClick(i)}
+                    whileTap={{ scale: 0.92 }}
+                    className="aspect-square rounded-xl relative overflow-hidden"
+                    style={{ perspective: "800px", transformStyle: "preserve-3d" }}
+                  >
+                    {/* Card Inner */}
+                    <motion.div
+                      animate={{ rotateY: isFlipped ? 180 : 0 }}
+                      transition={{ duration: 0.4, type: "spring", stiffness: 200, damping: 20 }}
+                      className="w-full h-full relative"
+                      style={{ transformStyle: "preserve-3d" }}
+                    >
+                      {/* BACK (face-down) */}
+                      <div
+                        className={`absolute inset-0 rounded-xl flex items-center justify-center backface-hidden ${
+                          card.matched ? "opacity-0" : "bg-gradient-to-br from-[hsl(260,50%,25%)] to-[hsl(240,40%,18%)] border border-white/10 shadow-md"
+                        }`}
+                        style={{ backfaceVisibility: "hidden" }}
+                      >
+                        <span className="text-white/20 text-lg font-bold">?</span>
+                      </div>
+                      {/* FRONT (face-up) */}
+                      <div
+                        className={`absolute inset-0 rounded-xl flex items-center justify-center ${
+                          card.matched
+                            ? "bg-emerald-500/20 border-2 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                            : "bg-gradient-to-br from-white/15 to-white/5 border border-primary/30 shadow-lg"
+                        }`}
+                        style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+                      >
+                        <span className="text-2xl">{card.emoji}</span>
+                      </div>
+                    </motion.div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* WON SCREEN */}
         {phase === "won" && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center px-6">
             <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 0.5, repeat: 3 }}>
-              <Trophy size={64} className="mx-auto text-yellow-400 mb-4" />
+              <Trophy size={56} className="mx-auto text-yellow-400 mb-3" />
             </motion.div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">🎉 PARABÉNS!</h2>
-            <p className="text-muted-foreground mb-4">
-              Completou em <span className="font-bold text-primary">{duration}s</span>!
+            <h2 className="text-xl font-bold text-white mb-1">🎉 PARABÉNS!</h2>
+            <p className="text-sm text-white/60 mb-3">
+              Completou em <span className="font-bold text-primary">{duration}s</span>
+              {duration <= 30 && " ⚡ RÁPIDO!"}
             </p>
             {gameResult?.rewarded ? (
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.3, type: "spring" }}
-                className="mb-6 rounded-xl bg-emerald-500/15 border border-emerald-500/20 px-6 py-4"
-              >
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: "spring" }}
+                className="mb-5 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 px-6 py-4">
                 <p className="text-lg font-bold text-emerald-400">💰 +R$ {Number(gameResult.reward_amount).toFixed(2)}</p>
-                <p className="text-xs text-emerald-400/70">Creditado na sua conta!</p>
+                <p className="text-[10px] text-emerald-400/70">Creditado na sua conta!</p>
               </motion.div>
             ) : (
-              <div className="mb-6 rounded-xl bg-muted px-6 py-4">
-                <p className="text-sm text-muted-foreground">Sem recompensa (limite diário atingido)</p>
+              <div className="mb-5 rounded-2xl bg-white/5 px-6 py-3">
+                <p className="text-xs text-white/40">Sem recompensa (limite diário)</p>
               </div>
             )}
             <div className="flex gap-3 justify-center">
-              <button onClick={startGame} className="rounded-xl bg-primary/15 px-6 py-3 text-sm font-semibold text-primary hover:bg-primary/25 transition-colors">
-                🔄 Jogar Novamente
+              <button onClick={startGame} className="rounded-2xl bg-primary/20 px-5 py-3 text-sm font-bold text-primary hover:bg-primary/30 transition-colors">
+                🔄 Jogar
               </button>
-              <button onClick={() => navigate("/dashboard")} className="rounded-xl bg-muted px-6 py-3 text-sm font-semibold text-foreground hover:bg-muted/80 transition-colors">
+              <button onClick={() => navigate("/dashboard")} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/15 transition-colors">
                 Voltar
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* ===== LOST SCREEN ===== */}
+        {/* LOST SCREEN */}
         {phase === "lost" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-8">
-            <Clock size={64} className="mx-auto text-red-400 mb-4" />
-            <h2 className="text-2xl font-bold text-foreground mb-2">⏰ Tempo Esgotado!</h2>
-            <p className="text-muted-foreground mb-2">Encontrou {matchedPairs}/25 pares</p>
-            <p className="text-xs text-muted-foreground mb-6">Tente novamente!</p>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center px-6">
+            <Clock size={56} className="mx-auto text-red-400 mb-3" />
+            <h2 className="text-xl font-bold text-white mb-1">⏰ Tempo Esgotado!</h2>
+            <p className="text-sm text-white/40 mb-1">{matchedPairs}/{TOTAL_PAIRS} pares encontrados</p>
+            <p className="text-xs text-white/30 mb-5">Tente novamente!</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={startGame} className="rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/25 hover:brightness-110 transition-all">
-                🔄 Tentar Novamente
+              <button onClick={startGame} className="rounded-2xl bg-gradient-to-r from-primary to-[hsl(280,80%,55%)] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-primary/25 hover:brightness-110 transition-all">
+                🔄 Tentar
               </button>
-              <button onClick={() => navigate("/dashboard")} className="rounded-xl bg-muted px-6 py-3 text-sm font-semibold text-foreground hover:bg-muted/80 transition-colors">
+              <button onClick={() => navigate("/dashboard")} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-white/15 transition-colors">
                 Voltar
               </button>
             </div>
           </motion.div>
         )}
       </div>
-    </AppLayout>
+
+      {/* ===== BOTTOM BAR (playing) ===== */}
+      {phase === "playing" && (
+        <div className="px-4 pb-2 shrink-0">
+          <Progress value={matchedPairs / TOTAL_PAIRS * 100} className="h-2 bg-white/10" />
+        </div>
+      )}
+    </div>
   );
 };
 
