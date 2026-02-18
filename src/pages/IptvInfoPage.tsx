@@ -4,7 +4,7 @@ import { Tv, Server, Smartphone, Calendar, User } from "lucide-react";
 import { motion } from "framer-motion";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
-import appBlessedPlayer from "@/assets/app-blessed-player.jpeg";
+import appBlessedPlayer from "@/assets/app-blessed-player.png";
 import appMaxPlayer from "@/assets/app-max-player.png";
 import appSmarters from "@/assets/app-smarters-pro.png";
 
