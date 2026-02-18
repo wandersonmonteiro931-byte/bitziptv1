@@ -183,17 +183,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // BRT dates: today + next 6 days
+    // BRT date: today only
     const now = new Date();
     const brtOffset = -3 * 60 * 60 * 1000;
     const brtNow = new Date(now.getTime() + brtOffset + now.getTimezoneOffset() * 60 * 1000);
-
-    const dates: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(brtNow);
-      d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().split("T")[0]);
-    }
+    const todayStr = brtNow.toISOString().split("T")[0];
+    const dates = [todayStr];
 
     let totalInserted = 0;
 
