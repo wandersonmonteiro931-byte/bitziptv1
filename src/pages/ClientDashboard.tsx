@@ -127,7 +127,7 @@ function BannerCarousel() {
             className="absolute inset-0 flex items-center justify-center"
           >
             {banner.banner_url ? (
-              <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-contain" />
+              <img src={banner.banner_url} alt={banner.title} className="h-full w-full object-cover" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center p-4">
                 <p className="text-center font-display text-sm font-bold text-foreground">{banner.title}</p>
