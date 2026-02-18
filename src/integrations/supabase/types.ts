@@ -499,6 +499,77 @@ export type Database = {
           },
         ]
       }
+      game_memory_sessions: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          pairs_found: number | null
+          reward_amount: number | null
+          user_id: string
+          won: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          pairs_found?: number | null
+          reward_amount?: number | null
+          user_id: string
+          won?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          pairs_found?: number | null
+          reward_amount?: number | null
+          user_id?: string
+          won?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_memory_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_memory_settings: {
+        Row: {
+          daily_limit: number | null
+          id: string
+          is_active: boolean | null
+          memorize_seconds: number | null
+          min_time_seconds: number | null
+          reward_amount: number | null
+          time_limit_seconds: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          daily_limit?: number | null
+          id?: string
+          is_active?: boolean | null
+          memorize_seconds?: number | null
+          min_time_seconds?: number | null
+          reward_amount?: number | null
+          time_limit_seconds?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          daily_limit?: number | null
+          id?: string
+          is_active?: boolean | null
+          memorize_seconds?: number | null
+          min_time_seconds?: number | null
+          reward_amount?: number | null
+          time_limit_seconds?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       game_overrides: {
         Row: {
           challenge_type: string
