@@ -218,16 +218,24 @@ const CreditsChallengesPage = () => {
             </div>
             <Brain size={18} className="text-primary" />
           </div>
-          <div className="mb-3">
-            <p className="text-xs text-muted-foreground mb-1">Recompensa:</p>
-            <Badge variant="outline" className="text-xs border-green-500/30 text-green-400">
-              💰 Saldo real
-            </Badge>
+          <div className="mb-3 space-y-1">
+            <p className="text-xs text-muted-foreground">Regras:</p>
+            <div className="flex flex-wrap gap-1.5">
+              <Badge variant="outline" className="text-xs border-green-500/30 text-green-400">
+                🏆 R$ 1,50
+              </Badge>
+              <Badge variant="outline" className="text-xs border-yellow-500/30 text-yellow-400">
+                🎯 1 vitória/dia
+              </Badge>
+              <Badge variant="outline" className="text-xs border-blue-500/30 text-blue-400">
+                💎 2 créditos
+              </Badge>
+            </div>
           </div>
           <div className="mt-auto">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-muted-foreground">Custo:</span>
-              <span className="font-bold text-primary">💰 Saldo</span>
+              <span className="font-bold text-primary">2 💎</span>
             </div>
             <button
               onClick={() => navigate("/memory-game")}
