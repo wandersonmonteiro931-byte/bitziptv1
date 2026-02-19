@@ -42,6 +42,7 @@ const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; dotColor
   disabled: { label: "Desativado", color: "text-muted-foreground", dotColor: "bg-muted-foreground" },
   awaiting_activation: { label: "Aguardando Ativação", color: "text-primary", dotColor: "bg-primary" },
   awaiting_payment: { label: "Aguardando Pagamento", color: "text-amber-400", dotColor: "bg-amber-400" },
+  trust_active: { label: "Ativo em Confiança", color: "text-cyan-400", dotColor: "bg-cyan-400", pulse: true },
 };
 
 // --- Copy Button ---
@@ -736,6 +737,9 @@ const ClientDashboard = () => {
   const [tvApps, setTvApps] = useState<any[]>([]);
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
   const [pendingFutureExpiry, setPendingFutureExpiry] = useState<string | null>(null);
+  const [trustRequesting, setTrustRequesting] = useState(false);
+  const [trustCooldown, setTrustCooldown] = useState(false);
+  const [trustPending, setTrustPending] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -747,6 +751,34 @@ const ClientDashboard = () => {
       setTvApps(apps.data || []);
     };
     loadData();
+
+    // Check trust request status
+    const checkTrustStatus = async () => {
+      if (!user?.id) return;
+      // Check if there's a pending trust request
+      const { data: pending } = await supabase
+        .from("iptv_trust_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      setTrustPending(!!pending);
+
+      // Check 30-day cooldown - any approved/expired request in last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { data: recent } = await supabase
+        .from("iptv_trust_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("status", ["approved", "expired"])
+        .gte("requested_at", thirtyDaysAgo.toISOString())
+        .limit(1)
+        .maybeSingle();
+      setTrustCooldown(!!recent);
+    };
+    checkTrustStatus();
 
     // Load pending future expiry
     const loadPendingExpiry = async () => {
@@ -780,6 +812,22 @@ const ClientDashboard = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
+
+  const requestTrustUnlock = async () => {
+    if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
+    setTrustRequesting(true);
+    try {
+      const { error } = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "request_trust_unlock", user_id: user.id, data: {} },
+      });
+      if (error) throw error;
+      setTrustPending(true);
+    } catch (err: any) {
+      console.error("Trust unlock error:", err);
+    } finally {
+      setTrustRequesting(false);
+    }
+  };
 
   const now = new Date();
 
@@ -916,6 +964,41 @@ const ClientDashboard = () => {
             <p className="mt-1 text-[11px] text-muted-foreground">
               Bloqueio automático às 23:59 caso não identificado pagamento.
             </p>
+          </motion.div>
+        )}
+
+        {/* TRUST ACTIVE BANNER */}
+        {effectiveStatus === "trust_active" && (
+          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+            <p className="text-xs font-medium text-cyan-400">🤝 Ativo em Confiança</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              Você tem 3 dias para efetuar o pagamento. Caso contrário, seu acesso será bloqueado e não será possível solicitar novo desbloqueio de confiança.
+            </p>
+          </motion.div>
+        )}
+
+        {/* TRUST UNLOCK REQUEST BUTTON (only when blocked/overdue) */}
+        {(effectiveStatus === "blocked" || isOverdue) && effectiveStatus !== "trust_active" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
+            {trustPending ? (
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-center">
+                <p className="text-xs font-medium text-cyan-400">⏳ Solicitação de confiança enviada</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Aguardando aprovação do suporte.</p>
+              </div>
+            ) : trustCooldown ? (
+              <div className="rounded-2xl border border-muted/30 bg-muted/10 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">Desbloqueio de confiança indisponível (30 dias de espera).</p>
+              </div>
+            ) : (
+              <button
+                onClick={requestTrustUnlock}
+                disabled={trustRequesting}
+                className="w-full rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3.5 text-sm font-semibold text-cyan-400 transition-all active:scale-[0.98] hover:bg-cyan-500/10 disabled:opacity-50"
+              >
+                {trustRequesting ? "Enviando..." : "🤝 Solicitar Desbloqueio de Confiança"}
+              </button>
+            )}
           </motion.div>
         )}
 

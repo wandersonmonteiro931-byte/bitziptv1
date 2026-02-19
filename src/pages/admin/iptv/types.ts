@@ -6,6 +6,7 @@ export const IPTV_STATUSES = [
   { value: "disabled", label: "Desativado", color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30", dot: "bg-zinc-400", glow: "shadow-zinc-500/20" },
   { value: "awaiting_activation", label: "Aguardando Ativação", color: "bg-blue-500/15 text-blue-400 border-blue-500/30", dot: "bg-blue-400", glow: "shadow-blue-500/20" },
   { value: "awaiting_payment", label: "Aguardando Pagamento", color: "bg-purple-500/15 text-purple-400 border-purple-500/30", dot: "bg-purple-400", glow: "shadow-purple-500/20" },
+  { value: "trust_active", label: "Ativo em Confiança", color: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30", dot: "bg-cyan-400", glow: "shadow-cyan-500/20" },
 ];
 
 export const QUICK_FILTERS = [
