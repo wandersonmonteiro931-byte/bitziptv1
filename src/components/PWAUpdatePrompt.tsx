@@ -5,9 +5,15 @@ import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
 export function PWAUpdatePrompt() {
+  // Only show update prompt when running as installed PWA (standalone mode)
+  // This prevents false update prompts in browser/preview environments
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true;
+
   // Prevent update loop: skip prompt if we just updated
   const COOLDOWN_KEY = "pwa_update_ts";
-  const COOLDOWN_MS = 30_000; // 30 seconds cooldown after update
+  const COOLDOWN_MS = 30_000;
   const lastUpdate = Number(sessionStorage.getItem(COOLDOWN_KEY) || "0");
   const inCooldown = Date.now() - lastUpdate < COOLDOWN_MS;
 
@@ -16,7 +22,8 @@ export function PWAUpdatePrompt() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
-      if (registration) {
+      // Only poll for updates in standalone PWA mode
+      if (registration && isStandalone) {
         setInterval(() => {
           registration.update();
         }, 5 * 1000);
@@ -27,7 +34,7 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  const showPrompt = needRefresh && !inCooldown;
+  const showPrompt = needRefresh && !inCooldown && isStandalone;
 
   const [updating, setUpdating] = useState(false);
 
