@@ -84,12 +84,14 @@ async function encryptPayload(
   // 5. Generate random salt
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
-  // 6. CEK = HKDF(salt, ikm, "Content-Encoding: aes128gcm\0\1", 16)
-  const cekInfo = new Uint8Array([...new TextEncoder().encode("Content-Encoding: aes128gcm\0"), 1]);
+  // 6. CEK = HKDF(salt, ikm, "Content-Encoding: aes128gcm\0", 16)
+  // NOTE: WebCrypto HKDF deriveBits handles the HKDF-Expand counter internally.
+  // Do NOT append 0x01 — that would corrupt the derived key!
+  const cekInfo = new TextEncoder().encode("Content-Encoding: aes128gcm\0");
   const cek = await hkdf(salt, ikm, cekInfo, 16);
 
-  // 7. Nonce = HKDF(salt, ikm, "Content-Encoding: nonce\0\1", 12)
-  const nonceInfo = new Uint8Array([...new TextEncoder().encode("Content-Encoding: nonce\0"), 1]);
+  // 7. Nonce = HKDF(salt, ikm, "Content-Encoding: nonce\0", 12)
+  const nonceInfo = new TextEncoder().encode("Content-Encoding: nonce\0");
   const nonce = await hkdf(salt, ikm, nonceInfo, 12);
 
   // 8. Pad payload (add delimiter byte 0x02 for final record)
