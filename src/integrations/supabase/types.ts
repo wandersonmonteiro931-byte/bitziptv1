@@ -857,6 +857,51 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_rules: {
+        Row: {
+          body_template: string
+          click_url: string
+          conditions: Json
+          created_at: string
+          description: string
+          icon: string
+          id: string
+          is_active: boolean
+          name: string
+          title_template: string
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          click_url?: string
+          conditions?: Json
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          title_template: string
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          click_url?: string
+          conditions?: Json
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          title_template?: string
+          trigger_event?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           id: string

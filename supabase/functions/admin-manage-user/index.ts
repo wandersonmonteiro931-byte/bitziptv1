@@ -151,14 +151,45 @@ Deno.serve(async (req) => {
         const today = new Date().toISOString().split("T")[0];
         const { data: expiredUsers } = await supabaseAdmin
           .from("profiles")
-          .select("id, name, iptv_expiry")
+          .select("id, name, iptv_expiry, iptv_server")
           .lt("iptv_expiry", today)
           .eq("iptv_status", "active");
 
         const blocked: string[] = [];
+
+        // Load user_blocked rules
+        const { data: blockRules } = await supabaseAdmin.from("notification_rules").select("*").eq("trigger_event", "user_blocked").eq("is_active", true);
+
         for (const u of (expiredUsers || [])) {
           await supabaseAdmin.from("profiles").update({ iptv_status: "blocked" }).eq("id", u.id);
           blocked.push(u.id);
+
+          // Send block notification
+          if (blockRules && blockRules.length > 0) {
+            try {
+              const templateVars: Record<string, string> = {
+                "{nome}": u.name || "",
+                "{validade}": u.iptv_expiry ? u.iptv_expiry.split("-").reverse().join("/") : "",
+                "{servidor}": u.iptv_server || "",
+                "{valor}": "", "{plano_meses}": "", "{data_pagamento}": "",
+              };
+              for (const rule of blockRules) {
+                let t = rule.title_template;
+                let b = rule.body_template;
+                for (const [key, val] of Object.entries(templateVars)) {
+                  t = t.replaceAll(key, val);
+                  b = b.replaceAll(key, val);
+                }
+                await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+                  body: JSON.stringify({ action: "send_to_user", user_id: u.id, title: t, body: b, url: rule.click_url || "/iptv" }),
+                });
+              }
+            } catch (pushErr) {
+              console.error(`Failed to send block push to ${u.id}:`, pushErr);
+            }
+          }
         }
 
         result = { success: true, blocked_count: blocked.length, blocked_ids: blocked };
@@ -477,25 +508,37 @@ Deno.serve(async (req) => {
           iptv_expiry: payment.period_end,
         }).eq("id", user_id);
 
-        // Send push notification to client about activation
+        // Send push notifications based on DB rules for activation_confirmed
         try {
           const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
           const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-          const endParts = payment.period_end?.split("-");
-          const expiryFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : payment.period_end;
 
-          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-            body: JSON.stringify({
-              action: "send_to_user",
-              user_id,
-              title: "✅ Servidor Atualizado!",
-              body: `Seu plano foi ativado com sucesso! Nova validade: ${expiryFormatted}`,
-              url: "/",
-            }),
-          });
-          console.log(`Activation push sent to user ${user_id}`);
+          const { data: userProfile } = await supabaseAdmin.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", user_id).single();
+          const { data: rules } = await supabaseAdmin.from("notification_rules").select("*").eq("trigger_event", "activation_confirmed").eq("is_active", true);
+
+          const templateVars: Record<string, string> = {
+            "{nome}": userProfile?.name || "",
+            "{validade}": payment.period_end ? payment.period_end.split("-").reverse().join("/") : "",
+            "{valor}": Number(payment.amount).toFixed(2),
+            "{servidor}": userProfile?.iptv_server || "",
+            "{plano_meses}": String(payment.months || 1),
+            "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
+          };
+
+          for (const rule of (rules || [])) {
+            let title = rule.title_template;
+            let body = rule.body_template;
+            for (const [key, val] of Object.entries(templateVars)) {
+              title = title.replaceAll(key, val);
+              body = body.replaceAll(key, val);
+            }
+            await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+              body: JSON.stringify({ action: "send_to_user", user_id, title, body, url: rule.click_url || "/" }),
+            });
+          }
+          console.log(`Activation push sent to user ${user_id} (${(rules || []).length} rules)`);
         } catch (pushErr) {
           console.error("Failed to send activation push:", pushErr);
         }
