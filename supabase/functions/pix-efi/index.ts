@@ -497,11 +497,19 @@ async function handleCheckStatus(userId: string, body: any) {
 
 // Shared function: confirm payment, update expiry, set awaiting_activation
 async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
-  // 1. Mark payment as paid_pending_activation
-  await adminSupa
+  // ATOMIC GUARD: Only update if status is still "pending" to prevent duplicate processing
+  const { data: updated, error: updateErr } = await adminSupa
     .from("iptv_payments")
     .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
-    .eq("id", payment.id);
+    .eq("id", payment.id)
+    .eq("status", "pending")
+    .select("id");
+
+  // If no rows were updated, another process already handled this payment
+  if (updateErr || !updated || updated.length === 0) {
+    console.log(`Payment ${payment.id} already processed by another request — skipping.`);
+    return;
+  }
 
   // 2. Update profile: set awaiting_activation status only
   // The iptv_expiry is NOT updated here — it will only be updated when the admin confirms the activation
@@ -560,6 +568,40 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     }
 
     console.log(`Push notifications sent to user ${payment.user_id} (${(rules || []).length} rules)`);
+
+    // Notify admins about new support request
+    try {
+      const { data: adminRules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "new_support_request").eq("is_active", true);
+      if (adminRules && adminRules.length > 0) {
+        // Get all admin user IDs
+        const { data: adminRoles } = await adminSupa.from("user_roles").select("user_id").eq("role", "admin");
+        const adminVars: Record<string, string> = {
+          "{nome}": userProfile?.name || "",
+          "{valor}": Number(payment.amount).toFixed(2),
+          "{servidor}": userProfile?.iptv_server || "",
+          "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
+          "{validade}": "", "{plano_meses}": "",
+        };
+        for (const rule of adminRules) {
+          let at = rule.title_template;
+          let ab = rule.body_template;
+          for (const [key, val] of Object.entries(adminVars)) {
+            at = at.replaceAll(key, val);
+            ab = ab.replaceAll(key, val);
+          }
+          for (const admin of (adminRoles || [])) {
+            await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+              body: JSON.stringify({ action: "send_to_user", user_id: admin.user_id, title: at, body: ab, url: rule.click_url || "/admin/iptv" }),
+            });
+          }
+        }
+        console.log(`Admin notified about new support request from ${payment.user_id}`);
+      }
+    } catch (adminPushErr) {
+      console.error("Failed to notify admin:", adminPushErr);
+    }
   } catch (pushErr) {
     console.error("Failed to send push notification:", pushErr);
   }
@@ -598,8 +640,8 @@ async function handleWebhook(req: Request) {
         continue;
       }
 
-      if (payment.status === "confirmed") {
-        console.log(`Payment ${payment.id} already confirmed`);
+      if (payment.status !== "pending") {
+        console.log(`Payment ${payment.id} already processed (status: ${payment.status})`);
         continue;
       }
 
