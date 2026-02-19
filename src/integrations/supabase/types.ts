@@ -1417,6 +1417,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      next_bitz_code: { Args: never; Returns: string }
     }
     Enums: {
       app_role: "admin" | "client"
