@@ -33,15 +33,19 @@ export function usePushNotifications(userId: string | undefined) {
         // Convert VAPID key to Uint8Array
         const applicationServerKey = urlBase64ToUint8Array(vapidData.public_key);
 
-        // Check existing subscription
+        // Check existing subscription — unsubscribe if VAPID key changed
         let subscription = await (registration as any).pushManager.getSubscription();
 
-        if (!subscription) {
-          subscription = await (registration as any).pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          });
+        if (subscription) {
+          // Always unsubscribe old and create new to ensure VAPID key match
+          await subscription.unsubscribe();
+          subscription = null;
         }
+
+        subscription = await (registration as any).pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
 
         // Send subscription to server
         const subJson = subscription.toJSON();
