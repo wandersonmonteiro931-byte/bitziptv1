@@ -164,6 +164,10 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "update_profile": {
+        // Fetch current profile to detect actual status changes
+        const { data: currentProfile } = await supabaseAdmin.from("profiles").select("iptv_status").eq("id", user_id).single();
+        const previousStatus = currentProfile?.iptv_status;
+
         const { error } = await supabaseAdmin.from("profiles").update(data).eq("id", user_id);
         if (error) throw new Error(error.message);
 
@@ -176,8 +180,9 @@ Deno.serve(async (req) => {
             .eq("status", "paid_pending_activation");
         }
 
-        // Send push notification when admin manually blocks or activates a user
-        if (data.iptv_status === "blocked" || data.iptv_status === "active") {
+        // Send push notification ONLY when the status actually changed (not on regular edits)
+        const statusActuallyChanged = data.iptv_status && data.iptv_status !== previousStatus;
+        if (statusActuallyChanged && (data.iptv_status === "blocked" || data.iptv_status === "active")) {
           try {
             const triggerEvent = data.iptv_status === "blocked" ? "user_blocked" : "activation_confirmed";
             const { data: userProfile } = await supabaseAdmin.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", user_id).single();
