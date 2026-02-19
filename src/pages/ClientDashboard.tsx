@@ -735,6 +735,7 @@ const ClientDashboard = () => {
   const [supportInfo, setSupportInfo] = useState<any>(null);
   const [tvApps, setTvApps] = useState<any[]>([]);
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
+  const [pendingFutureExpiry, setPendingFutureExpiry] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -747,10 +748,33 @@ const ClientDashboard = () => {
     };
     loadData();
 
+    // Load pending future expiry
+    const loadPendingExpiry = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase
+        .from("iptv_payments")
+        .select("period_end")
+        .eq("user_id", user.id)
+        .eq("status", "paid_pending_activation")
+        .order("period_end", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.period_end) {
+        const [y, m, d] = data.period_end.split("-").map(Number);
+        setPendingFutureExpiry(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`);
+      } else {
+        setPendingFutureExpiry(null);
+      }
+    };
+    loadPendingExpiry();
+
     const channel = supabase
       .channel("iptv-dashboard")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user?.id}` }, () => {
         refreshProfile();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        loadPendingExpiry();
       })
       .subscribe();
 
@@ -869,7 +893,12 @@ const ClientDashboard = () => {
           <div className="border-t border-border/20" />
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Validade</span>
-            <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
+            <div className="text-right">
+              <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
+              {pendingFutureExpiry && (
+                <p className="text-[10px] text-blue-400 mt-0.5">Nova: {pendingFutureExpiry}</p>
+              )}
+            </div>
           </div>
         </motion.div>
 
