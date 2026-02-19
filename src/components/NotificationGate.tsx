@@ -4,14 +4,18 @@ import { Bell, BellOff, Shield, AlertTriangle } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
 export const NotificationGate = ({ children }: { children: React.ReactNode }) => {
-  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [permission, setPermission] = useState<string>("loading");
   const [requesting, setRequesting] = useState(false);
+  const [notificationSupported, setNotificationSupported] = useState(true);
 
   const checkPermission = useCallback(() => {
-    if (!("Notification" in window)) {
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      // Not supported — still block but show instructions
+      setNotificationSupported(false);
       setPermission("unsupported");
       return;
     }
+    setNotificationSupported(true);
     setPermission(Notification.permission);
   }, []);
 
@@ -34,12 +38,17 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
     setRequesting(false);
   };
 
-  // Allow through if granted or unsupported (desktop fallback)
-  if (permission === "granted" || permission === "unsupported") {
+  // Show loading briefly
+  if (permission === "loading") {
+    return null;
+  }
+
+  // ONLY allow through if explicitly granted
+  if (permission === "granted") {
     return <>{children}</>;
   }
 
-  const isDenied = permission === "denied";
+  const isDenied = permission === "denied" || permission === "unsupported";
 
   return (
     <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center overflow-y-auto bg-background p-5">
@@ -82,7 +91,9 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
             </h2>
 
             <p className="text-sm text-muted-foreground mb-5">
-              {isDenied
+              {!notificationSupported
+                ? "Seu navegador não suporta notificações push. Instale o aplicativo pela tela inicial para ativar as notificações e continuar usando."
+                : isDenied
                 ? "As notificações estão bloqueadas no seu navegador. Para usar o app, você precisa ativá-las nas configurações do celular."
                 : "Para continuar usando o app, é obrigatório ativar as notificações push. Você receberá avisos importantes sobre sua conta."}
             </p>
