@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle, Pencil, Save } from "lucide-react";
+import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle, Pencil, Save, Archive, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +55,7 @@ const AdminUsersPage = () => {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [showAutoRegister, setShowAutoRegister] = useState(false);
   const [pastedText, setPastedText] = useState("");
   const [parsedData, setParsedData] = useState<Record<string, string> | null>(null);
@@ -87,7 +88,11 @@ const AdminUsersPage = () => {
   useEffect(() => { loadUsers(); }, []);
 
   const filtered = users.filter(
-    (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase())
+    (u) => {
+      const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase());
+      if (showArchived) return matchSearch && u.status === "archived";
+      return matchSearch && u.status !== "archived";
+    }
   );
 
   const handlePasteAnalyze = () => {
@@ -96,24 +101,31 @@ const AdminUsersPage = () => {
     setParsedData(parsed);
   };
 
+  const buildDefaultNotes = (username: string, password: string) => {
+    return `SEUS DADOS DE ACESSO AOS APLICATIVOS:\n\n🔴 BLESSED PLAYER \n\n✅ PROVEDOR: ativeapp00608\n✅ Usuário: ${username}\n✅ Senha: ${password}\n\n\n🟡 ASSIST PLUS\n\n✅ Codigo: 345746534\n✅ Usuário: ${username}\n✅ Senha: ${password}`;
+  };
+
   const handleAutoRegister = async () => {
     if (!parsedData?.username || !autoName.trim()) {
       toast({ title: "Erro", description: "Nome e dados IPTV são obrigatórios", variant: "destructive" });
       return;
     }
     setAutoCreating(true);
+    const iptvUser = parsedData.username;
+    const iptvPass = parsedData.password || parsedData.username;
     const res = await supabase.functions.invoke("admin-create-user", {
       body: {
         name: autoName.trim(),
-        username: parsedData.username,
+        username: iptvUser,
         email: autoEmail.trim() || undefined,
-        iptv_user: parsedData.username,
-        iptv_password: parsedData.password || parsedData.username,
+        iptv_user: iptvUser,
+        iptv_password: iptvPass,
         iptv_server: parsedData.server || "",
         iptv_expiry: parsedData.expiry || null,
         iptv_connections: parsedData.connections ? parseInt(parsedData.connections) : 1,
         iptv_monthly_value: parsedData.monthly_value ? parseFloat(parsedData.monthly_value) : 0,
         iptv_status: "active",
+        admin_notes: buildDefaultNotes(iptvUser, iptvPass),
       },
     });
     setAutoCreating(false);
@@ -267,12 +279,21 @@ const AdminUsersPage = () => {
     loadUsers();
   };
 
-  const deleteUser = async (userId: string) => {
-    if (!confirm("Tem certeza que deseja excluir este usuário?")) return;
+  const archiveUser = async (userId: string) => {
+    if (!confirm("Tem certeza que deseja arquivar este cliente? Ele será deslogado e poderá ser reativado depois.")) return;
     await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "delete_user", user_id: userId, data: {} },
+      body: { action: "archive_user", user_id: userId, data: {} },
     });
-    toast({ title: "Usuário excluído" });
+    toast({ title: "Cliente arquivado com sucesso" });
+    loadUsers();
+  };
+
+  const reactivateUser = async (userId: string) => {
+    if (!confirm("Reativar este cliente?")) return;
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "reactivate_user", user_id: userId, data: {} },
+    });
+    toast({ title: "Cliente reativado com sucesso!" });
     loadUsers();
   };
 
@@ -312,6 +333,9 @@ const AdminUsersPage = () => {
               <UsersRound size={16} /> Ajuste em Massa ({selectedUsers.size})
             </button>
           )}
+          <button onClick={() => setShowArchived(!showArchived)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all hover:brightness-110 ${showArchived ? "bg-warning text-warning-foreground" : "bg-muted text-muted-foreground"}`}>
+            <Archive size={16} /> {showArchived ? "Ver Ativos" : "Arquivados"}
+          </button>
           <button onClick={() => { setShowAutoRegister(true); setPastedText(""); setParsedData(null); setAutoName(""); setAutoEmail(""); }} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-all hover:brightness-110">
             <ClipboardPaste size={16} /> Cadastro Automático
           </button>
@@ -743,12 +767,20 @@ const AdminUsersPage = () => {
                       <button onClick={() => toggleFreeze(user.id, user.balance_frozen)} className={`rounded-lg p-1.5 ${user.balance_frozen ? "text-destructive" : "text-muted-foreground"} hover:bg-muted hover:text-foreground`} title={user.balance_frozen ? "Descongelar" : "Congelar"}>
                         <Snowflake size={16} />
                       </button>
-                      <button onClick={() => updateStatus(user.id, user.status === "active" ? "suspended" : "active")} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title={user.status === "active" ? "Suspender" : "Ativar"}>
-                        <Ban size={16} />
-                      </button>
-                      <button onClick={() => deleteUser(user.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Excluir">
-                        <Trash2 size={16} />
-                      </button>
+                      {user.status === "archived" ? (
+                        <button onClick={() => reactivateUser(user.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-success/10 hover:text-success" title="Reativar">
+                          <RotateCcw size={16} />
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => updateStatus(user.id, user.status === "active" ? "suspended" : "active")} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title={user.status === "active" ? "Suspender" : "Ativar"}>
+                            <Ban size={16} />
+                          </button>
+                          <button onClick={() => archiveUser(user.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Arquivar">
+                            <Archive size={16} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </motion.tr>
