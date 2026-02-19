@@ -1,58 +1,62 @@
 // Push notification service worker (imported into PWA SW via importScripts)
-self.addEventListener("push", (event) => {
-  // Default fallback data
-  const fallback = {
-    title: "Bitz IPTV",
-    body: "Nova notificação",
-    icon: "/logo-bitz.jpg",
-    badge: "/logo-bitz.jpg",
-    data: { url: "/" },
-  };
-
-  let payload = fallback;
-
-  if (event.data) {
-    try {
-      const json = event.data.json();
-      payload = { ...fallback, ...json };
-    } catch (e) {
-      // If JSON parsing fails, try as text
-      try {
-        const text = event.data.text();
-        payload = { ...fallback, body: text };
-      } catch (e2) {
-        console.error("Push: failed to parse payload", e2);
-      }
-    }
-  }
-
-  const options = {
-    body: payload.body || fallback.body,
-    icon: payload.icon || "/logo-bitz.jpg",
-    badge: payload.badge || "/logo-bitz.jpg",
-    vibrate: [200, 100, 200],
-    requireInteraction: true,
-    tag: "bitz-push-" + Date.now(), // Unique tag prevents grouping/replacing
-    renotify: true, // Always alert even if same tag
-    data: payload.data || { url: "/" },
-    silent: false, // Ensure sound/vibration
-  };
-
-  // CRITICAL: waitUntil keeps the SW alive until showNotification resolves
+self.addEventListener("push", function (event) {
+  // CRITICAL: event.waitUntil MUST be called synchronously (not inside async/await)
+  // and MUST always result in showNotification, or Android will say "no notifications posted"
   event.waitUntil(
-    self.registration.showNotification(payload.title || fallback.title, options)
+    (async function () {
+      try {
+        var title = "Bitz IPTV";
+        var body = "Nova notificação";
+        var icon = "/logo-bitz.jpg";
+        var badge = "/logo-bitz.jpg";
+        var url = "/";
+
+        if (event.data) {
+          try {
+            var data = event.data.json();
+            title = data.title || title;
+            body = data.body || data.message || body;
+            icon = data.icon || icon;
+            badge = data.badge || badge;
+            if (data.data && data.data.url) url = data.data.url;
+          } catch (e) {
+            // JSON parse failed, try plain text
+            try {
+              body = event.data.text() || body;
+            } catch (e2) {
+              // ignore
+            }
+          }
+        }
+
+        return self.registration.showNotification(title, {
+          body: body,
+          icon: icon,
+          badge: badge,
+          vibrate: [200, 100, 200],
+          tag: "bitz-" + Date.now(),
+          renotify: true,
+          data: { url: url },
+        });
+      } catch (err) {
+        // ABSOLUTE FALLBACK: no matter what, show something
+        return self.registration.showNotification("Bitz IPTV", {
+          body: "Você tem uma nova notificação",
+          icon: "/logo-bitz.jpg",
+        });
+      }
+    })()
   );
 });
 
-self.addEventListener("notificationclick", (event) => {
+self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-
-  const url = event.notification.data?.url || "/";
-
+  var url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if (client.url.includes(self.location.origin) && "focus" in client) {
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.indexOf(self.location.origin) !== -1 && "focus" in client) {
           client.navigate(url);
           return client.focus();
         }
