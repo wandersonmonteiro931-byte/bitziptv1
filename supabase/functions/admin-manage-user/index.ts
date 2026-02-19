@@ -705,12 +705,11 @@ Deno.serve(async (req) => {
         // Delete all pending invoices for this user
         await supabaseAdmin.from("iptv_payments").delete().eq("user_id", user_id).eq("status", "pending");
 
-        // Get scheduled rate changes
+        // Get ALL scheduled rate changes (including already applied)
         const { data: ratesForRegen } = await supabaseAdmin
           .from("iptv_scheduled_rates")
           .select("*")
           .eq("user_id", user_id)
-          .eq("applied", false)
           .order("effective_date", { ascending: true });
 
         // Find the latest confirmed payment
@@ -768,12 +767,19 @@ Deno.serve(async (req) => {
           await supabaseAdmin.from("iptv_payments").insert(newInvoices);
         }
 
-        if (appliedIds.length > 0) {
+        // Only mark newly-applied rates (skip already applied ones)
+        const newlyAppliedIds = appliedIds.filter(id => {
+          const r = (ratesForRegen || []).find((rate: any) => rate.id === id);
+          return r && !r.applied;
+        });
+        if (newlyAppliedIds.length > 0) {
           await supabaseAdmin.from("iptv_scheduled_rates").update({
             applied: true,
             applied_at: new Date().toISOString(),
-          }).in("id", appliedIds);
+          }).in("id", newlyAppliedIds);
+        }
 
+        if (appliedIds.length > 0) {
           const latestRate = (ratesForRegen || [])
             .filter((r: any) => appliedIds.includes(r.id))
             .sort((a: any, b: any) => a.effective_date > b.effective_date ? -1 : 1)[0];
