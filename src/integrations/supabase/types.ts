@@ -329,6 +329,9 @@ export type Database = {
           id: string
           package_id: string
           pix_code: string | null
+          pix_location: string | null
+          pix_qrcode: string | null
+          pix_txid: string | null
           price: number
           status: string
           user_id: string
@@ -342,6 +345,9 @@ export type Database = {
           id?: string
           package_id: string
           pix_code?: string | null
+          pix_location?: string | null
+          pix_qrcode?: string | null
+          pix_txid?: string | null
           price: number
           status?: string
           user_id: string
@@ -355,6 +361,9 @@ export type Database = {
           id?: string
           package_id?: string
           pix_code?: string | null
+          pix_location?: string | null
+          pix_qrcode?: string | null
+          pix_txid?: string | null
           price?: number
           status?: string
           user_id?: string

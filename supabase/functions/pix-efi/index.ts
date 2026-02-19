@@ -333,8 +333,16 @@ serve(async (req) => {
       return await handleCreateCharge(userId, body);
     }
 
+    if (path === "create-credit-charge") {
+      return await handleCreateCreditCharge(userId, body);
+    }
+
     if (path === "check-status") {
       return await handleCheckStatus(userId, body);
+    }
+
+    if (path === "check-credit-status") {
+      return await handleCheckCreditStatus(userId, body);
     }
 
     if (path === "register-webhook") {
@@ -495,6 +503,156 @@ async function handleCheckStatus(userId: string, body: any) {
   return jsonResp({ status: "pending", confirmed: false });
 }
 
+// ── Credit purchase charge ───────────────────────────────────────────────
+
+async function handleCreateCreditCharge(userId: string, body: any) {
+  const { purchase_id, amount, descricao } = body;
+
+  if (!purchase_id || !amount) {
+    return jsonResp({ error: "purchase_id and amount required" }, 400);
+  }
+
+  const pixKey = getEnv("EFI_PIX_KEY");
+  const accessToken = await getAccessToken();
+
+  const cobPayload: CobPayload = {
+    calendario: { expiracao: 3600 },
+    valor: { original: Number(amount).toFixed(2) },
+    chave: pixKey,
+    solicitacaoPagador: descricao || "Compra de Créditos - Bitz IPTV",
+  };
+
+  const cob = await createPixCharge(accessToken, cobPayload);
+  const qr = await getQrCode(accessToken, cob.loc.id);
+
+  // Update credit_purchases record with PIX data
+  const adminSupa = getAdminSupabase();
+  await adminSupa
+    .from("credit_purchases")
+    .update({
+      pix_txid: cob.txid,
+      pix_location: cob.loc.location,
+      pix_code: qr.qrcode,
+      pix_qrcode: qr.imagemQrcode,
+      status: "pending",
+    })
+    .eq("id", purchase_id);
+
+  return jsonResp({
+    txid: cob.txid,
+    qrcode: qr.qrcode,
+    qrcode_image: qr.imagemQrcode,
+    location: cob.loc.location,
+    expiracao: cob.calendario.expiracao,
+  });
+}
+
+async function handleCheckCreditStatus(userId: string, body: any) {
+  const { purchase_id } = body;
+  if (!purchase_id) return jsonResp({ error: "purchase_id required" }, 400);
+
+  const adminSupa = getAdminSupabase();
+  const { data: purchase } = await adminSupa
+    .from("credit_purchases")
+    .select("*")
+    .eq("id", purchase_id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!purchase) return jsonResp({ error: "Purchase not found" }, 404);
+  if (purchase.status !== "pending") {
+    return jsonResp({ status: purchase.status, confirmed: purchase.status === "confirmed" });
+  }
+
+  // Check with Efi API
+  if (purchase.pix_txid) {
+    try {
+      const accessToken = await getAccessToken();
+      const resp = await mtlsFetchWithRetry(`/v2/cob/${purchase.pix_txid}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (resp.status >= 200 && resp.status < 300) {
+        const cobData = JSON.parse(resp.body);
+        console.log(`Credit check status for txid ${purchase.pix_txid}: ${cobData.status}`);
+
+        if (cobData.status === "CONCLUIDA") {
+          await confirmCreditPurchase(adminSupa, purchase);
+          return jsonResp({ status: "confirmed", confirmed: true });
+        }
+      }
+    } catch (err) {
+      console.error("Credit check status API error:", err.message);
+    }
+  }
+
+  return jsonResp({ status: "pending", confirmed: false });
+}
+
+async function confirmCreditPurchase(adminSupa: any, purchase: any) {
+  // ATOMIC GUARD
+  const { data: updated } = await adminSupa
+    .from("credit_purchases")
+    .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
+    .eq("id", purchase.id)
+    .eq("status", "pending")
+    .select("id");
+
+  if (!updated || updated.length === 0) {
+    console.log(`Credit purchase ${purchase.id} already processed — skipping.`);
+    return;
+  }
+
+  // Add credits to user
+  const totalCredits = purchase.credits_amount + purchase.bonus_amount;
+  const { data: profile } = await adminSupa.from("profiles").select("credits, level_points").eq("id", purchase.user_id).single();
+  if (!profile) return;
+
+  const newBalance = profile.credits + totalCredits;
+  const newPoints = profile.level_points + purchase.credits_amount;
+
+  await adminSupa.from("profiles").update({
+    credits: newBalance,
+    level_points: newPoints,
+    daily_credits_purchased: purchase.credits_amount,
+    daily_purchase_date: new Date().toISOString().slice(0, 10),
+  }).eq("id", purchase.user_id);
+
+  // Log credit transaction
+  await adminSupa.from("credit_transactions").insert({
+    user_id: purchase.user_id,
+    type: "purchase",
+    amount: totalCredits,
+    balance_after: newBalance,
+    description: `Compra via PIX: ${purchase.credits_amount} + ${purchase.bonus_amount} bônus`,
+  });
+
+  // Update monthly ranking
+  const monthYear = new Date().toISOString().slice(0, 7);
+  const { data: rank } = await adminSupa.from("credit_rankings")
+    .select("*").eq("user_id", purchase.user_id).eq("month_year", monthYear).maybeSingle();
+  if (rank) {
+    await adminSupa.from("credit_rankings").update({ total_purchased: rank.total_purchased + purchase.credits_amount }).eq("id", rank.id);
+  } else {
+    await adminSupa.from("credit_rankings").insert({ user_id: purchase.user_id, month_year: monthYear, total_purchased: purchase.credits_amount });
+  }
+
+  // Update user level
+  const { data: settings } = await adminSupa.from("credit_settings").select("level_thresholds, vip_threshold").limit(1).single();
+  if (settings) {
+    const thresholds = settings.level_thresholds as Record<string, number>;
+    let level = "bronze";
+    if (newPoints >= (thresholds.diamante || 2000)) level = "diamante";
+    else if (newPoints >= (thresholds.ouro || 500)) level = "ouro";
+    else if (newPoints >= (thresholds.prata || 100)) level = "prata";
+    const vip = newPoints >= (settings.vip_threshold || 200);
+    await adminSupa.from("profiles").update({ user_level: level, vip_badge: vip }).eq("id", purchase.user_id);
+  }
+
+  console.log(`Credit purchase ${purchase.id} confirmed. ${totalCredits} credits added to user ${purchase.user_id}`);
+}
+
 // Shared function: confirm payment, update expiry, set awaiting_activation
 async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
   // ATOMIC GUARD: Only update if status is still "pending" to prevent duplicate processing
@@ -628,25 +786,41 @@ async function handleWebhook(req: Request) {
       const txid = pix.txid;
       if (!txid) continue;
 
-      // Find payment by txid
+      // Check iptv_payments first
       const { data: payment } = await adminSupa
         .from("iptv_payments")
         .select("*")
         .eq("pix_txid", txid)
         .single();
 
-      if (!payment) {
-        console.log(`No payment found for txid: ${txid}`);
+      if (payment) {
+        if (payment.status !== "pending") {
+          console.log(`Payment ${payment.id} already processed (status: ${payment.status})`);
+          continue;
+        }
+        await confirmPaymentAndUpdateExpiry(adminSupa, payment);
+        console.log(`Payment ${payment.id} confirmed via webhook`);
         continue;
       }
 
-      if (payment.status !== "pending") {
-        console.log(`Payment ${payment.id} already processed (status: ${payment.status})`);
+      // Check credit_purchases
+      const { data: creditPurchase } = await adminSupa
+        .from("credit_purchases")
+        .select("*")
+        .eq("pix_txid", txid)
+        .single();
+
+      if (creditPurchase) {
+        if (creditPurchase.status !== "pending") {
+          console.log(`Credit purchase ${creditPurchase.id} already processed`);
+          continue;
+        }
+        await confirmCreditPurchase(adminSupa, creditPurchase);
+        console.log(`Credit purchase ${creditPurchase.id} confirmed via webhook`);
         continue;
       }
 
-      await confirmPaymentAndUpdateExpiry(adminSupa, payment);
-      console.log(`Payment ${payment.id} confirmed via webhook`);
+      console.log(`No payment or credit purchase found for txid: ${txid}`);
     }
 
     return jsonResp({ ok: true });
