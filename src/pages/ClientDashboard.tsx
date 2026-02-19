@@ -376,7 +376,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
   const [error, setError] = useState<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
-
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   useEffect(() => {
     const createCharge = async () => {
       setLoading(true);
@@ -391,8 +391,11 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
           baseExpiry = new Date();
         }
         const periodStart = new Date(baseExpiry);
-        const periodEnd = new Date(baseExpiry);
-        periodEnd.setMonth(periodEnd.getMonth() + pixModal.months);
+        const periodEndDate = new Date(baseExpiry);
+        periodEndDate.setMonth(periodEndDate.getMonth() + pixModal.months);
+
+        const periodEndStr = periodEndDate.toISOString().split("T")[0];
+        setPeriodEnd(periodEndStr);
 
         const { data: payment, error: insertError } = await supabase
           .from("iptv_payments")
@@ -401,7 +404,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
             amount: pixModal.value,
             months: pixModal.months,
             period_start: periodStart.toISOString().split("T")[0],
-            period_end: periodEnd.toISOString().split("T")[0],
+            period_end: periodEndStr,
             status: "pending",
             payment_method: "pix",
             notes: `Renovação ${pixModal.months} mês(es) via PIX automático`,
@@ -545,16 +548,12 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
         {paymentConfirmed ? (
           (() => {
-            let baseExpiry: Date;
-            if (user?.iptv_expiry) {
-              const [y, m, d] = user.iptv_expiry.split("-").map(Number);
-              baseExpiry = new Date(y, m - 1, d);
-            } else {
-              baseExpiry = new Date();
+            // Use period_end from the payment record (calculated at creation time based on iptv_expiry)
+            let formattedNewExpiry = "—";
+            if (periodEnd) {
+              const [y, m, d] = periodEnd.split("-").map(Number);
+              formattedNewExpiry = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
             }
-            const newExpiry = new Date(baseExpiry);
-            newExpiry.setMonth(newExpiry.getMonth() + pixModal.months);
-            const formattedNewExpiry = `${String(newExpiry.getDate()).padStart(2, '0')}/${String(newExpiry.getMonth() + 1).padStart(2, '0')}/${newExpiry.getFullYear()}`;
 
             return (
               <>
