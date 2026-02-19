@@ -283,10 +283,14 @@ const AdminUsersPage = () => {
     if (!confirm("Tem certeza que deseja arquivar este cliente? Ele será deslogado e poderá ser reativado depois.")) return;
     // Optimistic: remove from list immediately
     setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: "archived" } : u));
-    toast({ title: "Cliente arquivado com sucesso" });
-    await supabase.functions.invoke("admin-manage-user", {
+    const res = await supabase.functions.invoke("admin-manage-user", {
       body: { action: "archive_user", user_id: userId, data: {} },
     });
+    if (res.error || res.data?.error) {
+      toast({ title: "Erro ao arquivar", description: res.data?.error || res.error?.message, variant: "destructive" });
+    } else {
+      toast({ title: "✅ Cliente arquivado e deslogado!" });
+    }
     loadUsers();
   };
 
