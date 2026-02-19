@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { InstallGate } from "@/components/InstallGate";
-import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
+
 import { NotificationGate } from "@/components/NotificationGate";
 
 import LoginPage from "./pages/LoginPage";
@@ -56,7 +56,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
-        <PWAUpdatePrompt />
+        
         <NotificationGate>
         <BrowserRouter>
           <Routes>
