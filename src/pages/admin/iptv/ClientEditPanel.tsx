@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw, TrendingUp, Plus } from "lucide-react";
+import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw, TrendingUp, Plus, Pencil, CheckSquare, Square, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
@@ -36,6 +36,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [scheduledRates, setScheduledRates] = useState<any[]>([]);
   const [rateForm, setRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
   const [showRateForm, setShowRateForm] = useState(false);
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editRateForm, setEditRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
+  const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [bulkEditForm, setBulkEditForm] = useState({ amount: "", notes: "" });
   const [form, setForm] = useState({
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
@@ -74,7 +79,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       .from("iptv_payments")
       .select("*")
       .eq("user_id", user.id)
-      .order("payment_date", { ascending: false })
+      .order("period_start", { ascending: true })
       .limit(50);
     setPayments(data || []);
     setPaymentsLoaded(true);
@@ -89,7 +94,6 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     setScheduledRates(data || []);
   }, [user.id]);
 
-  // Load payments when financial tab is opened
   useEffect(() => {
     if (tab === "financial") {
       loadPayments();
@@ -113,19 +117,16 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     const months = Number(paymentForm.months);
     const amount = paymentForm.amount ? Number(paymentForm.amount) : totalValue * months;
 
-    // Calculate period
     const startDate = new Date();
     let periodStart: string;
     let periodEnd: string;
 
     if (form.iptv_expiry && new Date(form.iptv_expiry) > startDate) {
-      // If not expired yet, extend from current expiry
       periodStart = form.iptv_expiry;
       const end = new Date(form.iptv_expiry);
       end.setMonth(end.getMonth() + months);
       periodEnd = end.toISOString().split("T")[0];
     } else {
-      // If expired or no expiry, start from today
       periodStart = startDate.toISOString().split("T")[0];
       const end = new Date(startDate);
       end.setMonth(end.getMonth() + months);
@@ -136,13 +137,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       body: {
         action: "confirm_payment",
         user_id: user.id,
-        data: {
-          amount,
-          months,
-          notes: paymentForm.notes,
-          period_start: periodStart,
-          period_end: periodEnd,
-        },
+        data: { amount, months, notes: paymentForm.notes, period_start: periodStart, period_end: periodEnd },
       },
     });
 
@@ -182,10 +177,58 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     onSaved();
   };
 
+  const toggleInvoiceSelection = (id: string) => {
+    setSelectedInvoices((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+  };
+
+  const bulkDeleteInvoices = async () => {
+    if (selectedInvoices.length === 0) return;
+    setSaving(true);
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "bulk_delete_invoices", user_id: user.id, data: { payment_ids: selectedInvoices } },
+    });
+    toast({ title: `🗑️ ${selectedInvoices.length} fatura(s) excluída(s)` });
+    setSelectedInvoices([]);
+    setPaymentsLoaded(false);
+    await loadPayments();
+    setSaving(false);
+  };
+
+  const bulkUpdateInvoices = async () => {
+    if (selectedInvoices.length === 0) return;
+    setSaving(true);
+    const updates: any = {};
+    if (bulkEditForm.amount) updates.amount = Number(bulkEditForm.amount);
+    if (bulkEditForm.notes) updates.notes = bulkEditForm.notes;
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "bulk_update_invoices", user_id: user.id, data: { payment_ids: selectedInvoices, updates } },
+    });
+    toast({ title: `✅ ${selectedInvoices.length} fatura(s) atualizada(s)` });
+    setSelectedInvoices([]);
+    setBulkEditMode(false);
+    setBulkEditForm({ amount: "", notes: "" });
+    setPaymentsLoaded(false);
+    await loadPayments();
+    setSaving(false);
+  };
+
+  const regenerateInvoices = async () => {
+    setSaving(true);
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "regenerate_future_invoices", user_id: user.id, data: {} },
+    });
+    toast({ title: "🔄 Faturas pendentes excluídas e 6 novas geradas" });
+    setSelectedInvoices([]);
+    setPaymentsLoaded(false);
+    await loadPayments();
+    await loadScheduledRates();
+    setSaving(false);
+    onSaved();
+  };
+
   const inputCls = "w-full rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all";
   const labelCls = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
-  // Check if expired
   const isExpired = form.iptv_expiry && new Date(form.iptv_expiry) < new Date();
 
   return (
@@ -407,11 +450,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                 if (!rateForm.new_monthly_value || !rateForm.effective_date) return;
                                 setSaving(true);
                                 await supabase.functions.invoke("admin-manage-user", {
-                                  body: {
-                                    action: "add_scheduled_rate",
-                                    user_id: user.id,
-                                    data: rateForm,
-                                  },
+                                  body: { action: "add_scheduled_rate", user_id: user.id, data: rateForm },
                                 });
                                 toast({ title: "✅ Reajuste programado!" });
                                 setRateForm({ new_monthly_value: "", effective_date: "", notes: "" });
@@ -440,6 +479,66 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         {scheduledRates.map((r) => {
                           const [y, m, d] = r.effective_date.split("-");
                           const formatted = `${d}/${m}/${y}`;
+                          const isEditing = editingRateId === r.id;
+
+                          if (isEditing) {
+                            return (
+                              <div key={r.id} className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <label className={labelCls}>Valor (R$)</label>
+                                    <input type="number" step="0.01" value={editRateForm.new_monthly_value}
+                                      onChange={(e) => setEditRateForm({ ...editRateForm, new_monthly_value: e.target.value })}
+                                      className={inputCls} />
+                                  </div>
+                                  <div>
+                                    <label className={labelCls}>A partir de</label>
+                                    <input type="date" value={editRateForm.effective_date}
+                                      onChange={(e) => setEditRateForm({ ...editRateForm, effective_date: e.target.value })}
+                                      className={inputCls} />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Observação</label>
+                                  <input value={editRateForm.notes}
+                                    onChange={(e) => setEditRateForm({ ...editRateForm, notes: e.target.value })}
+                                    className={inputCls} />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={async () => {
+                                      setSaving(true);
+                                      await supabase.functions.invoke("admin-manage-user", {
+                                        body: {
+                                          action: "update_scheduled_rate",
+                                          user_id: user.id,
+                                          data: {
+                                            rate_id: r.id,
+                                            new_monthly_value: editRateForm.new_monthly_value,
+                                            effective_date: editRateForm.effective_date,
+                                            notes: editRateForm.notes,
+                                          },
+                                        },
+                                      });
+                                      toast({ title: "✅ Reajuste atualizado!" });
+                                      setEditingRateId(null);
+                                      await loadScheduledRates();
+                                      setSaving(false);
+                                    }}
+                                    disabled={saving}
+                                    className="flex-1 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors"
+                                  >
+                                    Salvar
+                                  </button>
+                                  <button onClick={() => setEditingRateId(null)}
+                                    className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${r.applied ? "bg-muted/20 border-border/30" : "bg-primary/5 border-primary/20"}`}>
                               <div>
@@ -455,21 +554,36 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                 <p className="text-[10px] text-muted-foreground">A partir de {formatted}{r.notes ? ` · ${r.notes}` : ""}</p>
                               </div>
                               {!r.applied && (
-                                <button
-                                  onClick={async () => {
-                                    setSaving(true);
-                                    await supabase.functions.invoke("admin-manage-user", {
-                                      body: { action: "delete_scheduled_rate", user_id: user.id, data: { rate_id: r.id } },
-                                    });
-                                    toast({ title: "🗑️ Reajuste removido" });
-                                    await loadScheduledRates();
-                                    setSaving(false);
-                                  }}
-                                  disabled={saving}
-                                  className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                                >
-                                  <Trash2 size={11} />
-                                </button>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingRateId(r.id);
+                                      setEditRateForm({
+                                        new_monthly_value: String(r.new_monthly_value),
+                                        effective_date: r.effective_date,
+                                        notes: r.notes || "",
+                                      });
+                                    }}
+                                    className="rounded-lg p-1.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                                  >
+                                    <Pencil size={11} />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      setSaving(true);
+                                      await supabase.functions.invoke("admin-manage-user", {
+                                        body: { action: "delete_scheduled_rate", user_id: user.id, data: { rate_id: r.id } },
+                                      });
+                                      toast({ title: "🗑️ Reajuste removido" });
+                                      await loadScheduledRates();
+                                      setSaving(false);
+                                    }}
+                                    disabled={saving}
+                                    className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
                               )}
                             </div>
                           );
@@ -540,38 +654,119 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       </div>
                     </div>
 
-                    {/* Generate future invoices button */}
-                    <button
-                      onClick={async () => {
-                        setSaving(true);
-                        await supabase.functions.invoke("admin-manage-user", {
-                          body: { action: "generate_future_invoices", user_id: user.id, data: { months_ahead: 6 } },
-                        });
-                        toast({ title: "📅 Faturas futuras geradas (6 meses)" });
-                        setPaymentsLoaded(false);
-                        await loadPayments();
-                        setSaving(false);
-                      }}
-                      disabled={saving}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
-                    >
-                      <CreditCard size={13} /> Gerar Próximas 6 Faturas
-                    </button>
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          setSaving(true);
+                          await supabase.functions.invoke("admin-manage-user", {
+                            body: { action: "generate_future_invoices", user_id: user.id, data: { months_ahead: 6 } },
+                          });
+                          toast({ title: "📅 Faturas futuras geradas (6 meses)" });
+                          setPaymentsLoaded(false);
+                          await loadPayments();
+                          setSaving(false);
+                        }}
+                        disabled={saving}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <CreditCard size={12} /> Gerar 6 Faturas
+                      </button>
+                      <button
+                        onClick={regenerateInvoices}
+                        disabled={saving}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-yellow-500/10 px-3 py-2 text-[11px] font-medium text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+                        title="Exclui todas faturas pendentes e regenera 6 novas"
+                      >
+                        <RefreshCw size={12} /> Recriar Faturas
+                      </button>
+                    </div>
+
+                    {/* Bulk actions bar */}
+                    {selectedInvoices.length > 0 && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                        <p className="text-[11px] font-semibold text-primary">{selectedInvoices.length} fatura(s) selecionada(s)</p>
+                        {bulkEditMode ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className={labelCls}>Novo Valor (R$)</label>
+                                <input type="number" step="0.01" value={bulkEditForm.amount}
+                                  onChange={(e) => setBulkEditForm({ ...bulkEditForm, amount: e.target.value })}
+                                  placeholder="Manter atual" className={inputCls} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Observação</label>
+                                <input value={bulkEditForm.notes}
+                                  onChange={(e) => setBulkEditForm({ ...bulkEditForm, notes: e.target.value })}
+                                  placeholder="Manter atual" className={inputCls} />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={bulkUpdateInvoices} disabled={saving}
+                                className="flex-1 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors">
+                                ✅ Aplicar
+                              </button>
+                              <button onClick={() => { setBulkEditMode(false); setBulkEditForm({ amount: "", notes: "" }); }}
+                                className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button onClick={() => setBulkEditMode(true)}
+                              className="flex-1 rounded-lg bg-primary/15 px-3 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 transition-colors">
+                              <Pencil size={11} className="inline mr-1" /> Editar em Massa
+                            </button>
+                            <button onClick={bulkDeleteInvoices} disabled={saving}
+                              className="flex-1 rounded-lg bg-destructive/15 px-3 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/25 transition-colors">
+                              <Trash2 size={11} className="inline mr-1" /> Excluir Selecionadas
+                            </button>
+                            <button onClick={() => setSelectedInvoices([])}
+                              className="rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                              Limpar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {(() => {
                       const today = new Date().toISOString().split("T")[0];
-                      const filtered = payments.filter((p: any) => {
-                        if (invoiceFilter === "past") return p.period_end <= today;
-                        if (invoiceFilter === "future") return p.period_end > today;
-                        return true;
-                      });
+                      const filtered = payments
+                        .filter((p: any) => {
+                          if (invoiceFilter === "past") return p.period_end <= today;
+                          if (invoiceFilter === "future") return p.period_end > today;
+                          return true;
+                        })
+                        .sort((a: any, b: any) => a.period_start.localeCompare(b.period_start));
 
                       if (filtered.length === 0) {
                         return <p className="text-center text-xs text-muted-foreground py-4">Nenhuma fatura encontrada.</p>;
                       }
 
+                      // Select all pending visible
+                      const pendingVisible = filtered.filter((p: any) => p.status === "pending");
+                      const allPendingSelected = pendingVisible.length > 0 && pendingVisible.every((p: any) => selectedInvoices.includes(p.id));
+
                       return (
                         <div className="space-y-2 max-h-80 overflow-y-auto">
+                          {pendingVisible.length > 0 && (
+                            <button
+                              onClick={() => {
+                                if (allPendingSelected) {
+                                  setSelectedInvoices([]);
+                                } else {
+                                  setSelectedInvoices(pendingVisible.map((p: any) => p.id));
+                                }
+                              }}
+                              className="flex items-center gap-1.5 text-[10px] text-primary font-medium hover:underline"
+                            >
+                              {allPendingSelected ? <CheckSquare size={11} /> : <Square size={11} />}
+                              {allPendingSelected ? "Desmarcar todas pendentes" : "Selecionar todas pendentes"}
+                            </button>
+                          )}
                           {filtered.map((p: any) => {
                             const date = new Date(p.payment_date);
                             const formatted = date.toLocaleDateString("pt-BR");
@@ -584,6 +779,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             const isConfirmed = p.status === "confirmed";
                             const isRemoved = p.status === "removed";
                             const isFuture = p.period_start > today;
+                            const isSelected = selectedInvoices.includes(p.id);
 
                             const statusColor = isReversed || isRemoved
                               ? "bg-destructive/10 text-destructive"
@@ -598,7 +794,12 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                               : "bg-muted/30 border-border/20";
 
                             return (
-                              <div key={p.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 border ${borderColor}`}>
+                              <div key={p.id} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 border ${borderColor} ${isSelected ? "ring-1 ring-primary/40" : ""}`}>
+                                {isPending && (
+                                  <button onClick={() => toggleInvoiceSelection(p.id)} className="shrink-0 text-primary">
+                                    {isSelected ? <CheckSquare size={14} /> : <Square size={14} className="text-muted-foreground" />}
+                                  </button>
+                                )}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <p className="text-xs font-medium text-foreground">

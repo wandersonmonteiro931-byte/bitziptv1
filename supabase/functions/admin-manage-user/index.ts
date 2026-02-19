@@ -541,6 +541,134 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "update_scheduled_rate": {
+        const { rate_id, new_monthly_value, effective_date, notes: rateNotes } = data;
+        if (!rate_id) throw new Error("rate_id é obrigatório");
+
+        const updates: any = {};
+        if (new_monthly_value !== undefined) updates.new_monthly_value = Number(new_monthly_value);
+        if (effective_date !== undefined) updates.effective_date = effective_date;
+        if (rateNotes !== undefined) updates.notes = rateNotes;
+
+        await supabaseAdmin.from("iptv_scheduled_rates").update(updates).eq("id", rate_id).eq("applied", false);
+        result = { success: true };
+        break;
+      }
+      case "bulk_delete_invoices": {
+        const { payment_ids } = data;
+        if (!payment_ids || !Array.isArray(payment_ids) || payment_ids.length === 0) {
+          throw new Error("payment_ids é obrigatório");
+        }
+
+        // Only delete pending invoices
+        await supabaseAdmin.from("iptv_payments").delete().in("id", payment_ids).eq("status", "pending");
+        result = { success: true, deleted: payment_ids.length };
+        break;
+      }
+      case "bulk_update_invoices": {
+        const { payment_ids, updates: invoiceUpdates } = data;
+        if (!payment_ids || !Array.isArray(payment_ids)) throw new Error("payment_ids é obrigatório");
+        if (!invoiceUpdates) throw new Error("updates é obrigatório");
+
+        const allowed: any = {};
+        if (invoiceUpdates.amount !== undefined) allowed.amount = Number(invoiceUpdates.amount);
+        if (invoiceUpdates.notes !== undefined) allowed.notes = invoiceUpdates.notes;
+        if (invoiceUpdates.status !== undefined) allowed.status = invoiceUpdates.status;
+
+        await supabaseAdmin.from("iptv_payments").update(allowed).in("id", payment_ids).eq("status", "pending");
+        result = { success: true, updated: payment_ids.length };
+        break;
+      }
+      case "regenerate_future_invoices": {
+        // Delete all pending future invoices and regenerate 6 from last confirmed payment
+        const { data: prof } = await supabaseAdmin.from("profiles").select("iptv_monthly_value, iptv_connections, iptv_expiry").eq("id", user_id).single();
+        if (!prof) throw new Error("Usuário não encontrado");
+
+        // Delete all pending invoices for this user
+        await supabaseAdmin.from("iptv_payments").delete().eq("user_id", user_id).eq("status", "pending");
+
+        // Get scheduled rate changes
+        const { data: ratesForRegen } = await supabaseAdmin
+          .from("iptv_scheduled_rates")
+          .select("*")
+          .eq("user_id", user_id)
+          .eq("applied", false)
+          .order("effective_date", { ascending: true });
+
+        // Find the latest confirmed payment
+        const { data: lastConfirmed } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("period_end")
+          .eq("user_id", user_id)
+          .eq("status", "confirmed")
+          .order("period_end", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let startFrom: Date;
+        if (lastConfirmed?.period_end) {
+          startFrom = new Date(lastConfirmed.period_end + "T00:00:00");
+        } else if (prof.iptv_expiry) {
+          startFrom = new Date(prof.iptv_expiry + "T00:00:00");
+        } else {
+          startFrom = new Date();
+        }
+
+        const baseVal = Number(prof.iptv_monthly_value);
+        const conns = Number(prof.iptv_connections);
+        const newInvoices: any[] = [];
+        const appliedIds: string[] = [];
+
+        for (let i = 0; i < 6; i++) {
+          const pStart = new Date(startFrom);
+          pStart.setMonth(pStart.getMonth() + i);
+          const pEnd = new Date(startFrom);
+          pEnd.setMonth(pEnd.getMonth() + i + 1);
+          const pStartStr = pStart.toISOString().split("T")[0];
+
+          let mv = baseVal;
+          for (const rate of (ratesForRegen || [])) {
+            if (rate.effective_date <= pStartStr) {
+              mv = Number(rate.new_monthly_value);
+              if (!appliedIds.includes(rate.id)) appliedIds.push(rate.id);
+            }
+          }
+
+          newInvoices.push({
+            user_id,
+            amount: roundMoney(mv * conns),
+            months: 1,
+            period_start: pStartStr,
+            period_end: pEnd.toISOString().split("T")[0],
+            status: "pending",
+            payment_method: "pix",
+            notes: mv !== baseVal ? `Reajuste: R$ ${mv.toFixed(2)}/tela` : "Fatura gerada automaticamente",
+          });
+        }
+
+        if (newInvoices.length > 0) {
+          await supabaseAdmin.from("iptv_payments").insert(newInvoices);
+        }
+
+        if (appliedIds.length > 0) {
+          await supabaseAdmin.from("iptv_scheduled_rates").update({
+            applied: true,
+            applied_at: new Date().toISOString(),
+          }).in("id", appliedIds);
+
+          const latestRate = (ratesForRegen || [])
+            .filter((r: any) => appliedIds.includes(r.id))
+            .sort((a: any, b: any) => a.effective_date > b.effective_date ? -1 : 1)[0];
+          if (latestRate) {
+            await supabaseAdmin.from("profiles").update({
+              iptv_monthly_value: Number(latestRate.new_monthly_value),
+            }).eq("id", user_id);
+          }
+        }
+
+        result = { success: true, generated: newInvoices.length };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
