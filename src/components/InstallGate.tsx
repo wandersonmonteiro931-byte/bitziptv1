@@ -63,33 +63,35 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   const handleInstallClick = async () => {
+    // iOS — always show manual instructions
     if (isIOS) {
       setShowManualSteps(true);
       return;
     }
 
+    // Android — try native prompt first
     const prompt = deferredPromptRef.current;
-    if (!prompt) {
-      // No native prompt available — show manual steps as fallback
-      setShowManualSteps(true);
+    if (prompt) {
+      setInstalling(true);
+      try {
+        await prompt.prompt();
+        const choice = await prompt.userChoice;
+        deferredPromptRef.current = null;
+        if (choice.outcome === "accepted") {
+          setShowContinueMessage(true);
+          setInstalling(false);
+          return;
+        }
+      } catch {
+        deferredPromptRef.current = null;
+      }
+      setInstalling(false);
       return;
     }
 
-    setInstalling(true);
-    try {
-      await prompt.prompt();
-      const choice = await prompt.userChoice;
-      // Clear ref so next beforeinstallprompt can be captured
-      deferredPromptRef.current = null;
-      if (choice.outcome === "accepted") {
-        setShowContinueMessage(true);
-      }
-    } catch {
-      // prompt() can only be called once per event — show manual steps
-      deferredPromptRef.current = null;
-      setShowManualSteps(true);
-    }
-    setInstalling(false);
+    // Android without native prompt — show prominent instructions
+    setShowManualSteps(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -322,28 +324,46 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               </div>
             </div>
           ) : showManualSteps ? (
-            <div className="flex w-full flex-col items-center gap-2 rounded-2xl border border-warning/30 bg-warning/10 px-5 py-4">
-              <AlertTriangle size={20} className="text-warning" />
-              <p className="text-sm font-bold text-foreground text-center">Instale manualmente</p>
+            <div className="flex w-full flex-col items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-5 py-5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15">
+                <Download size={24} className="text-primary" />
+              </div>
+              <p className="text-sm font-bold text-foreground text-center">Siga os passos para instalar</p>
               {isIOS ? (
-                <ol className="list-decimal pl-4 space-y-1 text-xs text-muted-foreground">
-                  <li>Toque no ícone <strong className="text-primary">Compartilhar</strong> (↑) na barra do Safari</li>
-                  <li>Role e toque em <strong className="text-primary">"Adicionar à Tela de Início"</strong></li>
-                  <li>Toque em <strong className="text-primary">"Adicionar"</strong></li>
-                  <li>Abra o app pela tela inicial</li>
+                <ol className="list-none space-y-3 text-sm text-foreground w-full">
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
+                    <span>Toque no ícone <strong className="text-primary">Compartilhar</strong> (↑) na barra do Safari</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
+                    <span>Role e toque em <strong className="text-primary">"Adicionar à Tela de Início"</strong></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
+                    <span>Toque em <strong className="text-primary">"Adicionar"</strong> e abra o app</span>
+                  </li>
                 </ol>
               ) : (
-                <ol className="list-decimal pl-4 space-y-1 text-xs text-muted-foreground">
-                  <li>Toque no menu <strong className="text-primary">⋮</strong> (3 pontos) do navegador</li>
-                  <li>Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou <strong className="text-primary">"Adicionar à tela inicial"</strong></li>
-                  <li>Confirme a instalação</li>
-                  <li>Abra o app pela tela inicial</li>
+                <ol className="list-none space-y-3 text-sm text-foreground w-full">
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
+                    <span>Toque no menu <strong className="text-primary">⋮</strong> (3 pontos) no canto superior do navegador</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
+                    <span>Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou <strong className="text-primary">"Adicionar à tela inicial"</strong></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
+                    <span>Confirme e abra o app pela tela inicial</span>
+                  </li>
                 </ol>
               )}
               <button
                 onClick={() => setShowManualSteps(false)}
-                className="mt-2 text-[11px] text-primary underline">
-                Tentar novamente
+                className="mt-1 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                ← Tentar instalar novamente
               </button>
             </div>
           ) : (
