@@ -4,23 +4,36 @@ import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
+const UPDATED_KEY = "pwa_just_updated";
+
+function wasJustUpdated(): boolean {
+  const ts = sessionStorage.getItem(UPDATED_KEY);
+  if (!ts) return false;
+  // Consider "just updated" for 30 seconds after reload
+  return Date.now() - Number(ts) < 30_000;
+}
+
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const suppressRef = useRef(wasJustUpdated());
 
   const { updateServiceWorker } = useRegisterSW({
     onNeedRefresh() {
-      setShowPrompt(true);
+      if (!suppressRef.current) {
+        setShowPrompt(true);
+      }
     },
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
 
       intervalRef.current = setInterval(async () => {
+        if (suppressRef.current) return;
         try {
           await registration.update();
         } catch {}
-        if (registration.waiting) {
+        if (registration.waiting && !suppressRef.current) {
           setShowPrompt(true);
         }
       }, 5_000);
@@ -30,21 +43,33 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  // Cleanup interval on unmount
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
+  // Clear the suppress flag after 30s so future real updates are detected
+  useEffect(() => {
+    if (suppressRef.current) {
+      const timeout = setTimeout(() => {
+        suppressRef.current = false;
+        sessionStorage.removeItem(UPDATED_KEY);
+      }, 30_000);
+      return () => clearTimeout(timeout);
+    }
+  }, []);
+
   const handleUpdate = async () => {
     setUpdating(true);
 
-    // Stop polling immediately so it can't re-trigger the prompt
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+
+    // Mark as just updated BEFORE reload so the next mount skips the prompt
+    sessionStorage.setItem(UPDATED_KEY, String(Date.now()));
 
     try {
       await updateServiceWorker(true);
