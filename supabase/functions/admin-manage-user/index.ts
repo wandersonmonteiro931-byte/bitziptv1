@@ -438,6 +438,44 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "remove_payment": {
+        // Admin soft-removes a payment (hides from client, recalculates expiry)
+        const { payment_id } = data;
+        if (!payment_id) throw new Error("payment_id é obrigatório");
+
+        const { data: payment } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("*")
+          .eq("id", payment_id)
+          .single();
+        if (!payment) throw new Error("Pagamento não encontrado");
+
+        const newStatus = payment.status === "removed" ? "confirmed" : "removed";
+
+        await supabaseAdmin.from("iptv_payments").update({ status: newStatus }).eq("id", payment_id);
+
+        // Recalculate expiry from latest confirmed payment
+        const { data: latestPayment } = await supabaseAdmin
+          .from("iptv_payments")
+          .select("period_end")
+          .eq("user_id", user_id)
+          .eq("status", "confirmed")
+          .order("period_end", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const newExpiry = latestPayment?.period_end || null;
+        const today = new Date().toISOString().split("T")[0];
+        const isExpired = !newExpiry || newExpiry < today;
+
+        await supabaseAdmin.from("profiles").update({
+          iptv_expiry: newExpiry,
+          iptv_status: isExpired ? "blocked" : "active",
+        }).eq("id", user_id);
+
+        result = { success: true, new_status: newStatus };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
