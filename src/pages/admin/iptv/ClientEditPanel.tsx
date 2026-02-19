@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw } from "lucide-react";
+import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw, TrendingUp, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
@@ -33,6 +33,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [showConfirmPayment, setShowConfirmPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ months: 1, amount: "", notes: "" });
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "past" | "future">("all");
+  const [scheduledRates, setScheduledRates] = useState<any[]>([]);
+  const [rateForm, setRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
+  const [showRateForm, setShowRateForm] = useState(false);
   const [form, setForm] = useState({
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
@@ -77,9 +80,21 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     setPaymentsLoaded(true);
   };
 
+  const loadScheduledRates = useCallback(async () => {
+    const { data } = await supabase
+      .from("iptv_scheduled_rates")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("effective_date", { ascending: true });
+    setScheduledRates(data || []);
+  }, [user.id]);
+
   // Load payments when financial tab is opened
   useEffect(() => {
-    if (tab === "financial") loadPayments();
+    if (tab === "financial") {
+      loadPayments();
+      loadScheduledRates();
+    }
     if (tab === "history") loadLogs();
   }, [tab]);
 
@@ -346,6 +361,119 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     {isExpired && (
                       <div className="rounded-lg bg-destructive/10 p-2 text-center">
                         <p className="text-xs font-medium text-destructive">⚠️ Plano vencido</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scheduled Rate Changes */}
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📈 Reajustes Programados</p>
+                      <button
+                        onClick={() => setShowRateForm(!showRateForm)}
+                        className="rounded-lg bg-primary/10 p-1.5 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
+
+                    <AnimatePresence>
+                      {showRateForm && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2 overflow-hidden">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className={labelCls}>Novo Valor Base (R$)</label>
+                              <input type="number" step="0.01" value={rateForm.new_monthly_value}
+                                onChange={(e) => setRateForm({ ...rateForm, new_monthly_value: e.target.value })}
+                                placeholder="20.00" className={inputCls} />
+                            </div>
+                            <div>
+                              <label className={labelCls}>A partir de</label>
+                              <input type="date" value={rateForm.effective_date}
+                                onChange={(e) => setRateForm({ ...rateForm, effective_date: e.target.value })}
+                                className={inputCls} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className={labelCls}>Observação</label>
+                            <input value={rateForm.notes}
+                              onChange={(e) => setRateForm({ ...rateForm, notes: e.target.value })}
+                              placeholder="Reajuste anual, etc." className={inputCls} />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (!rateForm.new_monthly_value || !rateForm.effective_date) return;
+                                setSaving(true);
+                                await supabase.functions.invoke("admin-manage-user", {
+                                  body: {
+                                    action: "add_scheduled_rate",
+                                    user_id: user.id,
+                                    data: rateForm,
+                                  },
+                                });
+                                toast({ title: "✅ Reajuste programado!" });
+                                setRateForm({ new_monthly_value: "", effective_date: "", notes: "" });
+                                setShowRateForm(false);
+                                await loadScheduledRates();
+                                setSaving(false);
+                              }}
+                              disabled={saving || !rateForm.new_monthly_value || !rateForm.effective_date}
+                              className="flex-1 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors"
+                            >
+                              Salvar
+                            </button>
+                            <button onClick={() => setShowRateForm(false)}
+                              className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                              Cancelar
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {scheduledRates.length === 0 ? (
+                      <p className="text-center text-[11px] text-muted-foreground py-2">Nenhum reajuste programado</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {scheduledRates.map((r) => {
+                          const [y, m, d] = r.effective_date.split("-");
+                          const formatted = `${d}/${m}/${y}`;
+                          return (
+                            <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${r.applied ? "bg-muted/20 border-border/30" : "bg-primary/5 border-primary/20"}`}>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <TrendingUp size={11} className={r.applied ? "text-muted-foreground" : "text-primary"} />
+                                  <span className={`text-xs font-semibold ${r.applied ? "text-muted-foreground" : "text-foreground"}`}>
+                                    R$ {Number(r.new_monthly_value).toFixed(2)}/tela
+                                  </span>
+                                  {r.applied && (
+                                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">Aplicado</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">A partir de {formatted}{r.notes ? ` · ${r.notes}` : ""}</p>
+                              </div>
+                              {!r.applied && (
+                                <button
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    await supabase.functions.invoke("admin-manage-user", {
+                                      body: { action: "delete_scheduled_rate", user_id: user.id, data: { rate_id: r.id } },
+                                    });
+                                    toast({ title: "🗑️ Reajuste removido" });
+                                    await loadScheduledRates();
+                                    setSaving(false);
+                                  }}
+                                  disabled={saving}
+                                  className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

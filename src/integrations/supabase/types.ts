@@ -684,6 +684,50 @@ export type Database = {
           },
         ]
       }
+      iptv_scheduled_rates: {
+        Row: {
+          applied: boolean
+          applied_at: string | null
+          created_at: string
+          created_by: string
+          effective_date: string
+          id: string
+          new_monthly_value: number
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          applied?: boolean
+          applied_at?: string | null
+          created_at?: string
+          created_by: string
+          effective_date: string
+          id?: string
+          new_monthly_value: number
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          applied?: boolean
+          applied_at?: string | null
+          created_at?: string
+          created_by?: string
+          effective_date?: string
+          id?: string
+          new_monthly_value?: number
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iptv_scheduled_rates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       iptv_servers: {
         Row: {
           created_at: string
