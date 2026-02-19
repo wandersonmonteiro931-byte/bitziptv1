@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle } from "lucide-react";
+import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle, Pencil, Save } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +61,9 @@ const AdminUsersPage = () => {
   const [autoName, setAutoName] = useState("");
   const [autoEmail, setAutoEmail] = useState("");
   const [autoCreating, setAutoCreating] = useState(false);
+  const [editUser, setEditUser] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editSaving, setEditSaving] = useState(false);
   const [showBalanceAdjust, setShowBalanceAdjust] = useState<any>(null);
   const [showBulkAdjust, setShowBulkAdjust] = useState(false);
   const [showUserHistory, setShowUserHistory] = useState<any>(null);
@@ -145,6 +148,52 @@ const AdminUsersPage = () => {
       setForm({ name: "", username: "", email: "", password: "", role: "client", iptv_user: "", iptv_server: "", iptv_app: "", iptv_expiry: "" });
       loadUsers();
     }
+  };
+
+  const openEditUser = (u: any) => {
+    setEditUser(u);
+    setEditForm({
+      name: u.name || "",
+      username: u.username || "",
+      iptv_user: u.iptv_user || "",
+      iptv_password: u.iptv_password || "",
+      iptv_server: u.iptv_server || "",
+      iptv_app: u.iptv_app || "",
+      iptv_tv_app: u.iptv_tv_app || "",
+      iptv_expiry: u.iptv_expiry || "",
+      iptv_status: u.iptv_status || "active",
+      iptv_connections: u.iptv_connections || 1,
+      iptv_monthly_value: u.iptv_monthly_value || 0,
+      iptv_due_day: u.iptv_due_day || 10,
+      iptv_client_code: u.iptv_client_code || "",
+      pix_key: u.pix_key || "",
+      status: u.status || "active",
+    });
+  };
+
+  const saveEditUser = async () => {
+    if (!editUser) return;
+    setEditSaving(true);
+
+    // Update profile fields
+    const profileData = { ...editForm };
+    delete profileData.username; // username handled separately
+
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "update_profile", user_id: editUser.id, data: profileData },
+    });
+
+    // If password changed, also update auth password
+    if (editForm.iptv_password && editForm.iptv_password !== editUser.iptv_password) {
+      await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "reset_password", user_id: editUser.id, data: { password: editForm.iptv_password } },
+      });
+    }
+
+    toast({ title: "✅ Dados atualizados com sucesso!" });
+    setEditUser(null);
+    setEditSaving(false);
+    loadUsers();
   };
 
   const updateStatus = async (userId: string, status: string) => {
@@ -507,6 +556,136 @@ const AdminUsersPage = () => {
       </AnimatePresence>
 
       {/* Search */}
+      
+      {/* Edit User Modal */}
+      <AnimatePresence>
+        {editUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+                  <Pencil size={18} className="text-primary" /> Editar Cliente · {editUser.name}
+                </h2>
+                <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Dados Pessoais */}
+                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">👤 Dados Pessoais</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Nome</label>
+                      <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Username</label>
+                      <input value={editForm.username} disabled className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Chave PIX</label>
+                      <input value={editForm.pix_key} onChange={(e) => setEditForm({ ...editForm, pix_key: e.target.value })} placeholder="CPF, telefone, e-mail..." className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Status Plataforma</label>
+                      <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                        <option value="active">Ativo</option>
+                        <option value="suspended">Suspenso</option>
+                        <option value="blocked">Bloqueado</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados IPTV */}
+                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📺 Dados IPTV</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Usuário IPTV</label>
+                      <input value={editForm.iptv_user} onChange={(e) => setEditForm({ ...editForm, iptv_user: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Senha IPTV</label>
+                      <input value={editForm.iptv_password} onChange={(e) => setEditForm({ ...editForm, iptv_password: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Servidor</label>
+                      <input value={editForm.iptv_server} onChange={(e) => setEditForm({ ...editForm, iptv_server: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">App IPTV</label>
+                      <input value={editForm.iptv_app} onChange={(e) => setEditForm({ ...editForm, iptv_app: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">App TV</label>
+                      <input value={editForm.iptv_tv_app} onChange={(e) => setEditForm({ ...editForm, iptv_tv_app: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Código Cliente</label>
+                      <input value={editForm.iptv_client_code} onChange={(e) => setEditForm({ ...editForm, iptv_client_code: e.target.value })} placeholder="BTZ-XXXXX" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Status IPTV</label>
+                      <select value={editForm.iptv_status} onChange={(e) => setEditForm({ ...editForm, iptv_status: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                        <option value="active">Ativo</option>
+                        <option value="blocked">Bloqueado</option>
+                        <option value="maintenance">Em Manutenção</option>
+                        <option value="unstable">Instabilidade</option>
+                        <option value="disabled">Desativado</option>
+                        <option value="awaiting_activation">Aguardando Ativação</option>
+                        <option value="awaiting_payment">Aguardando Pagamento</option>
+                        <option value="trust_active">Ativo em Confiança</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Vencimento IPTV</label>
+                      <input type="date" value={editForm.iptv_expiry} onChange={(e) => setEditForm({ ...editForm, iptv_expiry: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financeiro */}
+                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">💰 Financeiro</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Valor Mensal (R$)</label>
+                      <input type="number" step="0.01" value={editForm.iptv_monthly_value} onChange={(e) => setEditForm({ ...editForm, iptv_monthly_value: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Conexões</label>
+                      <input type="number" min="1" value={editForm.iptv_connections} onChange={(e) => setEditForm({ ...editForm, iptv_connections: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Dia Vencimento</label>
+                      <input type="number" min="1" max="28" value={editForm.iptv_due_day} onChange={(e) => setEditForm({ ...editForm, iptv_due_day: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                    💡 Valor total: <strong>R$ {(Number(editForm.iptv_monthly_value) * Number(editForm.iptv_connections)).toFixed(2)}</strong>/mês
+                  </div>
+                </div>
+
+                <button onClick={saveEditUser} disabled={editSaving} className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
+                  <Save size={16} />
+                  {editSaving ? "Salvando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Search */}
       <div className="relative mb-6">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 py-3 pl-10 pr-4 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Buscar por nome ou usuário..." />
@@ -552,6 +731,9 @@ const AdminUsersPage = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
+                      <button onClick={() => openEditUser(user)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary" title="Editar">
+                        <Pencil size={16} />
+                      </button>
                       <button onClick={() => setShowBalanceAdjust(user)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Ajustar saldo">
                         <DollarSign size={16} />
                       </button>
