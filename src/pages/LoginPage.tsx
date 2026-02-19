@@ -51,9 +51,14 @@ const LoginPage = () => {
     setSubmitting(true);
 
     try {
-      // The admin creates users with email — username field IS the email
-      const emailValue = username.includes("@") ? username : `${username}@bitziptv.local`;
-      const err = await login(emailValue, password);
+      // Try login with @iptv.bitz first, then fallback to @bitziptv.local for legacy users
+      const emailValue = username.includes("@") ? username : `${username}@iptv.bitz`;
+      let err = await login(emailValue, password);
+      
+      // Fallback for legacy accounts
+      if (err && !username.includes("@")) {
+        err = await login(`${username}@bitziptv.local`, password);
+      }
 
       if (err) {
         const newAttempts = attempts + 1;
