@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const SW_URL = "/service-worker.js";
-
 export function usePushNotifications(userId: string | undefined) {
   const subscribedRef = useRef(false);
 
@@ -13,14 +11,7 @@ export function usePushNotifications(userId: string | undefined) {
 
     const setup = async () => {
       try {
-        // Wait for OUR custom service worker to be ready
         const registration = await navigator.serviceWorker.ready;
-
-        // Verify we're using the correct SW
-        if (registration.active && !registration.active.scriptURL.includes("service-worker")) {
-          console.warn("[Push] Wrong SW active, waiting...");
-          return;
-        }
 
         // Get VAPID public key from server
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
@@ -51,7 +42,6 @@ export function usePushNotifications(userId: string | undefined) {
           });
         }
 
-        // Save VAPID key used for this subscription
         localStorage.setItem("push_vapid_key", serverVapidKey);
 
         // Send subscription to server
