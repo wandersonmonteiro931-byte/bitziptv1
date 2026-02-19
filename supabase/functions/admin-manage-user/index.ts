@@ -344,6 +344,40 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "archive_user": {
+        // Archive: set status to archived and ban auth user (force logout)
+        await supabaseAdmin.from("profiles").update({ status: "archived", iptv_status: "disabled" }).eq("id", user_id);
+        // Ban auth user to force logout
+        await supabaseAdmin.auth.admin.updateUserById(user_id, { ban_duration: "876000h" });
+
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          admin_id: caller.id,
+          action: "archive_user",
+          target_table: "profiles",
+          target_id: user_id,
+          details: { archived_at: new Date().toISOString() },
+        });
+
+        result = { success: true };
+        break;
+      }
+      case "reactivate_user": {
+        // Reactivate: set status back to active and unban auth user
+        await supabaseAdmin.from("profiles").update({ status: "active", iptv_status: "active" }).eq("id", user_id);
+        // Unban auth user
+        await supabaseAdmin.auth.admin.updateUserById(user_id, { ban_duration: "none" });
+
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          admin_id: caller.id,
+          action: "reactivate_user",
+          target_table: "profiles",
+          target_id: user_id,
+          details: { reactivated_at: new Date().toISOString() },
+        });
+
+        result = { success: true };
+        break;
+      }
       case "delete_user": {
         await supabaseAdmin.auth.admin.deleteUser(user_id);
         result = { success: true };

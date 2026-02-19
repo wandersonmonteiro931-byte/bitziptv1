@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, password, name, username, role, iptv_user, iptv_server, iptv_app, iptv_expiry, iptv_password, iptv_connections, iptv_monthly_value, iptv_status, referral_code } = body;
+    const { email, password, name, username, role, iptv_user, iptv_server, iptv_app, iptv_expiry, iptv_password, iptv_connections, iptv_monthly_value, iptv_status, referral_code, admin_notes } = body;
 
     if (!name || !username) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios: name, username" }), {
@@ -96,6 +96,7 @@ Deno.serve(async (req) => {
       iptv_monthly_value: iptv_monthly_value || 0,
       iptv_status: iptv_status || "active",
       referral_code: referral_code || username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
+      admin_notes: admin_notes || "",
     });
 
     if (profileError) {
