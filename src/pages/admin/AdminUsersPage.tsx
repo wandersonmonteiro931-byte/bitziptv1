@@ -15,20 +15,20 @@ const statusBadge: Record<string, string> = {
 const parseIptvText = (text: string) => {
   const result: Record<string, string> = {};
 
-  // Username - first match
-  const userMatch = text.match(/👤\s*\*?Usuário:?\*?\s*(\S+)/i) || text.match(/✅\s*\*?Usuário:?\*?\s*(\S+)/i);
+  // Username - multiple formats: 👤 Usuário, ✅ Usuário, 👥 USUÁRIO
+  const userMatch = text.match(/(?:👤|✅|👥)\s*\*?Usuário:?\*?\s*(\S+)/i);
   if (userMatch) result.username = userMatch[1].trim();
 
-  // Password - first match
-  const passMatch = text.match(/🔑\s*\*?Senha:?\*?\s*(\S+)/i) || text.match(/✅\s*\*?Senha:?\*?\s*(\S+)/i);
+  // Password - multiple formats: 🔑 Senha, ✅ Senha, 🔐 SENHA
+  const passMatch = text.match(/(?:🔑|✅|🔐)\s*\*?Senha:?\*?\s*(\S+)/i);
   if (passMatch) result.password = passMatch[1].trim();
 
   // Price
   const priceMatch = text.match(/💵\s*\*?Preço[^:]*:?\*?\s*R\$\s*([\d.,]+)/i);
   if (priceMatch) result.monthly_value = priceMatch[1].replace(",", ".").trim();
 
-  // Expiry
-  const expiryMatch = text.match(/🗓️\s*\*?Vencimento:?\*?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  // Expiry - supports dd/mm/yyyy and dd/mm/yyyy hh:mm:ss
+  const expiryMatch = text.match(/(?:🗓️|⏳)\s*\*?Vencimento:?\*?\s*(\d{2}\/\d{2}\/\d{4})/i);
   if (expiryMatch) {
     const [d, m, y] = expiryMatch[1].split("/");
     result.expiry = `${y}-${m}-${d}`;
@@ -46,6 +46,18 @@ const parseIptvText = (text: string) => {
   // Plan
   const planMatch = text.match(/📦\s*\*?Plano:?\*?\s*(.+)/i);
   if (planMatch) result.plan = planMatch[1].replace(/\*/g, "").trim();
+
+  // Detect server from plan name (e.g. "BLESSED DYNAMIX" → DYNAMIX)
+  if (!result.server && result.plan) {
+    const planUpper = result.plan.toUpperCase();
+    const knownServers = ["DYNAMIX", "SPACE", "7PLAY", "TECK", "LIVE"];
+    for (const srv of knownServers) {
+      if (planUpper.includes(srv)) {
+        result.server = srv;
+        break;
+      }
+    }
+  }
 
   return result;
 };
