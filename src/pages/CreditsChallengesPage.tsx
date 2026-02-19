@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Gamepad2, Diamond, Trophy, Zap, Lock, Brain } from "lucide-react";
+import { Gamepad2, Diamond, Trophy, Zap, Lock, Brain, Wallet, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
@@ -94,16 +94,32 @@ const CreditsChallengesPage = () => {
       </div>
 
       {/* Balance bar */}
-      <div className="mb-6 flex flex-col gap-2 rounded-xl bg-muted/30 border border-border p-4">
-        <div className="flex items-center gap-3">
-          <span className="text-lg">💰</span>
-          <span className="text-sm text-muted-foreground">Saldo:</span>
-          <span className="font-display text-xl font-bold text-green-400">R$ {Number(user?.balance || 0).toFixed(2)}</span>
+      <div className="mb-6 rounded-xl bg-muted/30 border border-border p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <span className="text-lg">💰</span>
+            <span className="text-sm text-muted-foreground">Saldo:</span>
+            <span className="font-display text-xl font-bold text-emerald-400">R$ {Number(user?.balance || 0).toFixed(2)}</span>
+          </div>
+          <button
+            onClick={() => navigate("/withdrawals")}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-500/25 active:scale-95"
+          >
+            <Wallet size={14} /> Sacar
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <Diamond className="text-primary" size={20} />
-          <span className="text-sm text-muted-foreground">Diamantes:</span>
-          <span className="font-display text-xl font-bold text-primary">{userCredits} 💎</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Diamond className="text-primary" size={20} />
+            <span className="text-sm text-muted-foreground">Diamantes:</span>
+            <span className="font-display text-xl font-bold text-primary">{userCredits} 💎</span>
+          </div>
+          <button
+            onClick={() => navigate("/credits")}
+            className="flex items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/25 active:scale-95"
+          >
+            <ShoppingCart size={14} /> Comprar
+          </button>
         </div>
       </div>
 

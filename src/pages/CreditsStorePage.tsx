@@ -2,11 +2,12 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Diamond, ShoppingCart, Sparkles, Copy, Check, Clock, Crown, Star } from "lucide-react";
-import { useState } from "react";
+import { Diamond, ShoppingCart, Sparkles, Copy, Check, Crown, Star, Loader2, Wallet } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 const levelColors: Record<string, string> = {
   bronze: "text-orange-400",
@@ -25,8 +26,25 @@ const levelIcons: Record<string, string> = {
 const CreditsStorePage = () => {
   const { user, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [copiedPix, setCopiedPix] = useState<string | null>(null);
-  const [purchaseResult, setPurchaseResult] = useState<{ pix_code: string; total_credits: number; price: number } | null>(null);
+
+  // PIX modal state
+  const [pixModal, setPixModal] = useState<{
+    purchaseId: string;
+    totalCredits: number;
+    price: number;
+  } | null>(null);
+  const [pixData, setPixData] = useState<{
+    qrcode: string;
+    qrcode_image: string;
+    txid: string;
+  } | null>(null);
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixError, setPixError] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(3600);
+  const pollingRef = useRef<ReturnType<typeof setInterval>>();
 
   const { data: packages = [] } = useQuery({
     queryKey: ["credit-packages"],
@@ -54,6 +72,7 @@ const CreditsStorePage = () => {
     enabled: !!user?.id,
   });
 
+  // Create purchase record and generate PIX charge
   const purchaseMutation = useMutation({
     mutationFn: async (packageId: string) => {
       const { data, error } = await supabase.functions.invoke("credit-system", {
@@ -63,15 +82,126 @@ const CreditsStorePage = () => {
       if (data.error) throw new Error(data.error);
       return data;
     },
-    onSuccess: (data) => {
-      setPurchaseResult(data);
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["my-credit-purchases"] });
-      toast({ title: "Pedido criado!", description: "Copie o código PIX e efetue o pagamento" });
+
+      // Find the purchase we just created
+      const { data: purchases } = await supabase
+        .from("credit_purchases")
+        .select("id")
+        .eq("user_id", user?.id)
+        .eq("pix_code", data.pix_code)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const purchaseId = purchases?.[0]?.id;
+      if (!purchaseId) {
+        toast({ title: "Erro", description: "Compra criada mas não encontrada", variant: "destructive" });
+        return;
+      }
+
+      // Open PIX modal and generate Efi charge
+      setPixModal({ purchaseId, totalCredits: data.total_credits, price: data.price });
+      setPixLoading(true);
+      setPixError(null);
+      setPixData(null);
+      setPaymentConfirmed(false);
+      setTimeLeft(3600);
+
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+        const resp = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/pix-efi/create-credit-charge`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              purchase_id: purchaseId,
+              amount: data.price,
+              descricao: `Compra de ${data.total_credits} créditos - Bitz IPTV`,
+            }),
+          }
+        );
+
+        const result = await resp.json();
+        if (!resp.ok || result.error) throw new Error(result.error || "Falha ao gerar PIX");
+
+        setPixData({
+          qrcode: result.qrcode,
+          qrcode_image: result.qrcode_image,
+          txid: result.txid,
+        });
+      } catch (err: any) {
+        setPixError(err.message);
+      } finally {
+        setPixLoading(false);
+      }
     },
     onError: (err: any) => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     },
   });
+
+  // Polling for payment confirmation
+  useEffect(() => {
+    if (!pixModal || !pixData || paymentConfirmed) return;
+
+    const poll = async () => {
+      try {
+        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+
+        const resp = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/pix-efi/check-credit-status`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ purchase_id: pixModal.purchaseId }),
+          }
+        );
+
+        const result = await resp.json();
+        if (result.confirmed) {
+          setPaymentConfirmed(true);
+          refreshProfile();
+          queryClient.invalidateQueries({ queryKey: ["my-credit-purchases"] });
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    };
+
+    pollingRef.current = setInterval(poll, 2000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [pixModal?.purchaseId, pixData, paymentConfirmed]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (!pixModal || paymentConfirmed) return;
+    const t = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
+    return () => clearInterval(t);
+  }, [pixModal, paymentConfirmed]);
+
+  const closePixModal = useCallback(async () => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    // Delete unpaid purchase
+    if (pixModal && !paymentConfirmed) {
+      await supabase.from("credit_purchases").delete().eq("id", pixModal.purchaseId).eq("status", "pending");
+    }
+    setPixModal(null);
+    setPixData(null);
+    setPixError(null);
+    setPaymentConfirmed(false);
+  }, [pixModal, paymentConfirmed]);
 
   const copyPix = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -79,6 +209,8 @@ const CreditsStorePage = () => {
     toast({ title: "PIX copiado!" });
     setTimeout(() => setCopiedPix(null), 2000);
   };
+
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   const activePromo = promotions.length > 0 ? promotions[0] : null;
   const userLevel = (user as any)?.user_level || "bronze";
@@ -117,16 +249,17 @@ const CreditsStorePage = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">Seu Nível</p>
-              <p className={`mt-1 font-display text-2xl font-bold capitalize ${levelColors[userLevel]}`}>
-                {levelIcons[userLevel]} {userLevel}
+              <p className="text-xs text-muted-foreground">Saldo Real</p>
+              <p className="mt-1 font-display text-2xl font-bold text-emerald-400">
+                R$ {Number(user?.balance || 0).toFixed(2)}
               </p>
             </div>
-            {isVip && (
-              <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                <Crown size={12} className="mr-1" /> VIP
-              </Badge>
-            )}
+            <button
+              onClick={() => navigate("/withdrawals")}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-400 transition-all hover:bg-emerald-500/25 active:scale-95"
+            >
+              <Wallet size={14} /> Sacar
+            </button>
           </div>
         </motion.div>
       </div>
@@ -151,45 +284,79 @@ const CreditsStorePage = () => {
         ⚠️ Créditos são moeda interna da plataforma, não expiram. Não há promessa de lucro garantido. Recompensas são promocionais.
       </div>
 
-      {/* Purchase Result Modal */}
+      {/* PIX Payment Modal */}
       <AnimatePresence>
-        {purchaseResult && (
+        {pixModal && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-            onClick={() => setPurchaseResult(null)}
+            onClick={closePixModal}
           >
             <motion.div
               initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              className="glass-card rounded-2xl p-6 max-w-sm w-full"
+              className="glass-card rounded-2xl p-6 max-w-sm w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">Pagamento PIX</h3>
-              <div className="text-center mb-4">
-                <p className="text-3xl font-bold text-primary">R$ {Number(purchaseResult.price).toFixed(2)}</p>
-                <p className="text-sm text-muted-foreground mt-1">{purchaseResult.total_credits} créditos</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3 mb-4">
-                <p className="text-xs text-muted-foreground mb-1">PIX Copia e Cola:</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs text-foreground break-all">{purchaseResult.pix_code}</code>
-                  <button
-                    onClick={() => copyPix(purchaseResult.pix_code)}
-                    className="rounded-lg bg-primary/15 p-2 text-primary hover:bg-primary/25 transition-colors"
-                  >
-                    {copiedPix === purchaseResult.pix_code ? <Check size={16} /> : <Copy size={16} />}
+              {paymentConfirmed ? (
+                <div className="text-center py-4">
+                  <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: 2, duration: 0.5 }} className="text-6xl mb-4">🎉</motion.div>
+                  <h3 className="font-display text-xl font-bold text-foreground mb-2">Pagamento Confirmado!</h3>
+                  <p className="text-3xl font-bold text-primary mb-2">{pixModal.totalCredits} 💎</p>
+                  <p className="text-sm text-muted-foreground mb-4">Créditos adicionados à sua conta!</p>
+                  <button onClick={closePixModal} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all">
+                    Fechar
                   </button>
                 </div>
-              </div>
-              <p className="text-xs text-muted-foreground text-center mb-4">
-                Após o pagamento, o admin confirmará e seus créditos serão creditados automaticamente.
-              </p>
-              <button
-                onClick={() => setPurchaseResult(null)}
-                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all"
-              >
-                Entendi
-              </button>
+              ) : pixLoading ? (
+                <div className="flex flex-col items-center py-8">
+                  <Loader2 size={32} className="animate-spin text-primary mb-3" />
+                  <p className="text-sm text-muted-foreground">Gerando QR Code PIX...</p>
+                </div>
+              ) : pixError ? (
+                <div className="text-center py-4">
+                  <p className="text-destructive font-medium mb-3">{pixError}</p>
+                  <button onClick={closePixModal} className="w-full rounded-lg bg-muted px-4 py-2.5 text-sm text-foreground">Fechar</button>
+                </div>
+              ) : pixData ? (
+                <>
+                  <h3 className="font-display text-lg font-bold text-foreground mb-4 text-center">Pagamento PIX</h3>
+                  <div className="text-center mb-4">
+                    <p className="text-3xl font-bold text-primary">R$ {Number(pixModal.price).toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{pixModal.totalCredits} créditos 💎</p>
+                    <p className="text-xs text-muted-foreground mt-1">Expira em {formatTime(timeLeft)}</p>
+                  </div>
+
+                  {/* QR Code image */}
+                  {pixData.qrcode_image && (
+                    <div className="flex justify-center mb-4">
+                      <img src={pixData.qrcode_image} alt="QR Code PIX" className="w-48 h-48 rounded-lg" />
+                    </div>
+                  )}
+
+                  {/* PIX Copia e Cola */}
+                  <div className="rounded-lg bg-muted/50 p-3 mb-4">
+                    <p className="text-xs text-muted-foreground mb-1">PIX Copia e Cola:</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs text-foreground break-all line-clamp-3">{pixData.qrcode}</code>
+                      <button
+                        onClick={() => copyPix(pixData.qrcode)}
+                        className="rounded-lg bg-primary/15 p-2 text-primary hover:bg-primary/25 transition-colors shrink-0"
+                      >
+                        {copiedPix === pixData.qrcode ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 justify-center mb-4">
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                    <p className="text-xs text-muted-foreground">Aguardando pagamento...</p>
+                  </div>
+
+                  <button onClick={closePixModal} className="w-full rounded-lg bg-muted/50 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/70 transition-all">
+                    Cancelar
+                  </button>
+                </>
+              ) : null}
             </motion.div>
           </motion.div>
         )}
@@ -214,7 +381,7 @@ const CreditsStorePage = () => {
             {(pkg.bonus_credits > 0 || (activePromo && activePromo.bonus_percentage > 0)) && (
               <div className="mb-3 flex gap-2">
                 {pkg.bonus_credits > 0 && (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">+{pkg.bonus_credits} bônus</Badge>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">+{pkg.bonus_credits} bônus</Badge>
                 )}
                 {activePromo && activePromo.bonus_percentage > 0 && (
                   <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">+{Math.floor(pkg.credits * activePromo.bonus_percentage / 100)} promo</Badge>
@@ -225,7 +392,7 @@ const CreditsStorePage = () => {
               <p className="text-xl font-bold text-foreground mb-3">R$ {Number(pkg.price).toFixed(2)}</p>
               <button
                 onClick={() => purchaseMutation.mutate(pkg.id)}
-                disabled={purchaseMutation.isPending}
+                disabled={purchaseMutation.isPending || !!pixModal}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground hover:brightness-110 transition-all disabled:opacity-50"
               >
                 <ShoppingCart size={16} /> Comprar
@@ -249,7 +416,7 @@ const CreditsStorePage = () => {
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-foreground">{p.credits_amount + p.bonus_amount} 💎</span>
                   <Badge className={
-                    p.status === "confirmed" ? "bg-green-500/20 text-green-400 border-green-500/30" :
+                    p.status === "confirmed" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
                     p.status === "cancelled" ? "bg-red-500/20 text-red-400 border-red-500/30" :
                     "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
                   }>
