@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { InstallGate } from "@/components/InstallGate";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
+import { NotificationGate } from "@/components/NotificationGate";
 
 import LoginPage from "./pages/LoginPage";
 import ClientDashboard from "./pages/ClientDashboard";
@@ -56,6 +57,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <PWAUpdatePrompt />
+        <NotificationGate>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomeRedirect />} />
@@ -97,6 +99,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </NotificationGate>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
