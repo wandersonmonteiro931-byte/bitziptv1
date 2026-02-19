@@ -17,6 +17,7 @@ const BULK_FIELDS = [
   { value: "iptv_tv_app", label: "App TV" },
   { value: "admin_notes", label: "Observação" },
   { value: "admin_notes_urgent", label: "Urgência da Obs." },
+  { value: "scheduled_rate", label: "📈 Reajuste Programado" },
 ];
 
 const AdminIptvPage = () => {
@@ -34,6 +35,7 @@ const AdminIptvPage = () => {
   const [webhookLoading, setWebhookLoading] = useState(false);
   const [pendingActivations, setPendingActivations] = useState<any[]>([]);
   const [confirmingPayment, setConfirmingPayment] = useState<string | null>(null);
+  const [bulkRateForm, setBulkRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
 
   const handleRegisterWebhook = async () => {
     setWebhookLoading(true);
@@ -155,7 +157,31 @@ const AdminIptvPage = () => {
   };
 
   const bulkUpdate = async () => {
-    if (selectedUsers.size === 0 || !bulkValue) return;
+    if (selectedUsers.size === 0) return;
+
+    // Handle scheduled rate separately
+    if (bulkField === "scheduled_rate") {
+      if (!bulkRateForm.new_monthly_value || !bulkRateForm.effective_date) return;
+      await supabase.functions.invoke("admin-manage-user", {
+        body: {
+          action: "bulk_add_scheduled_rates",
+          user_id: Array.from(selectedUsers)[0], // dummy, backend uses data.user_ids
+          data: {
+            user_ids: Array.from(selectedUsers),
+            new_monthly_value: bulkRateForm.new_monthly_value,
+            effective_date: bulkRateForm.effective_date,
+            notes: bulkRateForm.notes,
+          },
+        },
+      });
+      toast({ title: `✅ Reajuste programado para ${selectedUsers.size} clientes!` });
+      setShowBulk(false);
+      setSelectedUsers(new Set());
+      setBulkRateForm({ new_monthly_value: "", effective_date: "", notes: "" });
+      return;
+    }
+
+    if (!bulkValue) return;
     const data: Record<string, any> = {};
     if (["iptv_monthly_value", "iptv_due_day", "iptv_connections"].includes(bulkField)) {
       data[bulkField] = Number(bulkValue);
@@ -400,7 +426,30 @@ const AdminIptvPage = () => {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Novo Valor</label>
-                  {bulkField === "iptv_status" ? (
+                  {bulkField === "scheduled_rate" ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-1 block text-[10px] text-muted-foreground">Valor Base (R$)</label>
+                          <input type="number" step="0.01" value={bulkRateForm.new_monthly_value}
+                            onChange={(e) => setBulkRateForm({ ...bulkRateForm, new_monthly_value: e.target.value })}
+                            placeholder="20.00" className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] text-muted-foreground">A partir de</label>
+                          <input type="date" value={bulkRateForm.effective_date}
+                            onChange={(e) => setBulkRateForm({ ...bulkRateForm, effective_date: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] text-muted-foreground">Observação (opcional)</label>
+                        <input value={bulkRateForm.notes}
+                          onChange={(e) => setBulkRateForm({ ...bulkRateForm, notes: e.target.value })}
+                          placeholder="Reajuste anual, etc." className={inputCls} />
+                      </div>
+                    </div>
+                  ) : bulkField === "iptv_status" ? (
                     <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} className={inputCls}>
                       <option value="">Selecione...</option>
                       {IPTV_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -429,7 +478,7 @@ const AdminIptvPage = () => {
                 </div>
                 <button
                   onClick={bulkUpdate}
-                  disabled={!bulkValue}
+                  disabled={bulkField === "scheduled_rate" ? (!bulkRateForm.new_monthly_value || !bulkRateForm.effective_date) : !bulkValue}
                   className="w-full rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground shadow-lg shadow-secondary/20 hover:brightness-110 disabled:opacity-50 transition-all"
                 >
                   Aplicar para {selectedUsers.size} clientes

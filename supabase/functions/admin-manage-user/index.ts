@@ -679,6 +679,24 @@ Deno.serve(async (req) => {
         result = { success: true, updated: payment_ids.length };
         break;
       }
+      case "bulk_add_scheduled_rates": {
+        // Add the same scheduled rate to multiple users at once
+        const { user_ids, new_monthly_value, effective_date, notes: bulkNotes } = data;
+        if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) throw new Error("user_ids é obrigatório");
+        if (!new_monthly_value || !effective_date) throw new Error("new_monthly_value e effective_date são obrigatórios");
+
+        const rows = user_ids.map((uid: string) => ({
+          user_id: uid,
+          new_monthly_value: Number(new_monthly_value),
+          effective_date,
+          notes: bulkNotes || "",
+          created_by: caller.id,
+        }));
+
+        await supabaseAdmin.from("iptv_scheduled_rates").insert(rows);
+        result = { success: true, count: rows.length };
+        break;
+      }
       case "regenerate_future_invoices": {
         // Delete all pending future invoices and regenerate 6 from last confirmed payment
         const { data: prof } = await supabaseAdmin.from("profiles").select("iptv_monthly_value, iptv_connections, iptv_expiry").eq("id", user_id).single();
