@@ -94,10 +94,17 @@ const CreditsChallengesPage = () => {
       </div>
 
       {/* Balance bar */}
-      <div className="mb-6 flex items-center gap-3 rounded-xl bg-muted/30 border border-border p-3">
-        <Diamond className="text-primary" size={20} />
-        <span className="text-sm text-muted-foreground">Seus créditos:</span>
-        <span className="font-display text-xl font-bold text-primary">{userCredits}</span>
+      <div className="mb-6 flex flex-col gap-2 rounded-xl bg-muted/30 border border-border p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">💰</span>
+          <span className="text-sm text-muted-foreground">Saldo:</span>
+          <span className="font-display text-xl font-bold text-green-400">R$ {Number(user?.balance || 0).toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Diamond className="text-primary" size={20} />
+          <span className="text-sm text-muted-foreground">Diamantes:</span>
+          <span className="font-display text-xl font-bold text-primary">{userCredits} 💎</span>
+        </div>
       </div>
 
       {/* Result Animation */}
