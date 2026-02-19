@@ -842,8 +842,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             </button>
                           )}
                           {filtered.map((p: any) => {
-                            const date = new Date(p.payment_date);
-                            const formatted = date.toLocaleDateString("pt-BR");
+                            // Parse payment_date avoiding UTC shift
+                            const dateParts = p.payment_date?.split("T")[0]?.split("-");
+                            const formatted = dateParts ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : new Date(p.payment_date).toLocaleDateString("pt-BR");
                             const startParts = p.period_start?.split("-");
                             const startFormatted = startParts ? `${startParts[2]}/${startParts[1]}/${startParts[0]}` : "";
                             const endParts = p.period_end?.split("-");

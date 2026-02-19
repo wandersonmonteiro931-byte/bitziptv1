@@ -443,7 +443,7 @@ Deno.serve(async (req) => {
           period_end: manualEnd,
           status: "confirmed",
           payment_method: "manual",
-          payment_date: manualDate,
+          payment_date: `${manualDate}T12:00:00`,
           admin_id: caller.id,
           notes: manualNotes || "Registro manual",
         });
