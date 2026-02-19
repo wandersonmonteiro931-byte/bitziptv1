@@ -93,7 +93,7 @@ const AdminUsersPage = () => {
   const [creating, setCreating] = useState(false);
 
   const loadUsers = async () => {
-    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("profiles").select("*").order("iptv_client_code", { ascending: true });
     setUsers(data || []);
   };
 
@@ -761,6 +761,7 @@ const AdminUsersPage = () => {
                 <th className="px-3 py-3 text-left">
                   <input type="checkbox" checked={selectedUsers.size === filtered.length && filtered.length > 0} onChange={selectAll} className="rounded border-border" />
                 </th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Usuário</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Saldo</th>
                 <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground sm:table-cell">Status</th>
@@ -772,6 +773,9 @@ const AdminUsersPage = () => {
                 <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="border-b border-border/50 hover:bg-muted/20">
                   <td className="px-3 py-3">
                     <input type="checkbox" checked={selectedUsers.has(user.id)} onChange={() => toggleSelect(user.id)} className="rounded border-border" />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs font-semibold text-primary">{user.iptv_client_code}</span>
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-foreground">{user.name}</p>
