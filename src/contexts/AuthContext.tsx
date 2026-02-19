@@ -54,12 +54,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const [{ data: profile }, { data: roleData }] = await Promise.all([
+      const [{ data: profile, error: profileError }, { data: roleData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       ]);
 
       if (profile) {
+        // If user is archived, force logout
+        if (profile.status === "archived") {
+          setUser(null);
+          setRole(null);
+          await supabase.auth.signOut({ scope: 'local' });
+          return;
+        }
         setUser(profile as Profile);
       }
       setRole((roleData?.role as UserRole) || "client");
