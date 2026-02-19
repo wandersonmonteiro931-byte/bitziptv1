@@ -356,7 +356,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     <textarea
                       value={form.admin_notes}
                       onChange={(e) => setForm({ ...form, admin_notes: e.target.value.slice(0, 5000) })}
-                      rows={3}
+                      rows={10}
                       placeholder="Avisos, informações técnicas..."
                       className={`${inputCls} resize-none`}
                     />

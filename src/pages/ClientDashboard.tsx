@@ -235,7 +235,7 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
         {open && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
             <div className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}>
-              <div className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm text-foreground">{notes}</div>
+              <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
               <button onClick={() => setOpen(false)} className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground">Fechar</button>
             </div>
           </motion.div>
