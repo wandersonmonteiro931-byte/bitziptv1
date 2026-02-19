@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2, AlertCircle, ShieldCheck, XCircle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +36,8 @@ const AdminIptvPage = () => {
   const [pendingActivations, setPendingActivations] = useState<any[]>([]);
   const [confirmingPayment, setConfirmingPayment] = useState<string | null>(null);
   const [bulkRateForm, setBulkRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
+  const [trustRequests, setTrustRequests] = useState<any[]>([]);
+  const [processingTrust, setProcessingTrust] = useState<string | null>(null);
 
   const handleRegisterWebhook = async () => {
     setWebhookLoading(true);
@@ -61,16 +63,18 @@ const AdminIptvPage = () => {
   };
 
   const loadData = async () => {
-    const [u, s, a, pa] = await Promise.all([
+    const [u, s, a, pa, tr] = await Promise.all([
       supabase.from("profiles").select("*").order("name"),
       supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_payments").select("*, profiles!iptv_payments_user_id_fkey(name, iptv_server, iptv_connections, iptv_expiry)").eq("status", "paid_pending_activation").order("payment_date", { ascending: false }),
+      supabase.from("iptv_trust_requests").select("*, profiles!iptv_trust_requests_user_id_fkey(name, iptv_server, iptv_expiry)").eq("status", "pending").order("requested_at", { ascending: true }),
     ]);
     setUsers(u.data || []);
     setServers(s.data || []);
     setTvApps(a.data || []);
     setPendingActivations(pa.data || []);
+    setTrustRequests(tr.data || []);
   };
 
   useEffect(() => { loadData(); }, []);
@@ -83,6 +87,9 @@ const AdminIptvPage = () => {
         loadData();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        loadData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_trust_requests" }, () => {
         loadData();
       })
       .subscribe();
@@ -102,6 +109,26 @@ const AdminIptvPage = () => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
       setConfirmingPayment(null);
+    }
+  };
+
+  const handleTrustAction = async (requestId: string, userId: string, approve: boolean) => {
+    setProcessingTrust(requestId);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+        body: {
+          action: approve ? "approve_trust_unlock" : "reject_trust_unlock",
+          user_id: userId,
+          data: { request_id: requestId },
+        },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      toast({ title: approve ? "✅ Confiança aprovada!" : "❌ Confiança rejeitada." });
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setProcessingTrust(null);
     }
   };
 
@@ -283,6 +310,60 @@ const AdminIptvPage = () => {
                       </>
                     )}
                   </button>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Trust Requests Section */}
+      {trustRequests.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          className="mt-4 rounded-2xl border-2 border-cyan-500/30 bg-cyan-500/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-cyan-400" />
+            <h3 className="text-sm font-bold text-cyan-400">
+              Solicitações de Confiança ({trustRequests.length})
+            </h3>
+          </div>
+          <p className="mb-3 text-[10px] text-muted-foreground">
+            Clientes solicitaram desbloqueio de confiança (3 dias para pagamento, sem alterar validade).
+          </p>
+          <div className="space-y-2">
+            {trustRequests.map((tr) => {
+              const profile = tr.profiles as any;
+              const reqDate = new Date(tr.requested_at);
+              const dateFormatted = `${String(reqDate.getDate()).padStart(2,'0')}/${String(reqDate.getMonth()+1).padStart(2,'0')} ${String(reqDate.getHours()).padStart(2,'0')}:${String(reqDate.getMinutes()).padStart(2,'0')}`;
+              return (
+                <div key={tr.id} className="flex items-center justify-between rounded-xl border border-cyan-500/20 bg-card/80 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{profile?.name || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {profile?.iptv_server || "—"} · Solicitado em {dateFormatted}
+                    </p>
+                    {profile?.iptv_expiry && (
+                      <p className="text-[10px] text-muted-foreground">
+                        Validade: {profile.iptv_expiry.split("-").reverse().join("/")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleTrustAction(tr.id, tr.user_id, true)}
+                      disabled={processingTrust === tr.id}
+                      className="rounded-lg bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-400 hover:bg-cyan-500/25 transition-colors disabled:opacity-50"
+                    >
+                      {processingTrust === tr.id ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle size={12} className="inline mr-1" />Aprovar</>}
+                    </button>
+                    <button
+                      onClick={() => handleTrustAction(tr.id, tr.user_id, false)}
+                      disabled={processingTrust === tr.id}
+                      className="rounded-lg bg-destructive/15 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle size={12} className="inline" />
+                    </button>
+                  </div>
                 </div>
               );
             })}

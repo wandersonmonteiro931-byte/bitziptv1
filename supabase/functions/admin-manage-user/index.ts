@@ -73,6 +73,77 @@ Deno.serve(async (req) => {
       });
     }
 
+    // request_trust_unlock — called by the user (no admin role needed)
+    if (action === "request_trust_unlock") {
+      if (!user_id || user_id !== caller.id) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check 30-day cooldown
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { data: recentTrust } = await supabaseAdmin
+        .from("iptv_trust_requests")
+        .select("id")
+        .eq("user_id", user_id)
+        .in("status", ["approved", "expired"])
+        .gte("requested_at", thirtyDaysAgo.toISOString())
+        .limit(1)
+        .maybeSingle();
+      if (recentTrust) {
+        return new Response(JSON.stringify({ error: "Você já utilizou o desbloqueio de confiança nos últimos 30 dias." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check if there's already a pending request
+      const { data: pendingReq } = await supabaseAdmin
+        .from("iptv_trust_requests")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      if (pendingReq) {
+        return new Response(JSON.stringify({ error: "Já existe uma solicitação pendente." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Create trust request
+      await supabaseAdmin.from("iptv_trust_requests").insert({
+        user_id,
+        status: "pending",
+      });
+
+      // Notify admins via push
+      try {
+        const { data: userProfile } = await supabaseAdmin.from("profiles").select("name").eq("id", user_id).single();
+        const { data: adminRoles } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin");
+        for (const admin of (adminRoles || [])) {
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id: admin.user_id,
+              title: "🤝 Solicitação de Confiança",
+              body: `${userProfile?.name || "Cliente"} solicitou desbloqueio de confiança.`,
+              url: "/admin/iptv",
+            }),
+          });
+        }
+      } catch (pushErr) {
+        console.error("Failed to send trust request push:", pushErr);
+      }
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // All other actions require admin role
     const { data: roleData } = await supabaseAdmin
       .from("user_roles").select("role").eq("user_id", caller.id).eq("role", "admin").maybeSingle();
@@ -187,7 +258,23 @@ Deno.serve(async (req) => {
           .from("profiles")
           .select("id, name, iptv_expiry, iptv_server")
           .lt("iptv_expiry", today)
-          .eq("iptv_status", "active");
+          .in("iptv_status", ["active"]);
+
+        // Also block trust_active users whose trust period expired
+        const { data: expiredTrustUsers } = await supabaseAdmin
+          .from("iptv_trust_requests")
+          .select("user_id")
+          .eq("status", "approved")
+          .lt("trust_expires_at", today);
+
+        const trustUserIds = (expiredTrustUsers || []).map((t: any) => t.user_id);
+        if (trustUserIds.length > 0) {
+          // Block these users and mark trust as expired
+          for (const tuid of trustUserIds) {
+            await supabaseAdmin.from("profiles").update({ iptv_status: "blocked" }).eq("id", tuid).eq("iptv_status", "trust_active");
+            await supabaseAdmin.from("iptv_trust_requests").update({ status: "expired" }).eq("user_id", tuid).eq("status", "approved").lt("trust_expires_at", today);
+          }
+        }
 
         const blocked: string[] = [];
 
@@ -791,6 +878,86 @@ Deno.serve(async (req) => {
         }
 
         result = { success: true, generated: newInvoices.length };
+        break;
+      }
+      case "approve_trust_unlock": {
+        const { request_id } = data;
+        if (!request_id) throw new Error("request_id é obrigatório");
+
+        const { data: trustReq } = await supabaseAdmin
+          .from("iptv_trust_requests")
+          .select("*")
+          .eq("id", request_id)
+          .eq("status", "pending")
+          .single();
+        if (!trustReq) throw new Error("Solicitação não encontrada ou já processada");
+
+        const trustExpires = new Date();
+        trustExpires.setDate(trustExpires.getDate() + 3);
+        const trustExpiresStr = trustExpires.toISOString().split("T")[0];
+
+        // Update trust request
+        await supabaseAdmin.from("iptv_trust_requests").update({
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: caller.id,
+          trust_expires_at: trustExpiresStr,
+        }).eq("id", request_id);
+
+        // Update user status to trust_active (don't change iptv_expiry)
+        await supabaseAdmin.from("profiles").update({
+          iptv_status: "trust_active",
+        }).eq("id", trustReq.user_id);
+
+        // Notify user
+        try {
+          const { data: userProfile } = await supabaseAdmin.from("profiles").select("name").eq("id", trustReq.user_id).single();
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id: trustReq.user_id,
+              title: "✅ Confiança Aprovada",
+              body: `Seu acesso foi liberado por 3 dias. Efetue o pagamento até ${trustExpiresStr.split("-").reverse().join("/")} para evitar o bloqueio definitivo.`,
+              url: "/",
+            }),
+          });
+        } catch (pushErr) {
+          console.error("Failed to send trust approval push:", pushErr);
+        }
+
+        result = { success: true };
+        break;
+      }
+      case "reject_trust_unlock": {
+        const { request_id } = data;
+        if (!request_id) throw new Error("request_id é obrigatório");
+
+        await supabaseAdmin.from("iptv_trust_requests").update({
+          status: "rejected",
+          approved_by: caller.id,
+          notes: data.notes || "Rejeitado pelo administrador",
+        }).eq("id", request_id).eq("status", "pending");
+
+        // Notify user
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id,
+              title: "❌ Confiança Negada",
+              body: "Sua solicitação de desbloqueio de confiança foi recusada. Entre em contato com o suporte.",
+              url: "/",
+            }),
+          });
+        } catch (pushErr) {
+          console.error("Failed to send trust rejection push:", pushErr);
+        }
+
+        result = { success: true };
         break;
       }
       default:
