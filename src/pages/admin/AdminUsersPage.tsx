@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter } from "lucide-react";
+import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,11 +11,56 @@ const statusBadge: Record<string, string> = {
   blocked: "bg-destructive/15 text-destructive",
 };
 
+// Parser for IPTV credential text blocks
+const parseIptvText = (text: string) => {
+  const result: Record<string, string> = {};
+
+  // Username - first match
+  const userMatch = text.match(/👤\s*\*?Usuário:?\*?\s*(\S+)/i) || text.match(/✅\s*\*?Usuário:?\*?\s*(\S+)/i);
+  if (userMatch) result.username = userMatch[1].trim();
+
+  // Password - first match
+  const passMatch = text.match(/🔑\s*\*?Senha:?\*?\s*(\S+)/i) || text.match(/✅\s*\*?Senha:?\*?\s*(\S+)/i);
+  if (passMatch) result.password = passMatch[1].trim();
+
+  // Price
+  const priceMatch = text.match(/💵\s*\*?Preço[^:]*:?\*?\s*R\$\s*([\d.,]+)/i);
+  if (priceMatch) result.monthly_value = priceMatch[1].replace(",", ".").trim();
+
+  // Expiry
+  const expiryMatch = text.match(/🗓️\s*\*?Vencimento:?\*?\s*(\d{2}\/\d{2}\/\d{4})/i);
+  if (expiryMatch) {
+    const [d, m, y] = expiryMatch[1].split("/");
+    result.expiry = `${y}-${m}-${d}`;
+  }
+
+  // Connections
+  const connMatch = text.match(/📶\s*\*?Conexões:?\*?\s*(\d+)/i);
+  if (connMatch) result.connections = connMatch[1].trim();
+
+  // Server/DNS
+  const dnsMatch = text.match(/🌀\s*\*?DNS[^:]*:?\*?\s*https?:\/?\/?([^\s/]+)/i)
+    || text.match(/✅\s*\*?DNS\*?\s*https?:\/?\/?([^\s/]+)/i);
+  if (dnsMatch) result.server = dnsMatch[1].trim();
+
+  // Plan
+  const planMatch = text.match(/📦\s*\*?Plano:?\*?\s*(.+)/i);
+  if (planMatch) result.plan = planMatch[1].replace(/\*/g, "").trim();
+
+  return result;
+};
+
 const AdminUsersPage = () => {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showAutoRegister, setShowAutoRegister] = useState(false);
+  const [pastedText, setPastedText] = useState("");
+  const [parsedData, setParsedData] = useState<Record<string, string> | null>(null);
+  const [autoName, setAutoName] = useState("");
+  const [autoEmail, setAutoEmail] = useState("");
+  const [autoCreating, setAutoCreating] = useState(false);
   const [showBalanceAdjust, setShowBalanceAdjust] = useState<any>(null);
   const [showBulkAdjust, setShowBulkAdjust] = useState(false);
   const [showUserHistory, setShowUserHistory] = useState<any>(null);
@@ -41,6 +86,46 @@ const AdminUsersPage = () => {
   const filtered = users.filter(
     (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handlePasteAnalyze = () => {
+    if (!pastedText.trim()) return;
+    const parsed = parseIptvText(pastedText);
+    setParsedData(parsed);
+  };
+
+  const handleAutoRegister = async () => {
+    if (!parsedData?.username || !autoName.trim()) {
+      toast({ title: "Erro", description: "Nome e dados IPTV são obrigatórios", variant: "destructive" });
+      return;
+    }
+    setAutoCreating(true);
+    const res = await supabase.functions.invoke("admin-create-user", {
+      body: {
+        name: autoName.trim(),
+        username: parsedData.username,
+        email: autoEmail.trim() || undefined,
+        iptv_user: parsedData.username,
+        iptv_password: parsedData.password || parsedData.username,
+        iptv_server: parsedData.server || "",
+        iptv_expiry: parsedData.expiry || null,
+        iptv_connections: parsedData.connections ? parseInt(parsedData.connections) : 1,
+        iptv_monthly_value: parsedData.monthly_value ? parseFloat(parsedData.monthly_value) : 0,
+        iptv_status: "active",
+      },
+    });
+    setAutoCreating(false);
+    if (res.error || res.data?.error) {
+      toast({ title: "Erro", description: res.data?.error || res.error?.message, variant: "destructive" });
+    } else {
+      toast({ title: "✅ Cliente cadastrado com sucesso!" });
+      setShowAutoRegister(false);
+      setPastedText("");
+      setParsedData(null);
+      setAutoName("");
+      setAutoEmail("");
+      loadUsers();
+    }
+  };
 
   const createUser = async () => {
     if (!form.name || !form.username || !form.email || !form.password) {
@@ -178,6 +263,9 @@ const AdminUsersPage = () => {
               <UsersRound size={16} /> Ajuste em Massa ({selectedUsers.size})
             </button>
           )}
+          <button onClick={() => { setShowAutoRegister(true); setPastedText(""); setParsedData(null); setAutoName(""); setAutoEmail(""); }} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-all hover:brightness-110">
+            <ClipboardPaste size={16} /> Cadastro Automático
+          </button>
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:brightness-110">
             <Plus size={16} /> Criar Usuário
           </button>
@@ -220,6 +308,95 @@ const AdminUsersPage = () => {
                   {creating ? "Criando..." : "Criar Usuário"}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Auto Register Modal */}
+      <AnimatePresence>
+        {showAutoRegister && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
+                  <ClipboardPaste size={20} className="text-primary" /> Cadastro Automático
+                </h2>
+                <button onClick={() => setShowAutoRegister(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+              </div>
+
+              <p className="mb-4 text-sm text-muted-foreground">
+                Cole o texto com as credenciais IPTV do cliente abaixo. O sistema irá extrair automaticamente os dados necessários.
+              </p>
+
+              {/* Step 1: Paste */}
+              <div className="mb-4">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">📋 Texto com credenciais IPTV</label>
+                <textarea
+                  value={pastedText}
+                  onChange={(e) => { setPastedText(e.target.value); setParsedData(null); }}
+                  rows={6}
+                  placeholder="Cole aqui o texto com as informações do cliente (usuário, senha, DNS, vencimento, etc.)..."
+                  className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none font-mono"
+                />
+                <button onClick={handlePasteAnalyze} disabled={!pastedText.trim()} className="mt-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:brightness-110 disabled:opacity-50">
+                  🔍 Analisar Texto
+                </button>
+              </div>
+
+              {/* Step 2: Parsed Results */}
+              {parsedData && (
+                <div className="mb-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-success" /> Dados Extraídos
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: "Usuário IPTV", value: parsedData.username, key: "username" },
+                      { label: "Senha IPTV", value: parsedData.password, key: "password" },
+                      { label: "Servidor", value: parsedData.server, key: "server" },
+                      { label: "Vencimento", value: parsedData.expiry, key: "expiry" },
+                      { label: "Conexões", value: parsedData.connections, key: "connections" },
+                      { label: "Valor Mensal", value: parsedData.monthly_value ? `R$ ${parsedData.monthly_value}` : undefined, key: "monthly_value" },
+                      { label: "Plano", value: parsedData.plan, key: "plan" },
+                    ].map((item) => (
+                      <div key={item.key} className="rounded-lg bg-muted/30 px-3 py-2">
+                        <span className="text-[10px] uppercase text-muted-foreground">{item.label}</span>
+                        <p className={`text-sm font-medium ${item.value ? "text-foreground" : "text-destructive"}`}>
+                          {item.value || "Não encontrado"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {!parsedData.username && (
+                    <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      <AlertCircle size={16} /> Não foi possível extrair o usuário IPTV. Verifique o texto colado.
+                    </div>
+                  )}
+
+                  {parsedData.username && (
+                    <div className="space-y-3 rounded-lg border border-border p-4">
+                      <h3 className="text-sm font-semibold text-foreground">Dados do Cliente</h3>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Nome do cliente *</label>
+                        <input type="text" value={autoName} onChange={(e) => setAutoName(e.target.value)} placeholder="Nome completo do cliente" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">E-mail (opcional)</label>
+                        <input type="email" value={autoEmail} onChange={(e) => setAutoEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      </div>
+                      <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                        💡 O login será feito com <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong> {parsedData.password || parsedData.username}
+                        {!autoEmail && <span> · E-mail gerado: <strong>{parsedData.username}@iptv.bitz</strong></span>}
+                      </div>
+                      <button onClick={handleAutoRegister} disabled={autoCreating || !autoName.trim()} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
+                        {autoCreating ? "Cadastrando..." : "✅ Cadastrar Cliente"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           </div>
         )}

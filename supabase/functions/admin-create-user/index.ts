@@ -52,19 +52,24 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, password, name, username, role, iptv_user, iptv_server, iptv_app, iptv_expiry, referral_code } = body;
+    const { email, password, name, username, role, iptv_user, iptv_server, iptv_app, iptv_expiry, iptv_password, iptv_connections, iptv_monthly_value, iptv_status, referral_code } = body;
 
-    if (!email || !password || !name || !username) {
-      return new Response(JSON.stringify({ error: "Campos obrigatórios: email, password, name, username" }), {
+    if (!name || !username) {
+      return new Response(JSON.stringify({ error: "Campos obrigatórios: name, username" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Use provided email or generate one from username
+    const userEmail = email || `${username}@iptv.bitz`;
+    // Use provided password or iptv_password or username as fallback
+    const userPassword = password || iptv_password || username;
+
     // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
+      email: userEmail,
+      password: userPassword,
       email_confirm: true,
     });
 
@@ -83,9 +88,13 @@ Deno.serve(async (req) => {
       name,
       username,
       iptv_user: iptv_user || username,
+      iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
       iptv_expiry: iptv_expiry || null,
+      iptv_connections: iptv_connections || 1,
+      iptv_monthly_value: iptv_monthly_value || 0,
+      iptv_status: iptv_status || "active",
       referral_code: referral_code || username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
     });
 
