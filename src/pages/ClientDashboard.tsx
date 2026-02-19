@@ -740,6 +740,10 @@ const ClientDashboard = () => {
   const [trustRequesting, setTrustRequesting] = useState(false);
   const [trustCooldown, setTrustCooldown] = useState(false);
   const [trustPending, setTrustPending] = useState(false);
+  const [cancelRequesting, setCancelRequesting] = useState(false);
+  const [cancelPending, setCancelPending] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -779,6 +783,20 @@ const ClientDashboard = () => {
       setTrustCooldown(!!recent);
     };
     checkTrustStatus();
+
+    // Check cancellation request status
+    const checkCancelStatus = async () => {
+      if (!user?.id) return;
+      const { data: pending } = await supabase
+        .from("iptv_cancellation_requests")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .limit(1)
+        .maybeSingle();
+      setCancelPending(!!pending);
+    };
+    checkCancelStatus();
 
     // Load pending future expiry
     const loadPendingExpiry = async () => {
@@ -826,6 +844,34 @@ const ClientDashboard = () => {
       console.error("Trust unlock error:", err);
     } finally {
       setTrustRequesting(false);
+    }
+  };
+
+  const requestCancellation = async () => {
+    if (!user?.id || cancelRequesting || cancelPending) return;
+    setCancelRequesting(true);
+    try {
+      await supabase.from("iptv_cancellation_requests").insert({
+        user_id: user.id,
+        reason: cancelReason,
+      });
+
+      // Notify admins
+      await supabase.functions.invoke("push-notification", {
+        body: {
+          action: "send_to_admins",
+          title: "🚫 Solicitação de Cancelamento",
+          body: `${user.name || user.username} solicitou cancelamento do plano IPTV.`,
+        },
+      });
+
+      setCancelPending(true);
+      setShowCancelModal(false);
+      setCancelReason("");
+    } catch (err: any) {
+      console.error("Cancel request error:", err);
+    } finally {
+      setCancelRequesting(false);
     }
   };
 
@@ -1038,6 +1084,23 @@ const ClientDashboard = () => {
         {/* ADMIN NOTES */}
         <AdminNotesBlock notes={user?.admin_notes || ""} urgent={user?.admin_notes_urgent || false} />
 
+        {/* CANCEL REQUEST */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.58 }}>
+          {cancelPending ? (
+            <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-center">
+              <p className="text-xs font-medium text-destructive">⏳ Solicitação de cancelamento enviada</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Aguardando análise do suporte.</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="w-full rounded-2xl border border-destructive/15 bg-destructive/5 px-4 py-3 text-sm text-destructive/70 transition-all active:scale-[0.98] hover:bg-destructive/10"
+            >
+              Solicitar Cancelamento
+            </button>
+          )}
+        </motion.div>
+
         {/* SUPPORT */}
         {supportInfo && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
@@ -1074,6 +1137,44 @@ const ClientDashboard = () => {
       {/* PIX Modal */}
       <AnimatePresence>
         {pixModal && <PixModal pixModal={pixModal} onClose={() => setPixModal(null)} supportInfo={supportInfo} user={user} />}
+      </AnimatePresence>
+
+      {/* Cancel Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
+            onClick={() => setShowCancelModal(false)}>
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-bold text-foreground mb-1">Solicitar Cancelamento</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Tem certeza que deseja solicitar o cancelamento do seu plano IPTV? O suporte analisará sua solicitação.
+              </p>
+              <div className="mb-4">
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Motivo (opcional)</label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  rows={3}
+                  placeholder="Conte-nos o motivo do cancelamento..."
+                  className="w-full rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowCancelModal(false)}
+                  className="flex-1 rounded-xl bg-muted/20 py-3 text-sm text-muted-foreground">
+                  Voltar
+                </button>
+                <button onClick={requestCancellation} disabled={cancelRequesting}
+                  className="flex-1 rounded-xl bg-destructive py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-50">
+                  {cancelRequesting ? "Enviando..." : "Confirmar"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </AppLayout>
   );
