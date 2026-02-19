@@ -19,10 +19,10 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
     setPermission(Notification.permission);
   }, []);
 
-  // Check on mount and every 30 seconds
+  // Check on mount and every 5 seconds
   useEffect(() => {
     checkPermission();
-    const interval = setInterval(checkPermission, 30000);
+    const interval = setInterval(checkPermission, 5000);
     return () => clearInterval(interval);
   }, [checkPermission]);
 
