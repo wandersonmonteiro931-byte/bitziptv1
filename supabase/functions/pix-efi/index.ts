@@ -520,7 +520,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
 
-  console.log(`Payment ${payment.id} confirmed. New expiry: ${newExpiryStr}`);
+  console.log(`Payment ${payment.id} confirmed. Awaiting admin activation.`);
 }
 
 async function handleWebhook(req: Request) {
