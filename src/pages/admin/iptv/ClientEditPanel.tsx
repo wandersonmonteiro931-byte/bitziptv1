@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck } from "lucide-react";
+import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
@@ -454,15 +454,16 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             const isReversed = p.status === "reversed";
                             const isPending = p.status === "pending";
                             const isConfirmed = p.status === "confirmed";
+                            const isRemoved = p.status === "removed";
                             const isFuture = p.period_start > today;
 
-                            const statusColor = isReversed
+                            const statusColor = isReversed || isRemoved
                               ? "bg-destructive/10 text-destructive"
                               : isPending
                               ? "bg-yellow-500/10 text-yellow-400"
                               : "bg-emerald-500/10 text-emerald-400";
-                            const statusLabel = isReversed ? "Revertido" : isPending ? "Pendente" : "Pago";
-                            const borderColor = isReversed
+                            const statusLabel = isRemoved ? "Removido" : isReversed ? "Revertido" : isPending ? "Pendente" : "Pago";
+                            const borderColor = isReversed || isRemoved
                               ? "bg-destructive/5 border-destructive/20"
                               : isPending
                               ? "bg-yellow-500/5 border-yellow-500/20"
@@ -484,7 +485,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   <div className="text-right">
-                                    <span className={`text-sm font-semibold ${isReversed ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
+                                    <span className={`text-sm font-semibold ${isReversed || isRemoved ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
                                     <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>
                                       {statusLabel}
                                     </span>
@@ -508,25 +509,64 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                     >
                                       <CalendarCheck size={12} />
                                     </button>
-                                  ) : (
+                                  ) : isRemoved ? (
                                     <button
                                       onClick={async () => {
                                         setSaving(true);
                                         await supabase.functions.invoke("admin-manage-user", {
-                                          body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
+                                          body: { action: "remove_payment", user_id: user.id, data: { payment_id: p.id } },
                                         });
-                                        toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
+                                        toast({ title: "✅ Pagamento restaurado" });
                                         setPaymentsLoaded(false);
                                         await loadPayments();
                                         setSaving(false);
                                         onSaved();
                                       }}
                                       disabled={saving}
-                                      className={`rounded-lg p-1.5 transition-colors ${isReversed ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-destructive/10 text-destructive hover:bg-destructive/20"}`}
-                                      title={isReversed ? "Re-confirmar pagamento" : "Reverter pagamento"}
+                                      className="rounded-lg p-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                                      title="Restaurar pagamento"
                                     >
-                                      <RotateCcw size={12} />
+                                      <RotateCw size={12} />
                                     </button>
+                                  ) : (
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={async () => {
+                                          setSaving(true);
+                                          await supabase.functions.invoke("admin-manage-user", {
+                                            body: { action: "remove_payment", user_id: user.id, data: { payment_id: p.id } },
+                                          });
+                                          toast({ title: "🗑️ Pagamento removido" });
+                                          setPaymentsLoaded(false);
+                                          await loadPayments();
+                                          setSaving(false);
+                                          onSaved();
+                                        }}
+                                        disabled={saving}
+                                        className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                                        title="Remover pagamento"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          setSaving(true);
+                                          await supabase.functions.invoke("admin-manage-user", {
+                                            body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
+                                          });
+                                          toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
+                                          setPaymentsLoaded(false);
+                                          await loadPayments();
+                                          setSaving(false);
+                                          onSaved();
+                                        }}
+                                        disabled={saving}
+                                        className={`rounded-lg p-1.5 transition-colors ${isReversed ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20" : "bg-destructive/10 text-destructive hover:bg-destructive/20"}`}
+                                        title={isReversed ? "Re-confirmar pagamento" : "Reverter pagamento"}
+                                      >
+                                        <RotateCcw size={12} />
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                               </div>
