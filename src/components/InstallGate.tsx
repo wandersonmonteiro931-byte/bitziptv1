@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Download, Smartphone, Share2, Shield, Zap, Bell, Gift, Monitor, Star, CheckCircle2, Lock, ChevronRight, Settings, ArrowDown, Plus, ExternalLink } from "lucide-react";
+import { Download, Smartphone, Share2, Shield, Zap, Bell, Gift, Monitor, Star, CheckCircle2, Lock, ChevronRight, Settings, ArrowDown, Plus, ExternalLink, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
@@ -23,6 +23,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [showManualSteps, setShowManualSteps] = useState(false);
   const [installing, setInstalling] = useState(false);
   // activeTab removed — we auto-detect the platform
   const [adminBypass, setAdminBypass] = useState(false);
@@ -63,7 +64,16 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   const handleInstallClick = async () => {
-    if (isIOS || !deferredPrompt) return;
+    if (isIOS) {
+      // iOS doesn't support beforeinstallprompt — show manual steps
+      setShowManualSteps(true);
+      return;
+    }
+    if (!deferredPrompt) {
+      // Android but no prompt available — show manual steps
+      setShowManualSteps(true);
+      return;
+    }
     setInstalling(true);
     try {
       await deferredPrompt.prompt();
@@ -302,6 +312,31 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                 <ChevronRight size={14} className="text-muted-foreground" />
                 <span className="text-xs font-semibold text-foreground">Abra o Bitz IPTV</span>
               </div>
+            </div>
+          ) : showManualSteps ? (
+            <div className="flex w-full flex-col items-center gap-2 rounded-2xl border border-warning/30 bg-warning/10 px-5 py-4">
+              <AlertTriangle size={20} className="text-warning" />
+              <p className="text-sm font-bold text-foreground text-center">Instale manualmente</p>
+              {isIOS ? (
+                <ol className="list-decimal pl-4 space-y-1 text-xs text-muted-foreground">
+                  <li>Toque no ícone <strong className="text-primary">Compartilhar</strong> (↑) na barra do Safari</li>
+                  <li>Role e toque em <strong className="text-primary">"Adicionar à Tela de Início"</strong></li>
+                  <li>Toque em <strong className="text-primary">"Adicionar"</strong></li>
+                  <li>Abra o app pela tela inicial</li>
+                </ol>
+              ) : (
+                <ol className="list-decimal pl-4 space-y-1 text-xs text-muted-foreground">
+                  <li>Toque no menu <strong className="text-primary">⋮</strong> (3 pontos) do navegador</li>
+                  <li>Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou <strong className="text-primary">"Adicionar à tela inicial"</strong></li>
+                  <li>Confirme a instalação</li>
+                  <li>Abra o app pela tela inicial</li>
+                </ol>
+              )}
+              <button
+                onClick={() => setShowManualSteps(false)}
+                className="mt-2 text-[11px] text-primary underline">
+                Tentar novamente
+              </button>
             </div>
           ) : (
             <>
