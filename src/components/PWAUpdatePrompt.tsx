@@ -1,36 +1,35 @@
-import { useState, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
+function isStandaloneMode() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true
+  );
+}
+
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const prompted = useRef(false);
 
-  const onNeedRefresh = useCallback(() => {
-    // Only show in standalone (installed PWA) mode
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
-    if (isStandalone) {
-      setShowPrompt(true);
-    }
-  }, []);
-
-  const {
-    updateServiceWorker,
-  } = useRegisterSW({
-    onNeedRefresh,
+  const { updateServiceWorker } = useRegisterSW({
+    onNeedRefresh() {
+      // Only show once per session and only in installed PWA
+      if (!prompted.current && isStandaloneMode()) {
+        prompted.current = true;
+        setShowPrompt(true);
+      }
+    },
     onRegisteredSW(_swUrl, registration) {
-      // Poll for SW updates every 5 seconds only in standalone mode
-      const isStandalone =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as any).standalone === true;
-      if (registration && isStandalone) {
+      // Poll every 60s only in standalone — no aggressive polling
+      if (registration && isStandaloneMode()) {
         setInterval(() => {
           registration.update();
-        }, 5000);
+        }, 60_000);
       }
     },
     onRegisterError(error) {
@@ -45,11 +44,11 @@ export function PWAUpdatePrompt() {
     } catch {}
     try {
       if ("caches" in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        const names = await caches.keys();
+        await Promise.all(names.map((n) => caches.delete(n)));
       }
     } catch {}
-    setTimeout(() => window.location.reload(), 500);
+    window.location.reload();
   };
 
   return (
