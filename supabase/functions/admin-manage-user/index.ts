@@ -477,6 +477,29 @@ Deno.serve(async (req) => {
           iptv_expiry: payment.period_end,
         }).eq("id", user_id);
 
+        // Send push notification to client about activation
+        try {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          const endParts = payment.period_end?.split("-");
+          const expiryFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : payment.period_end;
+
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id,
+              title: "✅ Servidor Atualizado!",
+              body: `Seu plano foi ativado com sucesso! Nova validade: ${expiryFormatted}`,
+              url: "/",
+            }),
+          });
+          console.log(`Activation push sent to user ${user_id}`);
+        } catch (pushErr) {
+          console.error("Failed to send activation push:", pushErr);
+        }
+
         result = { success: true };
         break;
       }

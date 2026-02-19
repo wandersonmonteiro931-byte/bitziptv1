@@ -520,6 +520,42 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
 
+  // 5. Send automatic push notifications to user
+  try {
+    const supabaseUrl = getEnv("SUPABASE_URL");
+    const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+    // Notification 1: Payment received
+    await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+      body: JSON.stringify({
+        action: "send_to_user",
+        user_id: payment.user_id,
+        title: "💰 Pagamento Recebido!",
+        body: "Recebemos seu pagamento via PIX. Aguarde a ativação pelo suporte.",
+        url: "/",
+      }),
+    });
+
+    // Notification 2: Awaiting support
+    await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+      body: JSON.stringify({
+        action: "send_to_user",
+        user_id: payment.user_id,
+        title: "⏳ Aguardando Suporte",
+        body: "Seu pagamento está sendo processado. A ativação será feita em até 24h.",
+        url: "/",
+      }),
+    });
+
+    console.log(`Push notifications sent to user ${payment.user_id}`);
+  } catch (pushErr) {
+    console.error("Failed to send push notification:", pushErr);
+  }
+
   console.log(`Payment ${payment.id} confirmed. Awaiting admin activation.`);
 }
 

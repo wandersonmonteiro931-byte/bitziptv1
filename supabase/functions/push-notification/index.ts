@@ -194,6 +194,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Internal send_to_user (called by other edge functions with service-role key) ──
+    if (action === "send_to_user") {
+      const internalKey = req.headers.get("x-internal-key");
+      if (internalKey !== supabaseServiceKey) {
+        return new Response(JSON.stringify({ error: "Acesso interno não autorizado" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { user_id, title, body: notifBody, icon, url: clickUrl } = body;
+      if (!user_id || !title || !notifBody) throw new Error("user_id, title e body são obrigatórios");
+
+      const { data: vapid } = await supabaseAdmin.from("push_vapid_keys").select("*").limit(1).single();
+      if (!vapid) throw new Error("VAPID keys not configured");
+
+      const { data: subs } = await supabaseAdmin.from("push_subscriptions").select("*").eq("user_id", user_id);
+      if (!subs || subs.length === 0) {
+        return new Response(JSON.stringify({ success: true, sent: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const payload = JSON.stringify({
+        title, body: notifBody, icon: icon || "/logo-bitz.jpg",
+        badge: "/logo-bitz.jpg", data: { url: clickUrl || "/" },
+      });
+
+      let sent = 0, failed = 0;
+      const expired: string[] = [];
+      for (const s of subs) {
+        const ok = await sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, vapid.public_key, vapid.private_key);
+        if (ok) sent++; else { failed++; expired.push(s.endpoint); }
+      }
+      if (expired.length > 0) {
+        await supabaseAdmin.from("push_subscriptions").delete().in("endpoint", expired);
+      }
+
+      console.log(`[INTERNAL PUSH] user=${user_id} sent=${sent} failed=${failed}`);
+      return new Response(JSON.stringify({ success: true, sent, failed }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── Auth required ──
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
