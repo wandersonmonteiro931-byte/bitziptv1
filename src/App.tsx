@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { InstallGate } from "@/components/InstallGate";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 import { NotificationGate } from "@/components/NotificationGate";
+import { SplashScreen } from "@/components/SplashScreen";
 
 import LoginPage from "./pages/LoginPage";
 import ClientDashboard from "./pages/ClientDashboard";
@@ -57,6 +58,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <PWAUpdatePrompt />
+        <SplashScreen>
         <InstallGate>
         <NotificationGate>
         <BrowserRouter>
@@ -102,6 +104,7 @@ const App = () => (
         </BrowserRouter>
         </NotificationGate>
         </InstallGate>
+        </SplashScreen>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
