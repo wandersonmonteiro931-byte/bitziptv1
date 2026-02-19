@@ -344,34 +344,43 @@ const AdminUsersPage = () => {
                 </button>
               </div>
 
-              {/* Step 2: Parsed Results */}
+              {/* Step 2: Parsed Results - Editable */}
               {parsedData && (
                 <div className="mb-4 space-y-3">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-success" /> Dados Extraídos
+                    <CheckCircle2 size={16} className="text-success" /> Dados Extraídos (editáveis)
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: "Usuário IPTV", value: parsedData.username, key: "username" },
-                      { label: "Senha IPTV", value: parsedData.password, key: "password" },
-                      { label: "Servidor", value: parsedData.server, key: "server" },
-                      { label: "Vencimento", value: parsedData.expiry, key: "expiry" },
-                      { label: "Conexões", value: parsedData.connections, key: "connections" },
-                      { label: "Valor Mensal", value: parsedData.monthly_value ? `R$ ${parsedData.monthly_value}` : undefined, key: "monthly_value" },
-                      { label: "Plano", value: parsedData.plan, key: "plan" },
+                      { label: "Usuário IPTV *", key: "username", type: "text" },
+                      { label: "Senha IPTV", key: "password", type: "text" },
+                      { label: "Servidor/DNS", key: "server", type: "text" },
+                      { label: "Vencimento", key: "expiry", type: "date" },
+                      { label: "Conexões", key: "connections", type: "number" },
+                      { label: "Valor Mensal (R$)", key: "monthly_value", type: "number" },
                     ].map((item) => (
-                      <div key={item.key} className="rounded-lg bg-muted/30 px-3 py-2">
-                        <span className="text-[10px] uppercase text-muted-foreground">{item.label}</span>
-                        <p className={`text-sm font-medium ${item.value ? "text-foreground" : "text-destructive"}`}>
-                          {item.value || "Não encontrado"}
-                        </p>
+                      <div key={item.key}>
+                        <label className="mb-1 block text-[10px] uppercase text-muted-foreground">{item.label}</label>
+                        <input
+                          type={item.type}
+                          value={parsedData[item.key] || ""}
+                          onChange={(e) => setParsedData({ ...parsedData, [item.key]: e.target.value })}
+                          step={item.type === "number" ? "0.01" : undefined}
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
                       </div>
                     ))}
                   </div>
+                  {parsedData.plan && (
+                    <div className="rounded-lg bg-muted/30 px-3 py-2">
+                      <span className="text-[10px] uppercase text-muted-foreground">Plano detectado</span>
+                      <p className="text-sm font-medium text-foreground">{parsedData.plan}</p>
+                    </div>
+                  )}
 
                   {!parsedData.username && (
                     <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                      <AlertCircle size={16} /> Não foi possível extrair o usuário IPTV. Verifique o texto colado.
+                      <AlertCircle size={16} /> Preencha o campo Usuário IPTV.
                     </div>
                   )}
 
@@ -387,8 +396,8 @@ const AdminUsersPage = () => {
                         <input type="email" value={autoEmail} onChange={(e) => setAutoEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
                       </div>
                       <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                        💡 O login será feito com <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong> {parsedData.password || parsedData.username}
-                        {!autoEmail && <span> · E-mail gerado: <strong>{parsedData.username}@iptv.bitz</strong></span>}
+                        💡 Login: <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong> {parsedData.password || parsedData.username}
+                        {!autoEmail && <span> · E-mail auto: <strong>{parsedData.username}@iptv.bitz</strong></span>}
                       </div>
                       <button onClick={handleAutoRegister} disabled={autoCreating || !autoName.trim()} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
                         {autoCreating ? "Cadastrando..." : "✅ Cadastrar Cliente"}
