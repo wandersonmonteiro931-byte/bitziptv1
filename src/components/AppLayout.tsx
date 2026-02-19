@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay, Bell } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -37,6 +38,7 @@ const adminLinks = [
   { to: "/admin/referrals", label: "Indicações", icon: Gift },
   { to: "/admin/content", label: "Conteúdo", icon: Megaphone },
   { to: "/admin/banners", label: "Banners", icon: Image },
+  { to: "/admin/notifications", label: "Notificações", icon: Bell },
   { to: "/admin/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/admin/settings", label: "Config", icon: Settings },
 ];
@@ -65,6 +67,7 @@ const clientMenuLinks = [
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout, isAdmin } = useAuth();
   useRealtimeBalance();
+  usePushNotifications(user?.id);
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);

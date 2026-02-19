@@ -37,6 +37,7 @@ import AdminGamesPage from "./pages/admin/AdminGamesPage";
 import MemoryGamePage from "./pages/MemoryGamePage";
 import TvGuidePage from "./pages/TvGuidePage";
 import AdminTvGuidePage from "./pages/admin/AdminTvGuidePage";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -91,6 +92,7 @@ const App = () => (
             <Route path="/admin/iptv" element={<ProtectedRoute requireAdmin><AdminIptvPage /></ProtectedRoute>} />
             <Route path="/admin/games" element={<ProtectedRoute requireAdmin><AdminGamesPage /></ProtectedRoute>} />
             <Route path="/admin/tv-guide" element={<ProtectedRoute requireAdmin><AdminTvGuidePage /></ProtectedRoute>} />
+            <Route path="/admin/notifications" element={<ProtectedRoute requireAdmin><AdminNotificationsPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

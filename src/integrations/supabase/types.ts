@@ -994,6 +994,101 @@ export type Database = {
           },
         ]
       }
+      push_notifications: {
+        Row: {
+          body: string
+          created_at: string
+          failed_count: number | null
+          icon: string | null
+          id: string
+          sent_by: string
+          sent_count: number | null
+          target_ids: string[] | null
+          target_type: string
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          failed_count?: number | null
+          icon?: string | null
+          id?: string
+          sent_by: string
+          sent_count?: number | null
+          target_ids?: string[] | null
+          target_type?: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          failed_count?: number | null
+          icon?: string | null
+          id?: string
+          sent_by?: string
+          sent_count?: number | null
+          target_ids?: string[] | null
+          target_type?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_vapid_keys: {
+        Row: {
+          created_at: string
+          id: string
+          private_key: string
+          public_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          private_key: string
+          public_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          private_key?: string
+          public_key?: string
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           created_at: string
