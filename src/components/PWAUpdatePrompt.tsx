@@ -19,7 +19,7 @@ export function PWAUpdatePrompt() {
       if (registration) {
         setInterval(() => {
           registration.update();
-        }, 30 * 1000); // Check every 30s instead of 5s
+        }, 5 * 1000);
       }
     },
     onRegisterError(error) {
