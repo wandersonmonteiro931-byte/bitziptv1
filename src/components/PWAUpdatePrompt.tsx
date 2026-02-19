@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
 declare const __BUILD_TIMESTAMP__: number;
 const UPDATED_BUILD_KEY = "pwa_updated_build";
-const SW_URL = "/service-worker.js";
-const CHECK_INTERVAL = 5_000;
 
 function isCurrentBuild(): boolean {
   const stored = localStorage.getItem(UPDATED_BUILD_KEY);
@@ -17,69 +16,38 @@ function isCurrentBuild(): boolean {
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const suppressRef = useRef(isCurrentBuild());
 
-  const checkForUpdate = useCallback(async () => {
-    if (suppressRef.current) return;
-    const reg = registrationRef.current;
-    if (!reg) return;
-    try {
-      await reg.update();
-    } catch {}
-    if (reg.waiting && !suppressRef.current) {
-      setShowPrompt(true);
-    }
-  }, []);
+  const { updateServiceWorker } = useRegisterSW({
+    onNeedRefresh() {
+      if (!suppressRef.current) {
+        setShowPrompt(true);
+      }
+    },
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
 
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-
-    const register = async () => {
-      try {
-        const reg = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
-        registrationRef.current = reg;
-
-        // If there's already a waiting worker, show prompt
-        if (reg.waiting && !suppressRef.current) {
+      intervalRef.current = setInterval(async () => {
+        if (suppressRef.current) return;
+        try {
+          await registration.update();
+        } catch {}
+        if (registration.waiting && !suppressRef.current) {
           setShowPrompt(true);
         }
+      }, 5_000);
+    },
+    onRegisterError(error) {
+      console.error("SW registration error:", error);
+    },
+  });
 
-        // Listen for new workers
-        reg.addEventListener("updatefound", () => {
-          const newWorker = reg.installing;
-          if (!newWorker) return;
-          newWorker.addEventListener("statechange", () => {
-            if (newWorker.state === "installed" && navigator.serviceWorker.controller && !suppressRef.current) {
-              setShowPrompt(true);
-            }
-          });
-        });
-
-        // Poll for updates
-        intervalRef.current = setInterval(checkForUpdate, CHECK_INTERVAL);
-      } catch (err) {
-        console.error("[PWA] Registration failed:", err);
-      }
-    };
-
-    register();
-
-    // Handle controller change (after skipWaiting)
-    let refreshing = false;
-    const onControllerChange = () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    };
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-
+  useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
     };
-  }, [checkForUpdate]);
+  }, []);
 
   // On mount: if flag is "pending", store current build to suppress future prompts
   useEffect(() => {
@@ -91,6 +59,7 @@ export function PWAUpdatePrompt() {
 
   const handleUpdate = async () => {
     setUpdating(true);
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -98,13 +67,10 @@ export function PWAUpdatePrompt() {
 
     localStorage.setItem(UPDATED_BUILD_KEY, "pending");
 
-    const reg = registrationRef.current;
-    if (reg?.waiting) {
-      reg.waiting.postMessage({ type: "SKIP_WAITING" });
-    }
-
-    // Fallback reload after 3 seconds if controllerchange doesn't fire
-    setTimeout(() => window.location.reload(), 3000);
+    try {
+      await updateServiceWorker(true);
+    } catch {}
+    window.location.reload();
   };
 
   if (!showPrompt) return null;
