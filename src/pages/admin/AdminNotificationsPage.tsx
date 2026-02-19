@@ -31,6 +31,7 @@ const QUICK_TEMPLATES = [
   { icon: "⚡", label: "Instabilidade", title: "Instabilidade Detectada ⚡", body: "Identificamos instabilidade no serviço." },
   { icon: "🎮", label: "Jogos", title: "Novos Desafios! 🎮", body: "Novos jogos foram liberados! Venha jogar e ganhar." },
   { icon: "🎁", label: "Promoção", title: "Promoção Especial! 🎁", body: "Aproveite nossa promoção por tempo limitado!" },
+  { icon: "🔄", label: "Atualização", title: "Atualização Disponível! 🔄", body: "Uma nova versão do app está disponível! Atualize agora para ter acesso às melhorias." },
   { icon: "📢", label: "Aviso", title: "Aviso Importante 📢", body: "" },
 ];
 

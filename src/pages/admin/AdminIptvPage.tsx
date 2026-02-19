@@ -38,9 +38,11 @@ const AdminIptvPage = () => {
   const [bulkRateForm, setBulkRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
   const [trustRequests, setTrustRequests] = useState<any[]>([]);
   const [serverEventLoading, setServerEventLoading] = useState<string | null>(null);
-  const [showEventModal, setShowEventModal] = useState<string | null>(null); // "maintenance" | "unstable" | null
+  const [showEventModal, setShowEventModal] = useState<string | null>(null);
   const [eventDuration, setEventDuration] = useState("");
   const [processingTrust, setProcessingTrust] = useState<string | null>(null);
+  const [cancelRequests, setCancelRequests] = useState<any[]>([]);
+  const [processingCancel, setProcessingCancel] = useState<string | null>(null);
 
   const handleRegisterWebhook = async () => {
     setWebhookLoading(true);
@@ -66,18 +68,20 @@ const AdminIptvPage = () => {
   };
 
   const loadData = async () => {
-    const [u, s, a, pa, tr] = await Promise.all([
+    const [u, s, a, pa, tr, cr] = await Promise.all([
       supabase.from("profiles").select("*").order("name"),
       supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_payments").select("*, profiles!iptv_payments_user_id_fkey(name, iptv_server, iptv_connections, iptv_expiry)").eq("status", "paid_pending_activation").order("payment_date", { ascending: false }),
       supabase.from("iptv_trust_requests").select("*, profiles!iptv_trust_requests_user_id_fkey(name, iptv_server, iptv_expiry)").eq("status", "pending").order("requested_at", { ascending: true }),
+      supabase.from("iptv_cancellation_requests").select("*, profiles!iptv_cancellation_requests_user_id_fkey(name, iptv_server, iptv_expiry)").eq("status", "pending").order("created_at", { ascending: true }),
     ]);
     setUsers(u.data || []);
     setServers(s.data || []);
     setTvApps(a.data || []);
     setPendingActivations(pa.data || []);
     setTrustRequests(tr.data || []);
+    setCancelRequests(cr.data || []);
   };
 
   useEffect(() => { loadData(); }, []);
@@ -93,6 +97,9 @@ const AdminIptvPage = () => {
         loadData();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "iptv_trust_requests" }, () => {
+        loadData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_cancellation_requests" }, () => {
         loadData();
       })
       .subscribe();
@@ -132,6 +139,43 @@ const AdminIptvPage = () => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
       setProcessingTrust(null);
+    }
+  };
+
+  const handleCancelAction = async (requestId: string, userId: string, approve: boolean) => {
+    setProcessingCancel(requestId);
+    try {
+      await supabase.from("iptv_cancellation_requests").update({
+        status: approve ? "approved" : "rejected",
+        admin_id: (await supabase.auth.getUser()).data.user?.id,
+        resolved_at: new Date().toISOString(),
+        admin_notes: approve ? "Cancelamento aprovado" : "Cancelamento rejeitado",
+      }).eq("id", requestId);
+
+      if (approve) {
+        // Set user status to disabled
+        await supabase.functions.invoke("admin-manage-user", {
+          body: { action: "update_profile", user_id: userId, data: { iptv_status: "disabled" } },
+        });
+      }
+
+      // Notify user
+      await supabase.functions.invoke("push-notification", {
+        body: {
+          action: "send",
+          title: approve ? "Cancelamento Aprovado ✅" : "Cancelamento Recusado",
+          body: approve ? "Seu plano IPTV foi cancelado conforme solicitado." : "Sua solicitação de cancelamento foi recusada pelo suporte.",
+          target_type: "user",
+          target_ids: [userId],
+        },
+      });
+
+      toast({ title: approve ? "✅ Cancelamento aprovado" : "❌ Cancelamento rejeitado" });
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setProcessingCancel(null);
     }
   };
 
@@ -421,6 +465,58 @@ const AdminIptvPage = () => {
                       onClick={() => handleTrustAction(tr.id, tr.user_id, false)}
                       disabled={processingTrust === tr.id}
                       className="rounded-lg bg-destructive/15 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle size={12} className="inline" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Cancellation Requests Section */}
+      {cancelRequests.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          className="mt-4 rounded-2xl border-2 border-red-500/30 bg-red-500/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <XCircle size={16} className="text-red-400" />
+            <h3 className="text-sm font-bold text-red-400">
+              Solicitações de Cancelamento ({cancelRequests.length})
+            </h3>
+          </div>
+          <p className="mb-3 text-[10px] text-muted-foreground">
+            Clientes solicitaram o cancelamento do plano IPTV.
+          </p>
+          <div className="space-y-2">
+            {cancelRequests.map((cr) => {
+              const profile = cr.profiles as any;
+              const reqDate = new Date(cr.created_at);
+              const dateFormatted = `${String(reqDate.getDate()).padStart(2,'0')}/${String(reqDate.getMonth()+1).padStart(2,'0')} ${String(reqDate.getHours()).padStart(2,'0')}:${String(reqDate.getMinutes()).padStart(2,'0')}`;
+              return (
+                <div key={cr.id} className="flex items-center justify-between rounded-xl border border-red-500/20 bg-card/80 p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">{profile?.name || "—"}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {profile?.iptv_server || "—"} · Solicitado em {dateFormatted}
+                    </p>
+                    {cr.reason && (
+                      <p className="mt-1 text-[11px] text-muted-foreground italic">"{cr.reason}"</p>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5 shrink-0 ml-2">
+                    <button
+                      onClick={() => handleCancelAction(cr.id, cr.user_id, true)}
+                      disabled={processingCancel === cr.id}
+                      className="rounded-lg bg-red-500/15 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                    >
+                      {processingCancel === cr.id ? <Loader2 size={14} className="animate-spin" /> : <><CheckCircle size={12} className="inline mr-1" />Aprovar</>}
+                    </button>
+                    <button
+                      onClick={() => handleCancelAction(cr.id, cr.user_id, false)}
+                      disabled={processingCancel === cr.id}
+                      className="rounded-lg bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50"
                     >
                       <XCircle size={12} className="inline" />
                     </button>
