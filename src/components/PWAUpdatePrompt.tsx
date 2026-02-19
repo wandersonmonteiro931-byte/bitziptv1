@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { updateServiceWorker } = useRegisterSW({
     onNeedRefresh() {
@@ -15,12 +16,10 @@ export function PWAUpdatePrompt() {
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
 
-      // Poll every 5s: force SW update check AND detect waiting SW
-      setInterval(async () => {
+      intervalRef.current = setInterval(async () => {
         try {
           await registration.update();
         } catch {}
-        // If a new SW is waiting, show prompt immediately
         if (registration.waiting) {
           setShowPrompt(true);
         }
@@ -31,23 +30,22 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  // Also listen for the "controlling" SW change — means a new SW took over
+  // Cleanup interval on unmount
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-
-    const onControllerChange = () => {
-      // A new SW just took control, but if we haven't reloaded yet, force it
-      if (!updating) {
-        window.location.reload();
-      }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-
-    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-    return () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-  }, [updating]);
+  }, []);
 
   const handleUpdate = async () => {
     setUpdating(true);
+
+    // Stop polling immediately so it can't re-trigger the prompt
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     try {
       await updateServiceWorker(true);
     } catch {}
@@ -60,7 +58,6 @@ export function PWAUpdatePrompt() {
     window.location.reload();
   };
 
-  // When prompt is showing, block all interaction behind it
   if (!showPrompt) return null;
 
   return (
