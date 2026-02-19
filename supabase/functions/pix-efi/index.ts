@@ -503,29 +503,11 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
     .eq("id", payment.id);
 
-  // 2. Calculate new expiry based on registered expiry date
-  const { data: profile } = await adminSupa
-    .from("profiles")
-    .select("iptv_expiry")
-    .eq("id", payment.user_id)
-    .single();
-
-  let baseExpiry: Date;
-  if (profile?.iptv_expiry) {
-    const [y, m, d] = profile.iptv_expiry.split("-").map(Number);
-    baseExpiry = new Date(y, m - 1, d);
-  } else {
-    baseExpiry = new Date();
-  }
-  const newExpiry = new Date(baseExpiry);
-  newExpiry.setMonth(newExpiry.getMonth() + (payment.months || 1));
-  const newExpiryStr = `${newExpiry.getFullYear()}-${String(newExpiry.getMonth() + 1).padStart(2, '0')}-${String(newExpiry.getDate()).padStart(2, '0')}`;
-
-  // 3. Update profile: new expiry + awaiting_activation status (admin still needs to update server)
+  // 2. Update profile: set awaiting_activation status only
+  // The iptv_expiry is NOT updated here — it will only be updated when the admin confirms the activation
   await adminSupa
     .from("profiles")
     .update({ 
-      iptv_expiry: newExpiryStr,
       iptv_status: "awaiting_activation" 
     })
     .eq("id", payment.user_id);
