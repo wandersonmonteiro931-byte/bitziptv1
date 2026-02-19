@@ -20,12 +20,11 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showContinueMessage, setShowContinueMessage] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
   const [installing, setInstalling] = useState(false);
-  // activeTab removed — we auto-detect the platform
   const [adminBypass, setAdminBypass] = useState(false);
   const checkedRef = useRef(false);
 
@@ -52,7 +51,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
 
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      deferredPromptRef.current = e as BeforeInstallPromptEvent;
     };
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", () => setIsInstalled(true));
@@ -65,23 +64,32 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
 
   const handleInstallClick = async () => {
     if (isIOS) {
-      // iOS doesn't support beforeinstallprompt — show manual steps
       setShowManualSteps(true);
       return;
     }
-    if (!deferredPrompt) {
-      // Android but no prompt available — show manual steps
+
+    const prompt = deferredPromptRef.current;
+    if (!prompt) {
+      // No native prompt available — show manual steps as fallback
       setShowManualSteps(true);
       return;
     }
+
     setInstalling(true);
     try {
-      await deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-    } catch {}
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      // Clear ref so next beforeinstallprompt can be captured
+      deferredPromptRef.current = null;
+      if (choice.outcome === "accepted") {
+        setShowContinueMessage(true);
+      }
+    } catch {
+      // prompt() can only be called once per event — show manual steps
+      deferredPromptRef.current = null;
+      setShowManualSteps(true);
+    }
     setInstalling(false);
-    setDeferredPrompt(null);
-    setShowContinueMessage(true);
   };
 
   return (
