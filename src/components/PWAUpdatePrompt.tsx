@@ -27,16 +27,34 @@ export function PWAUpdatePrompt() {
   const handleUpdate = async () => {
     setUpdating(true);
     try {
+      // 1. Try to activate the new SW
       await updateServiceWorker(true);
-      // Give the SW time to activate, then force hard reload
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
     } catch (err) {
-      console.error("Update failed:", err);
-      // Fallback: just force reload
-      window.location.reload();
+      console.error("updateServiceWorker failed:", err);
     }
+
+    // 2. Clear all caches to force fresh assets
+    try {
+      if ("caches" in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      }
+    } catch (err) {
+      console.error("Cache clear failed:", err);
+    }
+
+    // 3. Unregister old SW and force hard reload
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    } catch (err) {
+      console.error("SW unregister failed:", err);
+    }
+
+    // 4. Force reload after a short delay
+    setTimeout(() => {
+      window.location.href = window.location.origin + "/?v=" + Date.now();
+    }, 500);
   };
 
   return (
