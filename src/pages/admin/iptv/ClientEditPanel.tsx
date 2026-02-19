@@ -47,7 +47,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
     iptv_monthly_value: user.iptv_monthly_value || 0,
-    iptv_due_day: user.iptv_due_day || 10,
+    
     iptv_connections: user.iptv_connections || 1,
     iptv_tv_app: user.iptv_tv_app || "",
     iptv_client_code: user.iptv_client_code || "",
@@ -399,15 +399,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">💰 Mensalidade</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Valor Base (R$)</label>
-                        <input type="number" step="0.01" value={form.iptv_monthly_value} onChange={(e) => setForm({ ...form, iptv_monthly_value: Number(e.target.value) })} className={inputCls} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Dia Vencimento</label>
-                        <input type="number" min="1" max="28" value={form.iptv_due_day} onChange={(e) => setForm({ ...form, iptv_due_day: Number(e.target.value) })} className={inputCls} />
-                      </div>
+                    <div>
+                      <label className={labelCls}>Valor Base (R$)</label>
+                      <input type="number" step="0.01" value={form.iptv_monthly_value} onChange={(e) => setForm({ ...form, iptv_monthly_value: Number(e.target.value) })} className={inputCls} />
                     </div>
                     <div className="rounded-lg bg-primary/10 p-3">
                       <div className="flex items-center justify-between">

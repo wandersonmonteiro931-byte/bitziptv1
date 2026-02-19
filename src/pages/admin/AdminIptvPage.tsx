@@ -12,7 +12,7 @@ const BULK_FIELDS = [
   { value: "iptv_status", label: "Status" },
   { value: "iptv_server", label: "Servidor" },
   { value: "iptv_monthly_value", label: "Mensalidade" },
-  { value: "iptv_due_day", label: "Dia Vencimento" },
+  
   { value: "iptv_connections", label: "Conexões" },
   { value: "iptv_tv_app", label: "App TV" },
   { value: "admin_notes", label: "Observação" },
@@ -144,7 +144,7 @@ const AdminIptvPage = () => {
 
     if (activeFilter === "active") list = list.filter((u) => u.iptv_status === "active");
     else if (activeFilter === "blocked") list = list.filter((u) => u.iptv_status === "blocked");
-    else if (activeFilter === "expiring") list = list.filter((u) => u.iptv_due_day === todayDay && u.iptv_status === "active");
+    else if (activeFilter === "expiring") list = list.filter((u) => u.iptv_expiry === todayStr && u.iptv_status === "active");
     else if (activeFilter === "expiring_5d") list = list.filter((u) => {
       if (!u.iptv_expiry || u.iptv_status === "blocked") return false;
       return u.iptv_expiry >= todayStr && u.iptv_expiry <= fiveDaysStr;
@@ -210,7 +210,7 @@ const AdminIptvPage = () => {
 
     if (!bulkValue) return;
     const data: Record<string, any> = {};
-    if (["iptv_monthly_value", "iptv_due_day", "iptv_connections"].includes(bulkField)) {
+    if (["iptv_monthly_value", "iptv_connections"].includes(bulkField)) {
       data[bulkField] = Number(bulkValue);
     } else if (bulkField === "admin_notes_urgent") {
       data[bulkField] = bulkValue === "true";
