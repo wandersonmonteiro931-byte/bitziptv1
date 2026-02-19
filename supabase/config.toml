@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.pix-efi]
 verify_jwt = false
+
+[functions.push-notification]
+verify_jwt = false
