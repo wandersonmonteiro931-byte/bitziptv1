@@ -281,10 +281,12 @@ const AdminUsersPage = () => {
 
   const archiveUser = async (userId: string) => {
     if (!confirm("Tem certeza que deseja arquivar este cliente? Ele será deslogado e poderá ser reativado depois.")) return;
+    // Optimistic: remove from list immediately
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: "archived" } : u));
+    toast({ title: "Cliente arquivado com sucesso" });
     await supabase.functions.invoke("admin-manage-user", {
       body: { action: "archive_user", user_id: userId, data: {} },
     });
-    toast({ title: "Cliente arquivado com sucesso" });
     loadUsers();
   };
 
