@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
         skipWaiting: false,
         clientsClaim: true,
+        importScripts: ["/push-sw.js"],
       },
       manifest: {
         name: "Bitz IPTV",
