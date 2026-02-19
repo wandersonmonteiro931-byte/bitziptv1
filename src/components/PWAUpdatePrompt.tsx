@@ -1,30 +1,36 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
-// Unique build ID — changes on every new build/publish
-const BUILD_VERSION = __BUILD_TIMESTAMP__;
-
 export function PWAUpdatePrompt() {
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true;
-
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  const onNeedRefresh = useCallback(() => {
+    // Only show in standalone (installed PWA) mode
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    if (isStandalone) {
+      setShowPrompt(true);
+    }
+  }, []);
+
   const {
-    needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
+    onNeedRefresh,
     onRegisteredSW(_swUrl, registration) {
-      // Poll for SW updates every 5 seconds
-      if (registration) {
+      // Poll for SW updates every 5 seconds only in standalone mode
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      if (registration && isStandalone) {
         setInterval(() => {
           registration.update();
-        }, 5 * 1000);
+        }, 5000);
       }
     },
     onRegisterError(error) {
@@ -32,45 +38,18 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  // Show prompt when SW detects a new version OR build timestamp changed
-  useEffect(() => {
-    if (needRefresh) {
-      setShowPrompt(true);
-      return;
-    }
-
-    const STORED_KEY = "pwa_build_version";
-    const storedVersion = localStorage.getItem(STORED_KEY);
-
-    if (storedVersion === null) {
-      localStorage.setItem(STORED_KEY, String(BUILD_VERSION));
-      return;
-    }
-
-    if (String(BUILD_VERSION) !== storedVersion) {
-      setShowPrompt(true);
-    }
-  }, [needRefresh]);
-
   const handleUpdate = async () => {
     setUpdating(true);
-    // Save new version so prompt won't show again after reload
-    localStorage.setItem("pwa_build_version", String(BUILD_VERSION));
-
     try {
       await updateServiceWorker(true);
     } catch {}
-
     try {
       if ("caches" in window) {
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map((name) => caches.delete(name)));
       }
     } catch {}
-
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+    setTimeout(() => window.location.reload(), 500);
   };
 
   return (
@@ -94,11 +73,7 @@ export function PWAUpdatePrompt() {
               transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
               className="mx-auto mb-6"
             >
-              <img
-                src={logoBitz}
-                alt="Bitz IPTV"
-                className="mx-auto h-20 w-20 rounded-2xl shadow-lg shadow-primary/20"
-              />
+              <img src={logoBitz} alt="Bitz IPTV" className="mx-auto h-20 w-20 rounded-2xl shadow-lg shadow-primary/20" />
             </motion.div>
 
             <motion.div
@@ -110,9 +85,7 @@ export function PWAUpdatePrompt() {
               <RefreshCw size={28} className="text-primary" />
             </motion.div>
 
-            <h2 className="text-xl font-bold text-foreground">
-              Nova atualização disponível
-            </h2>
+            <h2 className="text-xl font-bold text-foreground">Nova atualização disponível</h2>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               Uma nova versão do app está disponível. Atualize agora para continuar utilizando.
             </p>
@@ -125,9 +98,7 @@ export function PWAUpdatePrompt() {
               {updating ? "Atualizando..." : "Atualizar agora"}
             </button>
 
-            <p className="mt-3 text-[10px] text-muted-foreground/50">
-              O app será reiniciado automaticamente
-            </p>
+            <p className="mt-3 text-[10px] text-muted-foreground/50">O app será reiniciado automaticamente</p>
           </motion.div>
         </motion.div>
       )}
