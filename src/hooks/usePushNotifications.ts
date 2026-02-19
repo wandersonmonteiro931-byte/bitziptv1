@@ -7,6 +7,7 @@ export function usePushNotifications(userId: string | undefined) {
   useEffect(() => {
     if (!userId || subscribedRef.current) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
 
     const setup = async () => {
       try {
@@ -14,14 +15,7 @@ export function usePushNotifications(userId: string | undefined) {
         const registration = await navigator.serviceWorker.register("/push-sw.js", { scope: "/" });
         await navigator.serviceWorker.ready;
 
-        // Request notification permission immediately
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") {
-          console.log("Push notification permission denied");
-          return;
-        }
-
-        // Get VAPID public key
+        // Get VAPID public key from server
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
           body: { action: "get_vapid_public_key" },
         });
@@ -30,22 +24,28 @@ export function usePushNotifications(userId: string | undefined) {
           return;
         }
 
-        // Convert VAPID key to Uint8Array
-        const applicationServerKey = urlBase64ToUint8Array(vapidData.public_key);
+        const serverVapidKey = vapidData.public_key;
+        const applicationServerKey = urlBase64ToUint8Array(serverVapidKey);
 
-        // Check existing subscription — unsubscribe if VAPID key changed
+        // Check existing subscription
         let subscription = await (registration as any).pushManager.getSubscription();
 
-        if (subscription) {
-          // Always unsubscribe old and create new to ensure VAPID key match
-          await subscription.unsubscribe();
+        // Compare stored VAPID key — if different, must resubscribe
+        const storedVapid = localStorage.getItem("push_vapid_key");
+        if (subscription && storedVapid !== serverVapidKey) {
+          try { await subscription.unsubscribe(); } catch {}
           subscription = null;
         }
 
-        subscription = await (registration as any).pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey,
-        });
+        if (!subscription) {
+          subscription = await (registration as any).pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+        }
+
+        // Save VAPID key used for this subscription
+        localStorage.setItem("push_vapid_key", serverVapidKey);
 
         // Send subscription to server
         const subJson = subscription.toJSON();
