@@ -1007,6 +1007,7 @@ export type Database = {
           iptv_password: string
           iptv_server: string
           iptv_status: string
+          iptv_status_before_event: string | null
           iptv_tv_app: string
           iptv_user: string
           level_points: number
@@ -1041,6 +1042,7 @@ export type Database = {
           iptv_password?: string
           iptv_server?: string
           iptv_status?: string
+          iptv_status_before_event?: string | null
           iptv_tv_app?: string
           iptv_user?: string
           level_points?: number
@@ -1075,6 +1077,7 @@ export type Database = {
           iptv_password?: string
           iptv_server?: string
           iptv_status?: string
+          iptv_status_before_event?: string | null
           iptv_tv_app?: string
           iptv_user?: string
           level_points?: number

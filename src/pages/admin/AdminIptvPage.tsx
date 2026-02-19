@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2, AlertCircle, ShieldCheck, XCircle } from "lucide-react";
+import { Tv, Search, X, Users, Filter, Webhook, CheckCircle, Loader2, AlertCircle, ShieldCheck, XCircle, Wrench, AlertTriangle, Clock } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,9 @@ const AdminIptvPage = () => {
   const [confirmingPayment, setConfirmingPayment] = useState<string | null>(null);
   const [bulkRateForm, setBulkRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
   const [trustRequests, setTrustRequests] = useState<any[]>([]);
+  const [serverEventLoading, setServerEventLoading] = useState<string | null>(null);
+  const [showEventModal, setShowEventModal] = useState<string | null>(null); // "maintenance" | "unstable" | null
+  const [eventDuration, setEventDuration] = useState("");
   const [processingTrust, setProcessingTrust] = useState<string | null>(null);
 
   const handleRegisterWebhook = async () => {
@@ -129,6 +132,40 @@ const AdminIptvPage = () => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
       setProcessingTrust(null);
+    }
+  };
+
+  const maintenanceActive = users.some((u) => u.iptv_status === "maintenance");
+  const unstableActive = users.some((u) => u.iptv_status === "unstable");
+
+  const handleServerEvent = async (eventType: string, activate: boolean) => {
+    setServerEventLoading(eventType);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("admin-manage-user", {
+        body: {
+          action: activate ? "activate_server_event" : "deactivate_server_event",
+          user_id: "system",
+          data: {
+            event_type: eventType,
+            duration_minutes: eventDuration ? Number(eventDuration) : null,
+          },
+        },
+      });
+      if (error || res?.error) throw new Error(res?.error || error?.message);
+      const count = activate ? res?.affected_count : res?.restored_count;
+      toast({
+        title: activate
+          ? `🔧 ${eventType === "maintenance" ? "Manutenção" : "Instabilidade"} ativada!`
+          : `✅ ${eventType === "maintenance" ? "Manutenção" : "Instabilidade"} finalizada!`,
+        description: `${count} clientes ${activate ? "afetados" : "restaurados"}. Notificações enviadas.`,
+      });
+      setShowEventModal(null);
+      setEventDuration("");
+      loadData();
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setServerEventLoading(null);
     }
   };
 
@@ -245,7 +282,7 @@ const AdminIptvPage = () => {
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{users.length} clientes cadastrados</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleRegisterWebhook}
             disabled={webhookLoading}
@@ -253,6 +290,30 @@ const AdminIptvPage = () => {
           >
             {webhookLoading ? <Loader2 size={14} className="animate-spin" /> : <Webhook size={14} />}
             Webhook PIX
+          </button>
+          <button
+            onClick={() => maintenanceActive ? handleServerEvent("maintenance", false) : setShowEventModal("maintenance")}
+            disabled={serverEventLoading === "maintenance"}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+              maintenanceActive
+                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 animate-pulse hover:bg-yellow-500/30"
+                : "bg-muted/50 text-muted-foreground hover:bg-yellow-500/15 hover:text-yellow-400"
+            }`}
+          >
+            {serverEventLoading === "maintenance" ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
+            {maintenanceActive ? "Encerrar Manutenção" : "Manutenção"}
+          </button>
+          <button
+            onClick={() => unstableActive ? handleServerEvent("unstable", false) : setShowEventModal("unstable")}
+            disabled={serverEventLoading === "unstable"}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+              unstableActive
+                ? "bg-orange-500/20 text-orange-400 border border-orange-500/30 animate-pulse hover:bg-orange-500/30"
+                : "bg-muted/50 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-400"
+            }`}
+          >
+            {serverEventLoading === "unstable" ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
+            {unstableActive ? "Encerrar Instabilidade" : "Instabilidade"}
           </button>
           {selectedUsers.size > 0 && (
             <button onClick={() => setShowBulk(true)} className="flex items-center gap-2 rounded-xl bg-secondary/15 px-4 py-2.5 text-xs font-semibold text-secondary hover:bg-secondary/25 transition-colors">
@@ -565,6 +626,55 @@ const AdminIptvPage = () => {
                   Aplicar para {selectedUsers.size} clientes
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Server Event Modal */}
+      <AnimatePresence>
+        {showEventModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setShowEventModal(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-bold text-foreground">
+                  {showEventModal === "maintenance" ? "🔧 Ativar Manutenção" : "⚠️ Ativar Instabilidade"}
+                </h2>
+                <button onClick={() => setShowEventModal(null)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+              </div>
+              <p className="mb-4 text-xs text-muted-foreground">
+                Todos os clientes ativos terão o status alterado para {showEventModal === "maintenance" ? "Em Manutenção" : "Instabilidade"} e receberão uma notificação. Ao encerrar, o status anterior será restaurado.
+              </p>
+              <div className="mb-4">
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Clock size={12} /> Tempo estimado (minutos) — opcional
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={eventDuration}
+                  onChange={(e) => setEventDuration(e.target.value)}
+                  placeholder="Ex: 30"
+                  className={inputCls}
+                />
+              </div>
+              <button
+                onClick={() => handleServerEvent(showEventModal, true)}
+                disabled={!!serverEventLoading}
+                className={`w-full rounded-xl px-4 py-3 text-sm font-semibold shadow-lg transition-all disabled:opacity-50 ${
+                  showEventModal === "maintenance"
+                    ? "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
+                    : "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                }`}
+              >
+                {serverEventLoading ? <Loader2 size={16} className="inline animate-spin mr-2" /> : null}
+                Ativar {showEventModal === "maintenance" ? "Manutenção" : "Instabilidade"}
+              </button>
             </motion.div>
           </div>
         )}

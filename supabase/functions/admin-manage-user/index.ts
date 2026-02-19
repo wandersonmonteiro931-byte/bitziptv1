@@ -1033,6 +1033,93 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "activate_server_event": {
+        // Bulk change all active/trust_active users to maintenance or unstable
+        const eventType = data.event_type; // "maintenance" or "unstable"
+        if (!["maintenance", "unstable"].includes(eventType)) throw new Error("event_type deve ser 'maintenance' ou 'unstable'");
+
+        // Get all users whose status is NOT already maintenance/unstable/blocked/disabled
+        const { data: affectedUsers } = await supabaseAdmin
+          .from("profiles")
+          .select("id, name, iptv_status")
+          .in("iptv_status", ["active", "trust_active", "awaiting_payment"]);
+
+        let changed = 0;
+        for (const u of (affectedUsers || [])) {
+          await supabaseAdmin.from("profiles").update({
+            iptv_status_before_event: u.iptv_status,
+            iptv_status: eventType,
+          }).eq("id", u.id);
+          changed++;
+        }
+
+        // Send push notification to all affected users
+        const eventLabel = eventType === "maintenance" ? "Manutenção" : "Instabilidade";
+        const durationText = data.duration_minutes ? ` Previsão: ${data.duration_minutes} minutos.` : "";
+        try {
+          for (const u of (affectedUsers || [])) {
+            await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+              body: JSON.stringify({
+                action: "send_to_user",
+                user_id: u.id,
+                title: eventType === "maintenance" ? "🔧 Servidor em Manutenção" : "⚠️ Instabilidade no Servidor",
+                body: `O servidor está em ${eventLabel.toLowerCase()}.${durationText} Pedimos desculpas pelo inconveniente.`,
+                url: "/",
+              }),
+            });
+          }
+        } catch (pushErr) {
+          console.error("Failed to send server event push:", pushErr);
+        }
+
+        result = { success: true, affected_count: changed };
+        break;
+      }
+      case "deactivate_server_event": {
+        // Restore previous status for all users affected by maintenance/unstable
+        const eventType = data.event_type; // "maintenance" or "unstable"
+        if (!["maintenance", "unstable"].includes(eventType)) throw new Error("event_type deve ser 'maintenance' ou 'unstable'");
+
+        const { data: affectedUsers } = await supabaseAdmin
+          .from("profiles")
+          .select("id, name, iptv_status_before_event")
+          .eq("iptv_status", eventType);
+
+        let restored = 0;
+        for (const u of (affectedUsers || [])) {
+          const previousStatus = u.iptv_status_before_event || "active";
+          await supabaseAdmin.from("profiles").update({
+            iptv_status: previousStatus,
+            iptv_status_before_event: "",
+          }).eq("id", u.id);
+          restored++;
+        }
+
+        // Send push notification
+        const eventLabel = eventType === "maintenance" ? "Manutenção" : "Instabilidade";
+        try {
+          for (const u of (affectedUsers || [])) {
+            await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+              body: JSON.stringify({
+                action: "send_to_user",
+                user_id: u.id,
+                title: eventType === "maintenance" ? "✅ Manutenção Concluída" : "✅ Instabilidade Resolvida",
+                body: `A ${eventLabel.toLowerCase()} foi finalizada. Seu acesso foi restabelecido. Obrigado pela compreensão!`,
+                url: "/",
+              }),
+            });
+          }
+        } catch (pushErr) {
+          console.error("Failed to send server event resolution push:", pushErr);
+        }
+
+        result = { success: true, restored_count: restored };
+        break;
+      }
       default:
         throw new Error("Ação desconhecida: " + action);
     }
