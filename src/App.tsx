@@ -57,6 +57,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <PWAUpdatePrompt />
+        <InstallGate>
         <NotificationGate>
         <BrowserRouter>
           <Routes>
@@ -100,6 +101,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
         </NotificationGate>
+        </InstallGate>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
