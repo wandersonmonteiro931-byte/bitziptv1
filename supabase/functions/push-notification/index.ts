@@ -141,12 +141,17 @@ async function sendPush(
       body,
     });
 
-    if (resp.status === 410 || resp.status === 404) return false;
+    if (resp.status === 410 || resp.status === 404) {
+      console.log(`Subscription expired (${resp.status}): ${sub.endpoint.slice(0, 60)}`);
+      return false;
+    }
     if (!resp.ok) {
       const txt = await resp.text().catch(() => "");
       console.error(`Push failed ${resp.status}: ${txt}`);
+      // Return true for temporary errors (don't delete subscription)
+      return resp.status >= 500 || resp.status === 429;
     }
-    return resp.ok || resp.status === 201;
+    return true;
   } catch (err) {
     console.error("Push send error:", err);
     return false;

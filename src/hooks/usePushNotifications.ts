@@ -11,9 +11,8 @@ export function usePushNotifications(userId: string | undefined) {
 
     const setup = async () => {
       try {
-        // Register push service worker
-        const registration = await navigator.serviceWorker.register("/push-sw.js", { scope: "/" });
-        await navigator.serviceWorker.ready;
+        // Wait for the PWA service worker to be ready (which now includes push-sw.js via importScripts)
+        const registration = await navigator.serviceWorker.ready;
 
         // Get VAPID public key from server
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
