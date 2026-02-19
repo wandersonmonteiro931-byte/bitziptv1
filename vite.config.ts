@@ -20,15 +20,14 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "prompt",
       includeAssets: ["logo-bitz.jpg", "favicon.ico"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
         globIgnores: ["**/push-sw.js"],
-        skipWaiting: false,
-        clientsClaim: true,
-        importScripts: ["/push-sw.js"],
       },
       manifest: {
         name: "Bitz IPTV",
