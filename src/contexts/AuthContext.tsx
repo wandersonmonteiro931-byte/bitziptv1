@@ -144,6 +144,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Immediately fetch profile instead of relying on onAuthStateChange
     if (data.session?.user) {
       await fetchProfile(data.session.user.id);
+      // Log login event with device info (fire-and-forget)
+      try {
+        const ua = navigator.userAgent;
+        const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+        const browser = /Firefox/i.test(ua) ? "Firefox" : /Edg/i.test(ua) ? "Edge" : /Chrome/i.test(ua) ? "Chrome" : /Safari/i.test(ua) ? "Safari" : "Outro";
+        const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad|Mac/i.test(ua) ? "iOS/macOS" : /Windows/i.test(ua) ? "Windows" : /Linux/i.test(ua) ? "Linux" : "Outro";
+        supabase.from("login_logs").insert({
+          user_id: data.session.user.id,
+          user_agent: ua,
+          device_type: deviceType,
+          browser,
+          os,
+        }).then(() => {});
+      } catch {}
     }
     return null;
   };

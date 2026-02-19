@@ -839,6 +839,39 @@ export type Database = {
         }
         Relationships: []
       }
+      login_logs: {
+        Row: {
+          browser: string | null
+          device_type: string | null
+          id: string
+          ip_address: string | null
+          logged_in_at: string
+          os: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          browser?: string | null
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          logged_in_at?: string
+          os?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          browser?: string | null
+          device_type?: string | null
+          id?: string
+          ip_address?: string | null
+          logged_in_at?: string
+          os?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       mission_completions: {
         Row: {
           completed_at: string
