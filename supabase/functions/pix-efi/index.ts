@@ -520,38 +520,46 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
 
-  // 5. Send automatic push notifications to user
+  // 5. Send automatic push notifications based on DB rules
   try {
     const supabaseUrl = getEnv("SUPABASE_URL");
     const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
-    // Notification 1: Payment received
-    await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-      body: JSON.stringify({
-        action: "send_to_user",
-        user_id: payment.user_id,
-        title: "💰 Pagamento Recebido!",
-        body: "Recebemos seu pagamento via PIX. Aguarde a ativação pelo suporte.",
-        url: "/",
-      }),
-    });
+    // Get user profile for template variables
+    const { data: userProfile } = await adminSupa.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", payment.user_id).single();
 
-    // Notification 2: Awaiting support
-    await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-      body: JSON.stringify({
-        action: "send_to_user",
-        user_id: payment.user_id,
-        title: "⏳ Aguardando Suporte",
-        body: "Seu pagamento está sendo processado. A ativação será feita em até 24h.",
-        url: "/",
-      }),
-    });
+    // Load active rules for payment_received event
+    const { data: rules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "payment_received").eq("is_active", true);
 
-    console.log(`Push notifications sent to user ${payment.user_id}`);
+    const templateVars: Record<string, string> = {
+      "{nome}": userProfile?.name || "",
+      "{valor}": Number(payment.amount).toFixed(2),
+      "{servidor}": userProfile?.iptv_server || "",
+      "{plano_meses}": String(payment.months || 1),
+      "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
+      "{validade}": userProfile?.iptv_expiry ? userProfile.iptv_expiry.split("-").reverse().join("/") : "",
+    };
+
+    for (const rule of (rules || [])) {
+      let title = rule.title_template;
+      let body = rule.body_template;
+      for (const [key, val] of Object.entries(templateVars)) {
+        title = title.replaceAll(key, val);
+        body = body.replaceAll(key, val);
+      }
+
+      await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+        body: JSON.stringify({
+          action: "send_to_user",
+          user_id: payment.user_id,
+          title, body, url: rule.click_url || "/",
+        }),
+      });
+    }
+
+    console.log(`Push notifications sent to user ${payment.user_id} (${(rules || []).length} rules)`);
   } catch (pushErr) {
     console.error("Failed to send push notification:", pushErr);
   }
