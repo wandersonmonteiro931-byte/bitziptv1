@@ -1,28 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
+// Unique build ID — changes on every new build/publish
+const BUILD_VERSION = __BUILD_TIMESTAMP__;
+
 export function PWAUpdatePrompt() {
-  // Only show update prompt when running as installed PWA (standalone mode)
-  // This prevents false update prompts in browser/preview environments
   const isStandalone =
     window.matchMedia("(display-mode: standalone)").matches ||
     (window.navigator as any).standalone === true;
 
-  // Prevent update loop: skip prompt if we just updated
-  const COOLDOWN_KEY = "pwa_update_ts";
-  const COOLDOWN_MS = 30_000;
-  const lastUpdate = Number(sessionStorage.getItem(COOLDOWN_KEY) || "0");
-  const inCooldown = Date.now() - lastUpdate < COOLDOWN_MS;
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const {
-    needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
-      // Only poll for updates in standalone PWA mode
       if (registration && isStandalone) {
         setInterval(() => {
           registration.update();
@@ -34,22 +30,34 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  const showPrompt = needRefresh && !inCooldown && isStandalone;
+  // Check if there's a new version compared to what was last seen
+  useEffect(() => {
+    if (!isStandalone) return;
 
-  const [updating, setUpdating] = useState(false);
+    const STORED_KEY = "pwa_build_version";
+    const storedVersion = localStorage.getItem(STORED_KEY);
+
+    if (storedVersion === null) {
+      // First time — just store current version, no prompt
+      localStorage.setItem(STORED_KEY, String(BUILD_VERSION));
+      return;
+    }
+
+    if (String(BUILD_VERSION) !== storedVersion) {
+      // New build detected — show update prompt
+      setShowPrompt(true);
+    }
+  }, [isStandalone]);
 
   const handleUpdate = async () => {
     setUpdating(true);
-    // Mark cooldown BEFORE reload to prevent loop
-    sessionStorage.setItem(COOLDOWN_KEY, String(Date.now()));
+    // Save new version so prompt won't show again after reload
+    localStorage.setItem("pwa_build_version", String(BUILD_VERSION));
 
     try {
       await updateServiceWorker(true);
-    } catch (err) {
-      console.error("updateServiceWorker failed:", err);
-    }
+    } catch {}
 
-    // Clear caches
     try {
       if ("caches" in window) {
         const cacheNames = await caches.keys();
@@ -57,7 +65,6 @@ export function PWAUpdatePrompt() {
       }
     } catch {}
 
-    // Force reload
     setTimeout(() => {
       window.location.reload();
     }, 500);
@@ -78,7 +85,6 @@ export function PWAUpdatePrompt() {
             transition={{ type: "spring", stiffness: 200, damping: 20 }}
             className="w-full max-w-sm text-center"
           >
-            {/* Logo */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -92,7 +98,6 @@ export function PWAUpdatePrompt() {
               />
             </motion.div>
 
-            {/* Icon */}
             <motion.div
               initial={{ rotate: 0 }}
               animate={{ rotate: 360 }}
