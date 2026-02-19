@@ -16,10 +16,12 @@ export function PWAUpdatePrompt() {
   const [updating, setUpdating] = useState(false);
 
   const {
+    needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
-      if (registration && isStandalone) {
+      // Poll for SW updates every 5 seconds
+      if (registration) {
         setInterval(() => {
           registration.update();
         }, 5 * 1000);
@@ -30,24 +32,25 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  // Check if there's a new version compared to what was last seen
+  // Show prompt when SW detects a new version OR build timestamp changed
   useEffect(() => {
-    if (!isStandalone) return;
+    if (needRefresh) {
+      setShowPrompt(true);
+      return;
+    }
 
     const STORED_KEY = "pwa_build_version";
     const storedVersion = localStorage.getItem(STORED_KEY);
 
     if (storedVersion === null) {
-      // First time — just store current version, no prompt
       localStorage.setItem(STORED_KEY, String(BUILD_VERSION));
       return;
     }
 
     if (String(BUILD_VERSION) !== storedVersion) {
-      // New build detected — show update prompt
       setShowPrompt(true);
     }
-  }, [isStandalone]);
+  }, [needRefresh]);
 
   const handleUpdate = async () => {
     setUpdating(true);
