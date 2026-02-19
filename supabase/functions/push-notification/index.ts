@@ -130,6 +130,9 @@ async function sendPush(
     const jwt = await createVapidJwt(audience, vapidPub, vapidPriv);
     const body = await encryptPayload(sub, payload);
 
+    console.log(`[PUSH] Sending to: ${sub.endpoint.slice(0, 80)}...`);
+    console.log(`[PUSH] Payload length: ${payload.length}, Encrypted body length: ${body.length}`);
+
     const resp = await fetch(sub.endpoint, {
       method: "POST",
       headers: {
@@ -141,19 +144,21 @@ async function sendPush(
       body,
     });
 
+    const respText = await resp.text().catch(() => "");
+    console.log(`[PUSH] Response status: ${resp.status}, body: ${respText.slice(0, 200)}`);
+
     if (resp.status === 410 || resp.status === 404) {
-      console.log(`Subscription expired (${resp.status}): ${sub.endpoint.slice(0, 60)}`);
+      console.log(`[PUSH] Subscription expired (${resp.status})`);
       return false;
     }
     if (!resp.ok) {
-      const txt = await resp.text().catch(() => "");
-      console.error(`Push failed ${resp.status}: ${txt}`);
-      // Return true for temporary errors (don't delete subscription)
-      return resp.status >= 500 || resp.status === 429;
+      console.error(`[PUSH] Failed ${resp.status}: ${respText}`);
+      return true; // Don't delete subscription on temporary errors
     }
+    console.log(`[PUSH] SUCCESS - delivered to push service`);
     return true;
   } catch (err) {
-    console.error("Push send error:", err);
+    console.error("[PUSH] Send error:", err);
     return false;
   }
 }
