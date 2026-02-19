@@ -31,6 +31,8 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [payments, setPayments] = useState<any[]>([]);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [showConfirmPayment, setShowConfirmPayment] = useState(false);
+  const [showManualPayment, setShowManualPayment] = useState(false);
+  const [manualPaymentForm, setManualPaymentForm] = useState({ amount: "", payment_date: "", period_start: "", period_end: "", notes: "" });
   const [paymentForm, setPaymentForm] = useState({ months: 1, amount: "", notes: "" });
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "past" | "future">("all");
   const [scheduledRates, setScheduledRates] = useState<any[]>([]);
@@ -149,6 +151,27 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     loadPayments();
     setSaving(false);
     onSaved();
+  };
+
+  const registerManualPayment = async () => {
+    if (!manualPaymentForm.amount || !manualPaymentForm.payment_date || !manualPaymentForm.period_start || !manualPaymentForm.period_end) {
+      toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    await supabase.functions.invoke("admin-manage-user", {
+      body: {
+        action: "register_manual_payment",
+        user_id: user.id,
+        data: manualPaymentForm,
+      },
+    });
+    toast({ title: "✅ Pagamento manual registrado com sucesso!" });
+    setShowManualPayment(false);
+    setManualPaymentForm({ amount: "", payment_date: "", period_start: "", period_end: "", notes: "" });
+    setPaymentsLoaded(false);
+    await loadPayments();
+    setSaving(false);
   };
 
   const quickAction = async (action: string) => {
@@ -598,6 +621,14 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     <CalendarCheck size={16} /> Confirmar Pagamento / Renovar
                   </button>
 
+                  {/* Manual Payment Registration button */}
+                  <button
+                    onClick={() => setShowManualPayment(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary/10 px-4 py-3 text-sm font-semibold text-primary hover:bg-primary/20 transition-all"
+                  >
+                    <Plus size={16} /> Registrar Pagamento Manual
+                  </button>
+
                   {/* Confirm Payment Modal */}
                   <AnimatePresence>
                     {showConfirmPayment && (
@@ -630,6 +661,51 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             {saving ? "Processando..." : "✅ Confirmar"}
                           </button>
                           <button onClick={() => setShowConfirmPayment(false)}
+                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+                            Cancelar
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Manual Payment Registration Modal */}
+                  <AnimatePresence>
+                    {showManualPayment && (
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                        className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                        <p className="text-xs font-semibold text-primary">📝 Registrar Pagamento Manual</p>
+                        <p className="text-[10px] text-muted-foreground">Apenas para registro histórico. Não altera datas de validade nem status do cliente.</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={labelCls}>Data do Pagamento *</label>
+                            <input type="date" value={manualPaymentForm.payment_date} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, payment_date: e.target.value })} className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Valor (R$) *</label>
+                            <input type="number" step="0.01" value={manualPaymentForm.amount} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, amount: e.target.value })} placeholder={totalValue.toFixed(2)} className={inputCls} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className={labelCls}>Período Início *</label>
+                            <input type="date" value={manualPaymentForm.period_start} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, period_start: e.target.value })} className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Período Fim *</label>
+                            <input type="date" value={manualPaymentForm.period_end} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, period_end: e.target.value })} className={inputCls} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={labelCls}>Observação</label>
+                          <input value={manualPaymentForm.notes} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, notes: e.target.value })} placeholder="PIX, dinheiro, transferência..." className={inputCls} />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={registerManualPayment} disabled={saving || !manualPaymentForm.amount || !manualPaymentForm.payment_date || !manualPaymentForm.period_start || !manualPaymentForm.period_end}
+                            className="flex-1 rounded-xl bg-primary/20 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/30 disabled:opacity-50 transition-all">
+                            {saving ? "Registrando..." : "📝 Registrar"}
+                          </button>
+                          <button onClick={() => setShowManualPayment(false)}
                             className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
                             Cancelar
                           </button>

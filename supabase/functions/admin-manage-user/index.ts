@@ -428,6 +428,45 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
       }
+      case "register_manual_payment": {
+        // Register a historical/manual payment record WITHOUT changing iptv_expiry or iptv_status
+        const { amount: manualAmount, payment_date: manualDate, notes: manualNotes, period_start: manualStart, period_end: manualEnd } = data;
+        if (!manualAmount || !manualDate || !manualStart || !manualEnd) {
+          throw new Error("amount, payment_date, period_start e period_end são obrigatórios");
+        }
+
+        await supabaseAdmin.from("iptv_payments").insert({
+          user_id,
+          amount: roundMoney(Number(manualAmount)),
+          months: 1,
+          period_start: manualStart,
+          period_end: manualEnd,
+          status: "confirmed",
+          payment_method: "manual",
+          payment_date: manualDate,
+          admin_id: caller.id,
+          notes: manualNotes || "Registro manual",
+        });
+
+        await supabaseAdmin.from("balance_history").insert({
+          user_id,
+          type: "payment",
+          amount: roundMoney(Number(manualAmount)),
+          description: `Pagamento registrado manualmente — R$ ${roundMoney(Number(manualAmount)).toFixed(2)} (${manualStart} a ${manualEnd})`,
+          admin_id: caller.id,
+        });
+
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          admin_id: caller.id,
+          action: "register_manual_payment",
+          target_table: "iptv_payments",
+          target_id: user_id,
+          details: { amount: manualAmount, payment_date: manualDate, period_start: manualStart, period_end: manualEnd, notes: manualNotes },
+        });
+
+        result = { success: true };
+        break;
+      }
       case "reverse_payment": {
         const { payment_id } = data;
         if (!payment_id) throw new Error("payment_id é obrigatório");
