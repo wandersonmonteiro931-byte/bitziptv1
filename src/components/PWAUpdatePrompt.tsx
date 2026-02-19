@@ -4,20 +4,24 @@ import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
-const UPDATED_KEY = "pwa_just_updated";
+const UPDATED_BUILD_KEY = "pwa_updated_build";
 
-function wasJustUpdated(): boolean {
-  const ts = sessionStorage.getItem(UPDATED_KEY);
-  if (!ts) return false;
-  // Consider "just updated" for 30 seconds after reload
-  return Date.now() - Number(ts) < 30_000;
+/**
+ * Check if current build matches the one we just updated to.
+ * If yes, suppress the update prompt — we ARE the latest version.
+ */
+function isCurrentBuild(): boolean {
+  const stored = localStorage.getItem(UPDATED_BUILD_KEY);
+  if (!stored) return false;
+  return stored === String(__BUILD_TIMESTAMP__);
 }
 
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const suppressRef = useRef(wasJustUpdated());
+  // Suppress if this build matches the one we updated to
+  const suppressRef = useRef(isCurrentBuild());
 
   const { updateServiceWorker } = useRegisterSW({
     onNeedRefresh() {
@@ -49,17 +53,6 @@ export function PWAUpdatePrompt() {
     };
   }, []);
 
-  // Clear the suppress flag after 30s so future real updates are detected
-  useEffect(() => {
-    if (suppressRef.current) {
-      const timeout = setTimeout(() => {
-        suppressRef.current = false;
-        sessionStorage.removeItem(UPDATED_KEY);
-      }, 30_000);
-      return () => clearTimeout(timeout);
-    }
-  }, []);
-
   const handleUpdate = async () => {
     setUpdating(true);
 
@@ -68,20 +61,27 @@ export function PWAUpdatePrompt() {
       intervalRef.current = null;
     }
 
-    // Mark as just updated BEFORE reload so the next mount skips the prompt
-    sessionStorage.setItem(UPDATED_KEY, String(Date.now()));
+    // Store the CURRENT build timestamp so the NEXT load (which will have a
+    // NEW __BUILD_TIMESTAMP__) can compare. But since we don't know the new
+    // timestamp yet, we mark "updating" and after reload the new code's
+    // __BUILD_TIMESTAMP__ will be stored.
+    // Strategy: store a flag, then on mount the new build stores its own timestamp.
+    localStorage.setItem(UPDATED_BUILD_KEY, "pending");
 
     try {
       await updateServiceWorker(true);
     } catch {}
-    try {
-      if ("caches" in window) {
-        const names = await caches.keys();
-        await Promise.all(names.map((n) => caches.delete(n)));
-      }
-    } catch {}
     window.location.reload();
   };
+
+  // On mount: if flag is "pending", we just reloaded after an update.
+  // Store the current build timestamp to suppress future prompts for THIS build.
+  useEffect(() => {
+    if (localStorage.getItem(UPDATED_BUILD_KEY) === "pending") {
+      localStorage.setItem(UPDATED_BUILD_KEY, String(__BUILD_TIMESTAMP__));
+      suppressRef.current = true;
+    }
+  }, []);
 
   if (!showPrompt) return null;
 
