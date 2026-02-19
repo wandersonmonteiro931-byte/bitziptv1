@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw } from "lucide-react";
@@ -21,8 +22,21 @@ export function PWAUpdatePrompt() {
     },
   });
 
-  const handleUpdate = () => {
-    updateServiceWorker(true);
+  const [updating, setUpdating] = useState(false);
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    try {
+      await updateServiceWorker(true);
+      // Give the SW time to activate, then force hard reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error("Update failed:", err);
+      // Fallback: just force reload
+      window.location.reload();
+    }
   };
 
   return (
@@ -73,9 +87,10 @@ export function PWAUpdatePrompt() {
 
             <button
               onClick={handleUpdate}
-              className="mt-6 w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-[0.97]"
+              disabled={updating}
+              className="mt-6 w-full rounded-xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-all active:scale-[0.97] disabled:opacity-60"
             >
-              Atualizar agora
+              {updating ? "Atualizando..." : "Atualizar agora"}
             </button>
 
             <p className="mt-3 text-[10px] text-muted-foreground/50">
