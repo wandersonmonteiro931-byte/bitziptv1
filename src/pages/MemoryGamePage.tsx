@@ -51,6 +51,7 @@ const MemoryGamePage = () => {
   const startTimeRef = useRef<number>(0);
   const lockRef = useRef(false);
   const memTimerRef = useRef<any>(null);
+  const matchedPairsRef = useRef(0);
 
   useEffect(() => {
     const check = async () => {
@@ -100,6 +101,7 @@ const MemoryGamePage = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (memTimerRef.current) { clearInterval(memTimerRef.current); memTimerRef.current = null; }
     lockRef.current = false;
+    matchedPairsRef.current = 0;
     setPhase("idle");
     setCards([]);
     setSelected([]);
@@ -145,8 +147,11 @@ const MemoryGamePage = () => {
             if (prev <= 1) {
               clearInterval(timerRef.current);
               timerRef.current = null;
+              const dur = Math.round((Date.now() - startTimeRef.current) / 1000);
+              setDuration(dur);
               setPhase("lost");
               sound("lose");
+              completeGame(dur, matchedPairsRef.current);
               return 0;
             }
             if (prev === 6) sound("click");
@@ -186,11 +191,12 @@ const MemoryGamePage = () => {
               i === first || i === second ? { ...c, matched: true } : c
             )
           );
-          const newMatched = matchedPairs + 1;
+          matchedPairsRef.current += 1;
+          const newMatched = matchedPairsRef.current;
           setMatchedPairs(newMatched);
 
           if (newMatched === TOTAL_PAIRS) {
-            clearInterval(timerRef.current);
+            if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
             const dur = Math.round((Date.now() - startTimeRef.current) / 1000);
             setDuration(dur);
             setPhase("won");
