@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const SW_URL = "/service-worker.js";
+
 export function usePushNotifications(userId: string | undefined) {
   const subscribedRef = useRef(false);
 
@@ -11,15 +13,21 @@ export function usePushNotifications(userId: string | undefined) {
 
     const setup = async () => {
       try {
-        // Wait for the PWA service worker to be ready (which now includes push-sw.js via importScripts)
+        // Wait for OUR custom service worker to be ready
         const registration = await navigator.serviceWorker.ready;
+
+        // Verify we're using the correct SW
+        if (registration.active && !registration.active.scriptURL.includes("service-worker")) {
+          console.warn("[Push] Wrong SW active, waiting...");
+          return;
+        }
 
         // Get VAPID public key from server
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
           body: { action: "get_vapid_public_key" },
         });
         if (vapidError || !vapidData?.public_key) {
-          console.error("Failed to get VAPID key:", vapidError);
+          console.error("[Push] Failed to get VAPID key:", vapidError);
           return;
         }
 
@@ -58,13 +66,12 @@ export function usePushNotifications(userId: string | undefined) {
         });
 
         subscribedRef.current = true;
-        console.log("Push notifications subscribed successfully");
+        console.log("[Push] Subscribed successfully");
       } catch (err) {
-        console.error("Push notification setup error:", err);
+        console.error("[Push] Setup error:", err);
       }
     };
 
-    // Small delay to not block initial render
     const timer = setTimeout(setup, 2000);
     return () => clearTimeout(timer);
   }, [userId]);

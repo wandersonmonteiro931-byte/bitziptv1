@@ -1,15 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-import { useRegisterSW } from "virtual:pwa-register/react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
+declare const __BUILD_TIMESTAMP__: number;
 const UPDATED_BUILD_KEY = "pwa_updated_build";
+const SW_URL = "/service-worker.js";
+const CHECK_INTERVAL = 5_000;
 
-/**
- * Check if current build matches the one we just updated to.
- * If yes, suppress the update prompt — we ARE the latest version.
- */
 function isCurrentBuild(): boolean {
   const stored = localStorage.getItem(UPDATED_BUILD_KEY);
   if (!stored) return false;
@@ -19,69 +17,95 @@ function isCurrentBuild(): boolean {
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Suppress if this build matches the one we updated to
   const suppressRef = useRef(isCurrentBuild());
 
-  const { updateServiceWorker } = useRegisterSW({
-    onNeedRefresh() {
-      if (!suppressRef.current) {
-        setShowPrompt(true);
-      }
-    },
-    onRegisteredSW(_swUrl, registration) {
-      if (!registration) return;
-
-      intervalRef.current = setInterval(async () => {
-        if (suppressRef.current) return;
-        try {
-          await registration.update();
-        } catch {}
-        if (registration.waiting && !suppressRef.current) {
-          setShowPrompt(true);
-        }
-      }, 5_000);
-    },
-    onRegisterError(error) {
-      console.error("SW registration error:", error);
-    },
-  });
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+  const checkForUpdate = useCallback(async () => {
+    if (suppressRef.current) return;
+    const reg = registrationRef.current;
+    if (!reg) return;
+    try {
+      await reg.update();
+    } catch {}
+    if (reg.waiting && !suppressRef.current) {
+      setShowPrompt(true);
+    }
   }, []);
 
-  const handleUpdate = async () => {
-    setUpdating(true);
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
 
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    const register = async () => {
+      try {
+        const reg = await navigator.serviceWorker.register(SW_URL, { scope: "/" });
+        registrationRef.current = reg;
 
-    // Store the CURRENT build timestamp so the NEXT load (which will have a
-    // NEW __BUILD_TIMESTAMP__) can compare. But since we don't know the new
-    // timestamp yet, we mark "updating" and after reload the new code's
-    // __BUILD_TIMESTAMP__ will be stored.
-    // Strategy: store a flag, then on mount the new build stores its own timestamp.
-    localStorage.setItem(UPDATED_BUILD_KEY, "pending");
+        // If there's already a waiting worker, show prompt
+        if (reg.waiting && !suppressRef.current) {
+          setShowPrompt(true);
+        }
 
-    try {
-      await updateServiceWorker(true);
-    } catch {}
-    window.location.reload();
-  };
+        // Listen for new workers
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller && !suppressRef.current) {
+              setShowPrompt(true);
+            }
+          });
+        });
 
-  // On mount: if flag is "pending", we just reloaded after an update.
-  // Store the current build timestamp to suppress future prompts for THIS build.
+        // Poll for updates
+        intervalRef.current = setInterval(checkForUpdate, CHECK_INTERVAL);
+      } catch (err) {
+        console.error("[PWA] Registration failed:", err);
+      }
+    };
+
+    register();
+
+    // Handle controller change (after skipWaiting)
+    let refreshing = false;
+    const onControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
+  }, [checkForUpdate]);
+
+  // On mount: if flag is "pending", store current build to suppress future prompts
   useEffect(() => {
     if (localStorage.getItem(UPDATED_BUILD_KEY) === "pending") {
       localStorage.setItem(UPDATED_BUILD_KEY, String(__BUILD_TIMESTAMP__));
       suppressRef.current = true;
     }
   }, []);
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    localStorage.setItem(UPDATED_BUILD_KEY, "pending");
+
+    const reg = registrationRef.current;
+    if (reg?.waiting) {
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+
+    // Fallback reload after 3 seconds if controllerchange doesn't fire
+    setTimeout(() => window.location.reload(), 3000);
+  };
 
   if (!showPrompt) return null;
 
