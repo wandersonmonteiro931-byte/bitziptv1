@@ -1,50 +1,47 @@
-// Push notification service worker (imported into PWA SW via importScripts)
+// Push notification handler (imported into PWA SW via importScripts)
 self.addEventListener("push", function (event) {
-  // CRITICAL: event.waitUntil MUST be called synchronously (not inside async/await)
-  // and MUST always result in showNotification, or Android will say "no notifications posted"
   event.waitUntil(
-    (async function () {
-      try {
-        var title = "Bitz IPTV";
-        var body = "Nova notificação";
-        var icon = "/logo-bitz.jpg";
-        var badge = "/logo-bitz.jpg";
-        var url = "/";
+    (function () {
+      var title = "Bitz IPTV";
+      var body = "Nova notificação";
+      var icon = "/logo-bitz.jpg";
+      var badge = "/logo-bitz.jpg";
+      var url = "/";
 
-        if (event.data) {
+      if (event.data) {
+        // CRITICAL: Read as text FIRST — event.data can only be consumed ONCE.
+        // If json() fails, the stream is gone and text() returns empty.
+        var rawText = "";
+        try {
+          rawText = event.data.text();
+        } catch (e) {
+          // stream already consumed or unavailable
+        }
+
+        if (rawText) {
           try {
-            var data = event.data.json();
+            var data = JSON.parse(rawText);
             title = data.title || title;
             body = data.body || data.message || body;
             icon = data.icon || icon;
             badge = data.badge || badge;
             if (data.data && data.data.url) url = data.data.url;
           } catch (e) {
-            // JSON parse failed, try plain text
-            try {
-              body = event.data.text() || body;
-            } catch (e2) {
-              // ignore
-            }
+            // Not valid JSON — use raw text as body
+            body = rawText;
           }
         }
-
-        return self.registration.showNotification(title, {
-          body: body,
-          icon: icon,
-          badge: badge,
-          vibrate: [200, 100, 200],
-          tag: "bitz-" + Date.now(),
-          renotify: true,
-          data: { url: url },
-        });
-      } catch (err) {
-        // ABSOLUTE FALLBACK: no matter what, show something
-        return self.registration.showNotification("Bitz IPTV", {
-          body: "Você tem uma nova notificação",
-          icon: "/logo-bitz.jpg",
-        });
       }
+
+      return self.registration.showNotification(title, {
+        body: body,
+        icon: icon,
+        badge: badge,
+        vibrate: [200, 100, 200],
+        tag: "bitz-" + Date.now(),
+        renotify: true,
+        data: { url: url }
+      });
     })()
   );
 });
