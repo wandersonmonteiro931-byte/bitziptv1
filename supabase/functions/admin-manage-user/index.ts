@@ -105,6 +105,40 @@ Deno.serve(async (req) => {
             .eq("status", "paid_pending_activation");
         }
 
+        // Send push notification when admin manually blocks or activates a user
+        if (data.iptv_status === "blocked" || data.iptv_status === "active") {
+          try {
+            const triggerEvent = data.iptv_status === "blocked" ? "user_blocked" : "activation_confirmed";
+            const { data: userProfile } = await supabaseAdmin.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", user_id).single();
+            const { data: rules } = await supabaseAdmin.from("notification_rules").select("*").eq("trigger_event", triggerEvent).eq("is_active", true);
+
+            if (rules && rules.length > 0) {
+              const templateVars: Record<string, string> = {
+                "{nome}": userProfile?.name || "",
+                "{validade}": userProfile?.iptv_expiry ? userProfile.iptv_expiry.split("-").reverse().join("/") : "",
+                "{servidor}": userProfile?.iptv_server || "",
+                "{valor}": "", "{plano_meses}": "", "{data_pagamento}": "",
+              };
+              for (const rule of rules) {
+                let t = rule.title_template;
+                let b = rule.body_template;
+                for (const [key, val] of Object.entries(templateVars)) {
+                  t = t.replaceAll(key, val);
+                  b = b.replaceAll(key, val);
+                }
+                await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+                  body: JSON.stringify({ action: "send_to_user", user_id, title: t, body: b, url: rule.click_url || "/" }),
+                });
+              }
+              console.log(`Manual ${data.iptv_status} push sent to user ${user_id} (${rules.length} rules)`);
+            }
+          } catch (pushErr) {
+            console.error("Failed to send manual status push:", pushErr);
+          }
+        }
+
         result = { success: true };
         break;
       }
