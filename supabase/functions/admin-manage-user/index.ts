@@ -314,7 +314,16 @@ Deno.serve(async (req) => {
         const { data: prof } = await supabaseAdmin.from("profiles").select("iptv_monthly_value, iptv_connections, iptv_expiry").eq("id", user_id).single();
         if (!prof) throw new Error("Usuário não encontrado");
 
-        const monthlyTotal = roundMoney(Number(prof.iptv_monthly_value) * Number(prof.iptv_connections));
+        const baseMonthlyValue = Number(prof.iptv_monthly_value);
+        const connections = Number(prof.iptv_connections);
+
+        // Get scheduled rate changes for this user
+        const { data: scheduledRates } = await supabaseAdmin
+          .from("iptv_scheduled_rates")
+          .select("*")
+          .eq("user_id", user_id)
+          .eq("applied", false)
+          .order("effective_date", { ascending: true });
 
         // Find the latest period_end across all non-reversed payments
         const { data: lastPay } = await supabaseAdmin
@@ -336,20 +345,35 @@ Deno.serve(async (req) => {
         }
 
         const invoices: any[] = [];
+        const appliedRateIds: string[] = [];
+
         for (let i = 0; i < count; i++) {
           const pStart = new Date(startFrom);
           pStart.setMonth(pStart.getMonth() + i);
           const pEnd = new Date(startFrom);
           pEnd.setMonth(pEnd.getMonth() + i + 1);
+          const pStartStr = pStart.toISOString().split("T")[0];
+
+          // Check if there's a scheduled rate change that should apply
+          let monthlyValue = baseMonthlyValue;
+          for (const rate of (scheduledRates || [])) {
+            if (rate.effective_date <= pStartStr) {
+              monthlyValue = Number(rate.new_monthly_value);
+              if (!appliedRateIds.includes(rate.id)) {
+                appliedRateIds.push(rate.id);
+              }
+            }
+          }
+
           invoices.push({
             user_id,
-            amount: monthlyTotal,
+            amount: roundMoney(monthlyValue * connections),
             months: 1,
-            period_start: pStart.toISOString().split("T")[0],
+            period_start: pStartStr,
             period_end: pEnd.toISOString().split("T")[0],
             status: "pending",
             payment_method: "pix",
-            notes: "Fatura gerada automaticamente",
+            notes: monthlyValue !== baseMonthlyValue ? `Reajuste: R$ ${monthlyValue.toFixed(2)}/tela` : "Fatura gerada automaticamente",
           });
         }
 
@@ -367,7 +391,25 @@ Deno.serve(async (req) => {
           await supabaseAdmin.from("iptv_payments").insert(newInvoices);
         }
 
-        result = { success: true, generated: newInvoices.length };
+        // Mark applied rates and update profile monthly value
+        if (appliedRateIds.length > 0) {
+          await supabaseAdmin.from("iptv_scheduled_rates").update({
+            applied: true,
+            applied_at: new Date().toISOString(),
+          }).in("id", appliedRateIds);
+
+          // Update the profile monthly value to the latest applied rate
+          const latestApplied = (scheduledRates || [])
+            .filter((r: any) => appliedRateIds.includes(r.id))
+            .sort((a: any, b: any) => a.effective_date > b.effective_date ? -1 : 1)[0];
+          if (latestApplied) {
+            await supabaseAdmin.from("profiles").update({
+              iptv_monthly_value: Number(latestApplied.new_monthly_value),
+            }).eq("id", user_id);
+          }
+        }
+
+        result = { success: true, generated: newInvoices.length, rates_applied: appliedRateIds.length };
         break;
       }
       case "mark_invoice_paid": {
@@ -474,6 +516,29 @@ Deno.serve(async (req) => {
         }).eq("id", user_id);
 
         result = { success: true, new_status: newStatus };
+        break;
+      }
+      case "add_scheduled_rate": {
+        const { new_monthly_value, effective_date, notes: rateNotes } = data;
+        if (!new_monthly_value || !effective_date) throw new Error("new_monthly_value e effective_date são obrigatórios");
+
+        await supabaseAdmin.from("iptv_scheduled_rates").insert({
+          user_id,
+          new_monthly_value: Number(new_monthly_value),
+          effective_date,
+          notes: rateNotes || "",
+          created_by: caller.id,
+        });
+
+        result = { success: true };
+        break;
+      }
+      case "delete_scheduled_rate": {
+        const { rate_id } = data;
+        if (!rate_id) throw new Error("rate_id é obrigatório");
+
+        await supabaseAdmin.from("iptv_scheduled_rates").delete().eq("id", rate_id).eq("applied", false);
+        result = { success: true };
         break;
       }
       default:
