@@ -553,8 +553,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                 </div>
                                 <p className="text-[10px] text-muted-foreground">A partir de {formatted}{r.notes ? ` · ${r.notes}` : ""}</p>
                               </div>
-                              {!r.applied && (
-                                <div className="flex gap-1">
+                              <div className="flex gap-1">
                                   <button
                                     onClick={() => {
                                       setEditingRateId(r.id);
@@ -584,7 +583,6 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                     <Trash2 size={11} />
                                   </button>
                                 </div>
-                              )}
                             </div>
                           );
                         })}

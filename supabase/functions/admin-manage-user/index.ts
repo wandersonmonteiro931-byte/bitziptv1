@@ -637,7 +637,7 @@ Deno.serve(async (req) => {
         const { rate_id } = data;
         if (!rate_id) throw new Error("rate_id é obrigatório");
 
-        await supabaseAdmin.from("iptv_scheduled_rates").delete().eq("id", rate_id).eq("applied", false);
+        await supabaseAdmin.from("iptv_scheduled_rates").delete().eq("id", rate_id);
         result = { success: true };
         break;
       }
@@ -650,7 +650,7 @@ Deno.serve(async (req) => {
         if (effective_date !== undefined) updates.effective_date = effective_date;
         if (rateNotes !== undefined) updates.notes = rateNotes;
 
-        await supabaseAdmin.from("iptv_scheduled_rates").update(updates).eq("id", rate_id).eq("applied", false);
+        await supabaseAdmin.from("iptv_scheduled_rates").update(updates).eq("id", rate_id);
         result = { success: true };
         break;
       }
