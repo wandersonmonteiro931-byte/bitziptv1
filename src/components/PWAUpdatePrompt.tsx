@@ -5,16 +5,21 @@ import { RefreshCw } from "lucide-react";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
 export function PWAUpdatePrompt() {
+  // Prevent update loop: skip prompt if we just updated
+  const COOLDOWN_KEY = "pwa_update_ts";
+  const COOLDOWN_MS = 30_000; // 30 seconds cooldown after update
+  const lastUpdate = Number(sessionStorage.getItem(COOLDOWN_KEY) || "0");
+  const inCooldown = Date.now() - lastUpdate < COOLDOWN_MS;
+
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
-      // Check for updates every 5 seconds continuously
       if (registration) {
         setInterval(() => {
           registration.update();
-        }, 5 * 1000);
+        }, 30 * 1000); // Check every 30s instead of 5s
       }
     },
     onRegisterError(error) {
@@ -22,44 +27,38 @@ export function PWAUpdatePrompt() {
     },
   });
 
+  const showPrompt = needRefresh && !inCooldown;
+
   const [updating, setUpdating] = useState(false);
 
   const handleUpdate = async () => {
     setUpdating(true);
+    // Mark cooldown BEFORE reload to prevent loop
+    sessionStorage.setItem(COOLDOWN_KEY, String(Date.now()));
+
     try {
-      // 1. Try to activate the new SW
       await updateServiceWorker(true);
     } catch (err) {
       console.error("updateServiceWorker failed:", err);
     }
 
-    // 2. Clear all caches to force fresh assets
+    // Clear caches
     try {
       if ("caches" in window) {
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map((name) => caches.delete(name)));
       }
-    } catch (err) {
-      console.error("Cache clear failed:", err);
-    }
+    } catch {}
 
-    // 3. Unregister old SW and force hard reload
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((r) => r.unregister()));
-    } catch (err) {
-      console.error("SW unregister failed:", err);
-    }
-
-    // 4. Force reload after a short delay
+    // Force reload
     setTimeout(() => {
-      window.location.href = window.location.origin + "/?v=" + Date.now();
+      window.location.reload();
     }, 500);
   };
 
   return (
     <AnimatePresence>
-      {needRefresh && (
+      {showPrompt && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
