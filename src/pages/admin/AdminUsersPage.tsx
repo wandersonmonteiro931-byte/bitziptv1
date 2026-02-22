@@ -4,6 +4,7 @@ import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersR
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateBRT } from "@/lib/utils";
 
 const statusBadge: Record<string, string> = {
   active: "bg-success/15 text-success",
@@ -600,7 +601,7 @@ const AdminUsersPage = () => {
                       <div>
                         <p className="text-sm font-medium text-foreground">{item.description}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(item.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          {formatDateBRT(item.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                           {" · "}<span className="rounded bg-muted px-1 py-0.5 text-[10px]">{item.type}</span>
                         </p>
                       </div>

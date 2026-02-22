@@ -6,6 +6,7 @@ import { Gamepad2, Diamond, Trophy, Zap, Lock, Brain, Wallet, ShoppingCart } fro
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { formatDateTimeBRT } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -309,7 +310,7 @@ const CreditsChallengesPage = () => {
                   <span>{(a as any).credit_challenges?.icon || "🎯"}</span>
                   <div>
                     <p className="text-sm font-medium text-foreground">{(a as any).credit_challenges?.name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTimeBRT(a.created_at)}</p>
                   </div>
                 </div>
                 <div className="text-right">

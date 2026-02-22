@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Tv, ChevronLeft, ChevronRight, Radio, Clock, CheckCircle2, FastForward } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { nowBRT, todayBRT } from "@/lib/utils";
 
 interface Channel {
   id: string;
@@ -79,13 +80,13 @@ const TvGuidePage = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<string>("all");
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState(nowBRT());
   const [loading, setLoading] = useState(true);
 
-  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayStr = todayBRT();
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 30000);
+    const interval = setInterval(() => setNow(nowBRT()), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -115,7 +116,7 @@ const TvGuidePage = () => {
     setLoading(false);
   };
 
-  const todayLabel = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR });
+  const todayLabel = format(nowBRT(), "EEEE, dd 'de' MMMM", { locale: ptBR });
 
   const filteredPrograms = useMemo(() => {
     if (selectedChannel === "all") return programs;

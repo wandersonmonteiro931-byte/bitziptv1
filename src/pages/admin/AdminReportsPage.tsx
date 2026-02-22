@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart3, Smartphone, Monitor, Bell, Clock, User, Search } from "lucide-react";
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { formatDateBRT, formatTimeBRT } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
@@ -179,10 +179,10 @@ const AdminReportsPage = () => {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs font-medium text-foreground">
-                      {format(new Date(log.logged_in_at), "dd/MM/yy")}
+                      {formatDateBRT(log.logged_in_at, { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      {format(new Date(log.logged_in_at), "HH:mm")}
+                      {formatTimeBRT(log.logged_in_at)}
                     </p>
                   </div>
                 </div>
@@ -213,10 +213,10 @@ const AdminReportsPage = () => {
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-xs font-medium text-foreground">
-                      {format(new Date(sub.created_at), "dd/MM/yy")}
+                      {formatDateBRT(sub.created_at, { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      {format(new Date(sub.created_at), "HH:mm")}
+                      {formatTimeBRT(sub.created_at)}
                     </p>
                   </div>
                 </div>

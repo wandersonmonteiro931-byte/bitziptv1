@@ -1,10 +1,11 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 
 // ─── Template Variables ───
 const TEMPLATE_VARS = [
@@ -138,6 +139,31 @@ const AdminNotificationsPage = () => {
 
   // Click action type
   const [clickType, setClickType] = useState<"route" | "banner" | "text">("route");
+
+  // Refs for inserting variables
+  const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const lastFocusedField = useRef<"title" | "body">("body");
+
+  const insertVariable = (varName: string) => {
+    const isTitle = lastFocusedField.current === "title";
+    const el = isTitle ? titleRef.current : bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    const newValue = el.value.substring(0, start) + varName + el.value.substring(end);
+    if (isTitle) {
+      setEditing(prev => prev ? { ...prev, title_template: newValue } : prev);
+    } else {
+      setEditing(prev => prev ? { ...prev, body_template: newValue } : prev);
+    }
+    // Restore cursor position after React re-render
+    setTimeout(() => {
+      el.focus();
+      const pos = start + varName.length;
+      el.setSelectionRange(pos, pos);
+    }, 0);
+  };
 
   useEffect(() => { loadData(); }, []);
 
@@ -393,7 +419,7 @@ const AdminNotificationsPage = () => {
                     <div className="flex flex-wrap gap-1.5">
                       {n.schedule_at && (
                         <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400 flex items-center gap-1">
-                          <Clock size={9} /> {new Date(n.schedule_at).toLocaleDateString("pt-BR")} {new Date(n.schedule_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          <Clock size={9} /> {formatDateBRT(n.schedule_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       )}
                       {n.sent_at && (
@@ -515,13 +541,13 @@ const AdminNotificationsPage = () => {
                 {/* Title */}
                 <div>
                   <label className={labelCls}>Título</label>
-                  <input value={editing.title_template || ""} onChange={(e) => setEditing({ ...editing, title_template: e.target.value })} placeholder="Ex: ✅ Olá {nome}!" className={inputCls} />
+                  <input ref={titleRef} onFocus={() => { lastFocusedField.current = "title"; }} value={editing.title_template || ""} onChange={(e) => setEditing({ ...editing, title_template: e.target.value })} placeholder="Ex: ✅ Olá {nome}!" className={inputCls} />
                 </div>
 
                 {/* Body */}
                 <div>
                   <label className={labelCls}>Mensagem</label>
-                  <textarea value={editing.body_template || ""} onChange={(e) => setEditing({ ...editing, body_template: e.target.value })} rows={3} placeholder="Ex: Sua mensalidade de {valor} vence em {faltadias} dias..." className={`${inputCls} resize-none`} />
+                  <textarea ref={bodyRef} onFocus={() => { lastFocusedField.current = "body"; }} value={editing.body_template || ""} onChange={(e) => setEditing({ ...editing, body_template: e.target.value })} rows={3} placeholder="Ex: Sua mensalidade de {valor} vence em {faltadias} dias..." className={`${inputCls} resize-none`} />
                 </div>
 
                 {/* Variables Legend */}
@@ -537,9 +563,9 @@ const AdminNotificationsPage = () => {
                         <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
                           {TEMPLATE_VARS.map((v) => (
                             <div key={v.var} className="flex items-center gap-2">
-                              <button onClick={() => navigator.clipboard.writeText(v.var)}
+                              <button onClick={() => insertVariable(v.var)}
                                 className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
-                                {v.var} <Copy size={9} />
+                                {v.var} <Plus size={9} />
                               </button>
                               <span className="text-[10px] text-muted-foreground">{v.desc}</span>
                             </div>

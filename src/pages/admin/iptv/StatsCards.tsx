@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { Users, DollarSign, AlertTriangle, ShieldOff, Clock } from "lucide-react";
+import { todayBRT, nowBRT } from "@/lib/utils";
 
 interface StatsCardsProps {
   users: any[];
 }
 
 export function StatsCards({ users }: StatsCardsProps) {
-  const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
+  const today = nowBRT();
+  const todayStr = todayBRT();
 
   const totalClients = users.length;
   const activeClients = users.filter((u) => u.iptv_status === "active").length;

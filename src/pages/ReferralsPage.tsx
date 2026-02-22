@@ -4,6 +4,7 @@ import { Users, Copy, CheckCircle, Clock, Share2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateBRT } from "@/lib/utils";
 
 const ReferralsPage = () => {
   const { user } = useAuth();
@@ -69,7 +70,7 @@ const ReferralsPage = () => {
                 {ref.status === "approved" ? <CheckCircle size={18} className="text-success" /> : <Clock size={18} className="text-warning" />}
                 <div>
                   <p className="text-sm font-medium text-foreground">{ref.referred?.name || "Usuário"}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(ref.created_at).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateBRT(ref.created_at)}</p>
                 </div>
               </div>
               <span className={`text-sm font-semibold ${ref.status === "approved" ? "text-success" : "text-warning"}`}>

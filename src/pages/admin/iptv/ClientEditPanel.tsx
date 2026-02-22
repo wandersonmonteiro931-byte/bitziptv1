@@ -4,6 +4,7 @@ import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv,
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
+import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 
 const TABS = [
   { key: "overview", label: "Visão Geral", icon: User },
@@ -1029,7 +1030,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="rounded-lg bg-muted/50 p-3">
                         <p className="text-muted-foreground">Criado em</p>
-                        <p className="font-medium text-foreground">{new Date(user.created_at).toLocaleDateString("pt-BR")}</p>
+                        <p className="font-medium text-foreground">{formatDateBRT(user.created_at)}</p>
                       </div>
                       <div className="rounded-lg bg-muted/50 p-3">
                         <p className="text-muted-foreground">Saldo Congelado</p>
@@ -1082,7 +1083,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-foreground">{log.action}</span>
                             <span className="text-[10px] text-muted-foreground">
-                              {new Date(log.created_at).toLocaleDateString("pt-BR")} {new Date(log.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {formatDateBRT(log.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
                           {log.details && Object.keys(log.details).length > 0 && (

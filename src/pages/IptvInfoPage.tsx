@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tv, Server, Smartphone, Calendar, User } from "lucide-react";
 import { motion } from "framer-motion";
+import { formatDateBRT } from "@/lib/utils";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -35,7 +36,7 @@ const IptvInfoPage = () => {
     { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
     { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
     { label: "App TV", value: user?.iptv_tv_app || "-", icon: Tv },
-    { label: "Validade", value: user?.iptv_expiry ? (() => { const [y, m, d] = user.iptv_expiry.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("pt-BR"); })() : "-", icon: Calendar },
+    { label: "Validade", value: user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-", icon: Calendar },
   ];
 
   return (

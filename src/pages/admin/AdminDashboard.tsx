@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Users, Target, Wallet, TrendingUp, Activity, DollarSign, Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateBRT } from "@/lib/utils";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ users: 0, missions: 0, pendingWithdrawals: 0, totalDistributed: 0, totalBalance: 0, pendingAmount: 0 });
@@ -75,7 +76,7 @@ const AdminDashboard = () => {
                 <p className="text-sm text-foreground">{log.action} {log.target_table && `em ${log.target_table}`}</p>
                 <p className="text-xs text-muted-foreground">por {log.admin?.name || "Admin"}</p>
               </div>
-              <span className="text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="text-xs text-muted-foreground">{formatDateBRT(log.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           ))}
         </div>

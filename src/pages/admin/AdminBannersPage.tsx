@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { formatDateBRT } from "@/lib/utils";
 
 interface BannerItem {
   id: string;
@@ -340,8 +341,8 @@ const AdminBannersPage = () => {
             {(b.starts_at || b.ends_at) && (
               <div className="flex items-center gap-3 border-t border-border/50 bg-muted/10 px-3 py-1.5 text-[10px] text-muted-foreground">
                 <Calendar size={10} />
-                {b.starts_at && <span>Início: {new Date(b.starts_at).toLocaleDateString("pt-BR")}</span>}
-                {b.ends_at && <span>Expira: {new Date(b.ends_at).toLocaleDateString("pt-BR")}</span>}
+                {b.starts_at && <span>Início: {formatDateBRT(b.starts_at)}</span>}
+                {b.ends_at && <span>Expira: {formatDateBRT(b.ends_at)}</span>}
               </div>
             )}
           </motion.div>

@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatDateTimeBRT, todayBRT, nowBRT } from "@/lib/utils";
 import { Diamond, Trophy, Flame, TrendingUp, Zap, Gift, Package, Volume2, VolumeX } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -376,7 +377,7 @@ const PrizeBoxPage = () => {
         .limit(30);
       if (!data || data.length === 0) return { streak: 0 };
       let streak = 0;
-      const today = new Date();
+      const today = nowBRT();
       for (let i = 0; i < 30; i++) {
         const checkDate = new Date(today);
         checkDate.setDate(today.getDate() - i);
@@ -699,7 +700,7 @@ const PrizeBoxPage = () => {
                   <span>🎁</span>
                   <div>
                     <p className="text-sm font-medium text-foreground">Caixa Premiada</p>
-                    <p className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTimeBRT(a.created_at)}</p>
                   </div>
                 </div>
                 <div className="text-right">

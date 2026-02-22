@@ -7,6 +7,7 @@ import { Diamond, Ticket, RotateCcw, Trophy, Flame, Star, TrendingUp, Zap, Crown
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { sfx, setMuted as setSfxMuted, isMuted } from "@/lib/sounds";
+import { formatDateTimeBRT, nowBRT } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════
 // PRIZE DEFINITIONS
@@ -526,7 +527,7 @@ const ScratchCardPage = () => {
         .limit(30);
       if (!data || data.length === 0) return { streak: 0 };
       let streak = 0;
-      const today = new Date();
+      const today = nowBRT();
       for (let i = 0; i < 30; i++) {
         const checkDate = new Date(today);
         checkDate.setDate(today.getDate() - i);
@@ -1128,7 +1129,7 @@ const ScratchCardPage = () => {
                           color: "hsl(var(--muted-foreground))",
                         }}
                       >
-                        {new Date(r.created_at).toLocaleString("pt-BR")}
+                        {formatDateTimeBRT(r.created_at)}
                       </p>
                     </div>
                   </div>
