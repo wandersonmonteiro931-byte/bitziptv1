@@ -3,9 +3,10 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Plus, Edit, Trash2, X, Upload, ToggleLeft, ToggleRight, Copy, Calendar, Clock, Star } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { Tv, Plus, Edit, Trash2, X, Upload, ToggleLeft, ToggleRight, Copy, Calendar, Clock, Star, Sparkles, History, Loader2 } from "lucide-react";
+import { format, addDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { todayBRT, formatDateBRT } from "@/lib/utils";
 
 interface Channel {
   id: string;
@@ -34,7 +35,7 @@ const AdminTvGuidePage = () => {
   const { toast } = useToast();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [activeTab, setActiveTab] = useState<"channels" | "programs">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "programs" | "history">("channels");
   const [selectedChannel, setSelectedChannel] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [showChannelForm, setShowChannelForm] = useState(false);
@@ -42,6 +43,11 @@ const AdminTvGuidePage = () => {
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [historyDate, setHistoryDate] = useState("");
+  const [historyPrograms, setHistoryPrograms] = useState<Program[]>([]);
+  const [historyDates, setHistoryDates] = useState<string[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [channelForm, setChannelForm] = useState({ name: "", logo_url: "", sort_order: 0 });
@@ -227,6 +233,57 @@ const AdminTvGuidePage = () => {
     loadPrograms();
   };
 
+  // AI Sync
+  const syncWithAI = async (force = true) => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-tv-guide", {
+        body: { force },
+      });
+      if (error) throw error;
+      toast({
+        title: "✅ Sincronização concluída!",
+        description: `${data.inserted || 0} programas inseridos para ${data.day || "hoje"} (${data.date})`,
+      });
+      loadPrograms();
+    } catch (err: any) {
+      toast({ title: "Erro na sincronização", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // History
+  const loadHistoryDates = async () => {
+    const { data } = await supabase
+      .from("tv_programs")
+      .select("program_date")
+      .lt("program_date", todayBRT())
+      .order("program_date", { ascending: false });
+    const unique = [...new Set((data || []).map((d: any) => d.program_date))];
+    setHistoryDates(unique);
+    if (unique.length > 0 && !historyDate) setHistoryDate(unique[0]);
+  };
+
+  const loadHistoryPrograms = async (date: string) => {
+    if (!date) return;
+    setLoadingHistory(true);
+    const { data } = await supabase.from("tv_programs").select("*")
+      .eq("program_date", date).order("start_time");
+    setHistoryPrograms((data as any[]) || []);
+    setLoadingHistory(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "history") {
+      loadHistoryDates();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (historyDate) loadHistoryPrograms(historyDate);
+  }, [historyDate]);
+
   return (
     <AppLayout>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -247,6 +304,10 @@ const AdminTvGuidePage = () => {
         <button onClick={() => setActiveTab("programs")}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "programs" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
           Programação
+        </button>
+        <button onClick={() => setActiveTab("history")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "history" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+          <span className="flex items-center gap-1"><History size={14} /> Histórico</span>
         </button>
       </div>
 
@@ -322,6 +383,11 @@ const AdminTvGuidePage = () => {
             <button onClick={deleteByDate} className="flex items-center gap-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive hover:bg-destructive/20">
               <Trash2 size={14} /> Limpar dia
             </button>
+            <button onClick={() => syncWithAI(true)} disabled={syncing}
+              className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50">
+              {syncing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {syncing ? "Sincronizando..." : "Sincronizar IA"}
+            </button>
           </div>
 
           {/* Program list */}
@@ -357,6 +423,77 @@ const AdminTvGuidePage = () => {
               <p className="py-8 text-center text-sm text-muted-foreground">Nenhum programa para este dia</p>
             )}
           </div>
+        </>
+      )}
+
+      {/* ===== HISTORY TAB ===== */}
+      {activeTab === "history" && (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <select value={historyDate} onChange={e => setHistoryDate(e.target.value)}
+              className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
+              {historyDates.map(d => (
+                <option key={d} value={d}>{formatDateBRT(d + "T12:00:00", { day: "2-digit", month: "2-digit", year: "numeric", weekday: "long" })}</option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              {historyPrograms.length} programas
+            </span>
+          </div>
+
+          {loadingHistory ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : historyDates.length === 0 ? (
+            <div className="py-16 text-center">
+              <History className="mx-auto mb-3 text-muted-foreground/30" size={48} />
+              <p className="text-sm text-muted-foreground">Nenhum histórico disponível</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(() => {
+                const grouped = new Map<string, Program[]>();
+                historyPrograms.forEach(p => {
+                  if (!grouped.has(p.channel_id)) grouped.set(p.channel_id, []);
+                  grouped.get(p.channel_id)!.push(p);
+                });
+                return Array.from(grouped.entries()).map(([channelId, progs]) => {
+                  const ch = channels.find(c => c.id === channelId);
+                  return (
+                    <div key={channelId} className="rounded-xl border border-border bg-card overflow-hidden">
+                      <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-2.5">
+                        {ch?.logo_url ? (
+                          <img src={ch.logo_url} alt={ch?.name} className="h-8 w-8 rounded-lg object-cover" />
+                        ) : (
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"><Tv size={16} className="text-muted-foreground" /></div>
+                        )}
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">{ch?.name || "Canal"}</h3>
+                          <span className="text-[10px] text-muted-foreground">{progs.length} programas</span>
+                        </div>
+                      </div>
+                      <div className="divide-y divide-border/30">
+                        {progs.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 px-4 py-2">
+                            <div className="text-center">
+                              <p className="text-xs font-bold text-muted-foreground">{p.start_time.slice(0, 5)}</p>
+                              <p className="text-[10px] text-muted-foreground">{p.end_time.slice(0, 5)}</p>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate text-sm font-medium text-foreground">{p.name}</span>
+                                {p.is_highlight && <Star size={10} className="text-warning flex-shrink-0" />}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">{p.category}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
         </>
       )}
 
