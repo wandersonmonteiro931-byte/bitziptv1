@@ -131,9 +131,13 @@ Deno.serve(async (req) => {
     }
 
     // Load extras: support name, live programs, content highlights
+    // Use BRT timezone (UTC-3) for correct TV schedule matching
     const now = new Date();
-    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:00`;
-    const todayStr = now.toISOString().split("T")[0];
+    const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    const currentTime = `${String(brt.getUTCHours()).padStart(2, "0")}:${String(brt.getUTCMinutes()).padStart(2, "0")}:00`;
+    const todayStr = brt.toISOString().split("T")[0];
+    
+    console.log(`[SEND-NOTIF] BRT time: ${currentTime}, date: ${todayStr}`);
 
     const [supportRes, channelsRes, programsRes, contentRes] = await Promise.all([
       supabase.from("support_settings").select("support_name").limit(1).maybeSingle(),
@@ -141,8 +145,7 @@ Deno.serve(async (req) => {
       supabase.from("tv_programs").select("name, channel_id, start_time, end_time")
         .eq("program_date", todayStr)
         .eq("is_active", true)
-        .lte("start_time", currentTime)
-        .gte("end_time", currentTime),
+        .lte("start_time", currentTime),
       supabase.from("content").select("title, content_type, target_audience")
         .eq("is_active", true)
         .in("target_audience", ["all", "highlight_tarde", "highlight_semana"]),
@@ -157,8 +160,14 @@ Deno.serve(async (req) => {
     const livePrograms: Record<string, string> = {};
     (programsRes.data || []).forEach((p: any) => {
       const chName = channelMap[p.channel_id] || "";
-      if (chName) livePrograms[chName] = p.name;
+      // Handle midnight: end_time "00:00:00" means end of day (treat as 24:00)
+      const endTime = p.end_time === "00:00:00" ? "24:00:00" : p.end_time;
+      if (chName && endTime >= currentTime) {
+        livePrograms[chName] = p.name;
+      }
     });
+    
+    console.log(`[SEND-NOTIF] Live programs found:`, JSON.stringify(livePrograms));
 
     // Content highlights
     let dicaTarde = "";
