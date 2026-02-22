@@ -144,13 +144,20 @@ Deno.serve(async (req) => {
     
     console.log(`[SEND-NOTIF] BRT time: ${currentTime}, date: ${todayStr}`);
 
-    const [supportRes, channelsRes, programsRes, contentRes, customVarsRes] = await Promise.all([
+    const [supportRes, channelsRes, programsRes, nextProgramsRes, contentRes, customVarsRes] = await Promise.all([
       supabase.from("support_settings").select("support_name").limit(1).maybeSingle(),
       supabase.from("tv_channels").select("id, name").eq("is_active", true),
+      // Current live programs (started before now)
       supabase.from("tv_programs").select("name, channel_id, start_time, end_time")
         .eq("program_date", todayStr)
         .eq("is_active", true)
         .lte("start_time", currentTime),
+      // Next upcoming programs (starting after now) - fallback
+      supabase.from("tv_programs").select("name, channel_id, start_time, end_time")
+        .eq("program_date", todayStr)
+        .eq("is_active", true)
+        .gt("start_time", currentTime)
+        .order("start_time", { ascending: true }),
       supabase.from("content").select("title, content_type, target_audience")
         .eq("is_active", true)
         .in("target_audience", ["all", "highlight_tarde", "highlight_semana"]),
@@ -164,11 +171,20 @@ Deno.serve(async (req) => {
     (channelsRes.data || []).forEach((ch: any) => { channelMap[ch.id] = ch.name; });
 
     const livePrograms: Record<string, string> = {};
+    
+    // First: currently airing programs
     (programsRes.data || []).forEach((p: any) => {
       const chName = channelMap[p.channel_id] || "";
-      // Handle midnight: end_time "00:00:00" means end of day (treat as 24:00)
       const endTime = p.end_time === "00:00:00" ? "24:00:00" : p.end_time;
       if (chName && endTime >= currentTime) {
+        livePrograms[chName] = p.name;
+      }
+    });
+
+    // Fallback: if a channel has no live program, use the next upcoming one
+    (nextProgramsRes.data || []).forEach((p: any) => {
+      const chName = channelMap[p.channel_id] || "";
+      if (chName && !livePrograms[chName]) {
         livePrograms[chName] = p.name;
       }
     });
