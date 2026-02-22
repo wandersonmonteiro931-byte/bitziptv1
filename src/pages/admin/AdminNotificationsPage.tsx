@@ -145,6 +145,12 @@ const AdminNotificationsPage = () => {
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const lastFocusedField = useRef<"title" | "body">("body");
 
+  // Refs for rule modal
+  const ruleTitleRef = useRef<HTMLInputElement>(null);
+  const ruleBodyRef = useRef<HTMLTextAreaElement>(null);
+  const ruleLastFocusedField = useRef<"title" | "body">("body");
+  const [showRuleLegend, setShowRuleLegend] = useState(false);
+
   const insertVariable = (varName: string) => {
     const isTitle = lastFocusedField.current === "title";
     const el = isTitle ? titleRef.current : bodyRef.current;
@@ -157,7 +163,25 @@ const AdminNotificationsPage = () => {
     } else {
       setEditing(prev => prev ? { ...prev, body_template: newValue } : prev);
     }
-    // Restore cursor position after React re-render
+    setTimeout(() => {
+      el.focus();
+      const pos = start + varName.length;
+      el.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const insertRuleVariable = (varName: string) => {
+    const isTitle = ruleLastFocusedField.current === "title";
+    const el = isTitle ? ruleTitleRef.current : ruleBodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    const newValue = el.value.substring(0, start) + varName + el.value.substring(end);
+    if (isTitle) {
+      setEditingRule(prev => prev ? { ...prev, title_template: newValue } : prev);
+    } else {
+      setEditingRule(prev => prev ? { ...prev, body_template: newValue } : prev);
+    }
     setTimeout(() => {
       el.focus();
       const pos = start + varName.length;
@@ -717,11 +741,37 @@ const AdminNotificationsPage = () => {
                 )}
                 <div>
                   <label className={labelCls}>Título da Notificação</label>
-                  <input value={editingRule.title_template || ""} onChange={(e) => setEditingRule({ ...editingRule, title_template: e.target.value })} placeholder="Ex: ✅ Olá {nome}!" className={inputCls} />
+                  <input ref={ruleTitleRef} onFocus={() => { ruleLastFocusedField.current = "title"; }} value={editingRule.title_template || ""} onChange={(e) => setEditingRule({ ...editingRule, title_template: e.target.value })} placeholder="Ex: ✅ Olá {nome}!" className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>Corpo da Notificação</label>
-                  <textarea value={editingRule.body_template || ""} onChange={(e) => setEditingRule({ ...editingRule, body_template: e.target.value })} rows={3} placeholder="Ex: Sua mensalidade vence em {faltadias} dias..." className={`${inputCls} resize-none`} />
+                  <textarea ref={ruleBodyRef} onFocus={() => { ruleLastFocusedField.current = "body"; }} value={editingRule.body_template || ""} onChange={(e) => setEditingRule({ ...editingRule, body_template: e.target.value })} rows={3} placeholder="Ex: Sua mensalidade vence em {faltadias} dias..." className={`${inputCls} resize-none`} />
+                </div>
+
+                {/* Variables Legend for Rules */}
+                <div>
+                  <button onClick={() => setShowRuleLegend(!showRuleLegend)}
+                    className="flex items-center gap-1.5 rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-colors w-full justify-between">
+                    <span>📎 Variáveis Disponíveis</span>
+                    {showRuleLegend ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <AnimatePresence>
+                    {showRuleLegend && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                        <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                          {TEMPLATE_VARS.map((v) => (
+                            <div key={v.var} className="flex items-center gap-2">
+                              <button onClick={() => insertRuleVariable(v.var)}
+                                className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
+                                {v.var} <Plus size={9} />
+                              </button>
+                              <span className="text-[10px] text-muted-foreground">{v.desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <div>
                   <label className={labelCls}>Caminho ao Clicar</label>
