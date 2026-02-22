@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play } from "lucide-react";
+import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -113,7 +113,7 @@ interface NotificationRule {
 const AdminNotificationsPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"saved" | "rules">("saved");
+  const [activeTab, setActiveTab] = useState<"saved" | "rules" | "vars">("saved");
 
   // Saved notifications state
   const [notifications, setNotifications] = useState<ScheduledNotification[]>([]);
@@ -136,6 +136,11 @@ const AdminNotificationsPage = () => {
 
   // Legend toggle
   const [showLegend, setShowLegend] = useState(false);
+
+  // Custom variables
+  const [customVars, setCustomVars] = useState<{ id: string; var_key: string; label: string; default_value: string; is_active: boolean }[]>([]);
+  const [editingVar, setEditingVar] = useState<{ id?: string; var_key: string; label: string; default_value: string } | null>(null);
+  const [savingVar, setSavingVar] = useState(false);
 
   // Click action type
   const [clickType, setClickType] = useState<"route" | "banner" | "text">("route");
@@ -192,18 +197,20 @@ const AdminNotificationsPage = () => {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [usersRes, subsRes, rulesRes, notifsRes, bannersRes] = await Promise.all([
+    const [usersRes, subsRes, rulesRes, notifsRes, bannersRes, varsRes] = await Promise.all([
       supabase.from("profiles").select("id, name, username").order("name"),
       supabase.from("push_subscriptions").select("id", { count: "exact" }),
       supabase.from("notification_rules").select("*").order("created_at", { ascending: true }),
       supabase.from("scheduled_notifications").select("*").order("created_at", { ascending: false }),
       supabase.from("content").select("id, title, content_type").eq("is_active", true).order("title"),
+      supabase.from("custom_variables").select("*").order("created_at", { ascending: true }),
     ]);
     setUsers(usersRes.data || []);
     setSubCount(subsRes.count || 0);
     setRules((rulesRes.data as any[]) || []);
     setNotifications((notifsRes.data as any[]) || []);
     setBanners(bannersRes.data || []);
+    setCustomVars((varsRes.data as any[]) || []);
   };
 
   // ─── Send Notification ───
@@ -361,6 +368,39 @@ const AdminNotificationsPage = () => {
     else setClickType("route");
   };
 
+  const allVars = [...TEMPLATE_VARS, ...customVars.filter(v => v.is_active).map(v => ({ var: `{${v.var_key}}`, desc: v.label || v.default_value }))];
+
+  const saveCustomVar = async () => {
+    if (!editingVar || !editingVar.var_key) return;
+    setSavingVar(true);
+    try {
+      const key = editingVar.var_key.replace(/[{}]/g, "").trim();
+      if (!key) throw new Error("Nome da variável é obrigatório");
+      const payload = { var_key: key, label: editingVar.label || "", default_value: editingVar.default_value || "" };
+      if (editingVar.id) {
+        await supabase.from("custom_variables").update(payload).eq("id", editingVar.id);
+        toast({ title: "✅ Variável atualizada!" });
+      } else {
+        await supabase.from("custom_variables").insert(payload);
+        toast({ title: "✅ Variável criada!" });
+      }
+      setEditingVar(null);
+      loadData();
+    } catch (err: any) {
+      toast({ title: "❌ Erro", description: err.message, variant: "destructive" });
+    } finally { setSavingVar(false); }
+  };
+
+  const deleteCustomVar = async (id: string) => {
+    await supabase.from("custom_variables").delete().eq("id", id);
+    loadData();
+    toast({ title: "🗑️ Variável removida" });
+  };
+
+  const toggleCustomVar = async (v: any) => {
+    await supabase.from("custom_variables").update({ is_active: !v.is_active }).eq("id", v.id);
+    loadData();
+  };
   const inputCls = "w-full rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all";
   const labelCls = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
@@ -386,7 +426,11 @@ const AdminNotificationsPage = () => {
         </button>
         <button onClick={() => setActiveTab("rules")}
           className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all ${activeTab === "rules" ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
-          <Settings2 size={13} /> Regras Automáticas
+          <Settings2 size={13} /> Regras
+        </button>
+        <button onClick={() => setActiveTab("vars")}
+          className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all ${activeTab === "vars" ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
+          <Variable size={13} /> Variáveis
         </button>
       </div>
 
@@ -547,7 +591,103 @@ const AdminNotificationsPage = () => {
         </>
       )}
 
-      {/* ─── Edit/Create Notification Modal ─── */}
+      {/* ─── TAB: Custom Variables ─── */}
+      {activeTab === "vars" && (
+        <>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Crie variáveis personalizadas para usar em notificações</p>
+            <button onClick={() => setEditingVar({ var_key: "", label: "", default_value: "" })}
+              className="flex items-center gap-1.5 rounded-xl bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 transition-colors">
+              <Plus size={13} /> Nova Variável
+            </button>
+          </div>
+
+          {/* Built-in vars info */}
+          <div className="mb-4 rounded-2xl border border-border bg-card p-4">
+            <p className="text-xs font-semibold text-foreground mb-2">📎 Variáveis do Sistema ({TEMPLATE_VARS.length})</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATE_VARS.map((v) => (
+                <span key={v.var} className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-mono text-muted-foreground" title={v.desc}>
+                  {v.var}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom vars list */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">✏️ Variáveis Personalizadas</p>
+            {customVars.map((v) => (
+              <motion.div key={v.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                className={`rounded-2xl border bg-card p-4 transition-all ${v.is_active ? "border-border" : "border-border/50 opacity-60"}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-mono font-bold text-primary">{`{${v.var_key}}`}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${v.is_active ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                        {v.is_active ? "ATIVA" : "INATIVA"}
+                      </span>
+                    </div>
+                    {v.label && <p className="text-[11px] text-muted-foreground">{v.label}</p>}
+                    <p className="text-[10px] text-muted-foreground mt-1">Valor padrão: <span className="font-medium text-foreground">{v.default_value || "(vazio)"}</span></p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => toggleCustomVar(v)} className="rounded-lg p-2 hover:bg-muted transition-colors">
+                      {v.is_active ? <ToggleRight size={16} className="text-emerald-400" /> : <ToggleLeft size={16} className="text-muted-foreground" />}
+                    </button>
+                    <button onClick={() => setEditingVar({ id: v.id, var_key: v.var_key, label: v.label, default_value: v.default_value })} className="rounded-lg p-2 hover:bg-muted transition-colors">
+                      <Pencil size={14} className="text-primary" />
+                    </button>
+                    <button onClick={() => deleteCustomVar(v.id)} className="rounded-lg p-2 hover:bg-destructive/10 transition-colors">
+                      <Trash2 size={14} className="text-destructive" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+            {customVars.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma variável personalizada criada</p>}
+          </div>
+
+          {/* Edit/Create Variable Modal */}
+          <AnimatePresence>
+            {editingVar && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setEditingVar(null)}>
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                  className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+                      <Variable size={16} className="text-primary" />
+                      {editingVar.id ? "Editar Variável" : "Nova Variável"}
+                    </h2>
+                    <button onClick={() => setEditingVar(null)} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className={labelCls}>Nome (sem chaves)</label>
+                      <input value={editingVar.var_key} onChange={(e) => setEditingVar({ ...editingVar, var_key: e.target.value.replace(/[{}]/g, "").replace(/\s/g, "") })} placeholder="Ex: pix_code" className={inputCls} />
+                      <p className="mt-1 text-[10px] text-muted-foreground">Será usado como: <span className="font-mono font-bold text-primary">{`{${editingVar.var_key || "..."}}`}</span></p>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Descrição</label>
+                      <input value={editingVar.label} onChange={(e) => setEditingVar({ ...editingVar, label: e.target.value })} placeholder="Ex: Código PIX do cliente" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Valor Padrão</label>
+                      <input value={editingVar.default_value} onChange={(e) => setEditingVar({ ...editingVar, default_value: e.target.value })} placeholder="Ex: Não disponível" className={inputCls} />
+                    </div>
+                    <button onClick={saveCustomVar} disabled={savingVar || !editingVar.var_key}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all">
+                      {savingVar ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      {savingVar ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
+
       <AnimatePresence>
         {editing && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setEditing(null)}>
@@ -585,7 +725,7 @@ const AdminNotificationsPage = () => {
                     {showLegend && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                         <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                          {TEMPLATE_VARS.map((v) => (
+                          {allVars.map((v) => (
                             <div key={v.var} className="flex items-center gap-2">
                               <button onClick={() => insertVariable(v.var)}
                                 className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
@@ -759,7 +899,7 @@ const AdminNotificationsPage = () => {
                     {showRuleLegend && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                         <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                          {TEMPLATE_VARS.map((v) => (
+                          {allVars.map((v) => (
                             <div key={v.var} className="flex items-center gap-2">
                               <button onClick={() => insertRuleVariable(v.var)}
                                 className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
