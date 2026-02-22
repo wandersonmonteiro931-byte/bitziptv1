@@ -6,6 +6,7 @@ import { Diamond, ShoppingCart, Sparkles, Copy, Check, Crown, Star, Loader2, Wal
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTimeBRT } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -411,7 +412,7 @@ const CreditsStorePage = () => {
               <div key={p.id} className="glass-card rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">{(p as any).credit_packages?.name || "Pacote"}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString("pt-BR")}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateTimeBRT(p.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-foreground">{p.credits_amount + p.bonus_amount} 💎</span>

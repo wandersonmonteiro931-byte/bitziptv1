@@ -3,6 +3,7 @@ import { Gift, CheckCircle, Clock, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateBRT } from "@/lib/utils";
 
 const AdminReferralsPage = () => {
   const { toast } = useToast();
@@ -39,7 +40,7 @@ const AdminReferralsPage = () => {
                 {ref.status === "approved" ? <CheckCircle size={18} className="text-success" /> : ref.status === "rejected" ? <XCircle size={18} className="text-destructive" /> : <Clock size={18} className="text-warning" />}
                 <div>
                   <p className="text-sm font-medium text-foreground">{ref.referrer?.name} → {ref.referred?.name}</p>
-                  <p className="text-xs text-muted-foreground">R$ {Number(ref.reward_amount).toFixed(2)} · {new Date(ref.created_at).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-muted-foreground">R$ {Number(ref.reward_amount).toFixed(2)} · {formatDateBRT(ref.created_at)}</p>
                 </div>
               </div>
               {ref.status === "pending" && (

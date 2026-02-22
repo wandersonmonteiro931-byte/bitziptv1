@@ -4,6 +4,7 @@ import { Wallet, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateBRT } from "@/lib/utils";
 
 const statusConfig = {
   pending: { label: "Pendente", icon: Clock, color: "text-warning", bg: "bg-warning/15" },
@@ -53,7 +54,7 @@ const AdminWithdrawalsPage = () => {
                   <DollarSign size={20} className="text-warning" />
                   <div>
                     <p className="font-medium text-foreground">{w.user?.name || "Usuário"}</p>
-                    <p className="text-xs text-muted-foreground">PIX: {w.pix_key} · {new Date(w.requested_at).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">PIX: {w.pix_key} · {formatDateBRT(w.requested_at)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -79,7 +80,7 @@ const AdminWithdrawalsPage = () => {
                   <s.icon size={16} className={s.color} />
                   <div>
                     <p className="text-sm font-medium text-foreground">{w.user?.name || "Usuário"} · R$ {Number(w.amount).toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(w.requested_at).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateBRT(w.requested_at)}</p>
                   </div>
                 </div>
                 <span className={`rounded-full ${s.bg} px-2.5 py-1 text-xs font-semibold ${s.color}`}>{s.label}</span>

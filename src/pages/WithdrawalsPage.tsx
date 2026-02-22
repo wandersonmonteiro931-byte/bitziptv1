@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateBRT } from "@/lib/utils";
 
 const statusMap = {
   approved: { label: "Aprovado", icon: CheckCircle, color: "text-success" },
@@ -112,7 +113,7 @@ const WithdrawalsPage = () => {
                     <s.icon size={18} className={s.color} />
                     <div>
                       <p className="text-sm font-medium text-foreground">R$ {Number(w.amount).toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(w.requested_at).toLocaleDateString("pt-BR")}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateBRT(w.requested_at)}</p>
                     </div>
                   </div>
                   <span className={`text-xs font-semibold ${s.color}`}>{s.label}</span>

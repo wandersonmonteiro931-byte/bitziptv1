@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Diamond, Package, Settings, Users, TrendingUp, Check, X, Plus, Trash2, Edit, ShieldCheck, Ban, Sparkles, Gamepad2, BarChart3, Crosshair } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { formatDateTimeBRT } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
@@ -574,7 +575,7 @@ const AdminCreditsPage = () => {
               <div key={p.id} className="glass-card rounded-lg p-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">{p.title}</p>
-                  <p className="text-xs text-muted-foreground">+{p.bonus_percentage}% • Até {new Date(p.ends_at).toLocaleString("pt-BR")}</p>
+                  <p className="text-xs text-muted-foreground">+{p.bonus_percentage}% • Até {formatDateTimeBRT(p.ends_at)}</p>
                 </div>
                 <button onClick={() => togglePromo(p.id, p.is_active)} className={`rounded-lg px-3 py-1 text-xs font-bold ${p.is_active ? "bg-green-500/20 text-green-400" : "bg-muted text-muted-foreground"}`}>
                   {p.is_active ? "Ativa" : "Inativa"}
