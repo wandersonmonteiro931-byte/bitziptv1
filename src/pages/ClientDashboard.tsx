@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
@@ -273,7 +273,7 @@ function PaymentHistory() {
   }, []);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+    <motion.div id="faturas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
       <button onClick={() => setHistoryOpen(!historyOpen)}
         className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/50 px-5 py-3.5 text-sm active:opacity-80">
         <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
@@ -733,6 +733,7 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
 const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [supportInfo, setSupportInfo] = useState<any>(null);
   const [tvApps, setTvApps] = useState<any[]>([]);
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
@@ -830,6 +831,33 @@ const ClientDashboard = () => {
 
     return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
+
+  // Handle hash navigation (from push notifications)
+  useEffect(() => {
+    const hash = location.hash?.replace("#", "");
+    if (!hash || !user) return;
+
+    // Auto-open PIX modal
+    if (hash === "gerar-pix") {
+      const mv = Number(user.iptv_monthly_value || 0);
+      const conn = user.iptv_connections || 1;
+      const tv = mv * conn;
+      if (tv > 0) {
+        setPixModal({ months: 1, value: tv, discount: 0 });
+      }
+      window.history.replaceState(null, "", location.pathname);
+      return;
+    }
+
+    // Scroll to section
+    setTimeout(() => {
+      const el = document.getElementById(hash);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState(null, "", location.pathname);
+      }
+    }, 500);
+  }, [location.hash, user]);
 
   const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
@@ -938,7 +966,7 @@ const ClientDashboard = () => {
         <BannerCarousel />
 
         {/* MAIN CARD — Plan */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+        <motion.div id="plano" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="rounded-2xl border border-border/50 bg-card/80 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -1103,7 +1131,7 @@ const ClientDashboard = () => {
 
         {/* SUPPORT */}
         {supportInfo && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+          <motion.div id="suporte" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
             className="rounded-2xl border border-border/40 bg-card/50 p-5">
             <p className="mb-3 text-xs text-muted-foreground">Suporte</p>
             <div className="flex items-center gap-3">
