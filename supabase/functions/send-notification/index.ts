@@ -24,6 +24,7 @@ function resolveVariables(
     livePrograms: Record<string, string>;
     dicaTarde: string;
     dicaSemana: string;
+    customVars: { var_key: string; default_value: string }[];
   }
 ): string {
   const today = new Date();
@@ -86,6 +87,10 @@ function resolveVariables(
   }
   // Also handle {mês) typo variant
   result = result.replaceAll("{mês)", mesAtual);
+  // Resolve custom variables
+  for (const cv of extras.customVars) {
+    result = result.replaceAll(`{${cv.var_key}}`, cv.default_value || "");
+  }
   return result;
 }
 
@@ -139,7 +144,7 @@ Deno.serve(async (req) => {
     
     console.log(`[SEND-NOTIF] BRT time: ${currentTime}, date: ${todayStr}`);
 
-    const [supportRes, channelsRes, programsRes, contentRes] = await Promise.all([
+    const [supportRes, channelsRes, programsRes, contentRes, customVarsRes] = await Promise.all([
       supabase.from("support_settings").select("support_name").limit(1).maybeSingle(),
       supabase.from("tv_channels").select("id, name").eq("is_active", true),
       supabase.from("tv_programs").select("name, channel_id, start_time, end_time")
@@ -149,6 +154,7 @@ Deno.serve(async (req) => {
       supabase.from("content").select("title, content_type, target_audience")
         .eq("is_active", true)
         .in("target_audience", ["all", "highlight_tarde", "highlight_semana"]),
+      supabase.from("custom_variables").select("var_key, default_value").eq("is_active", true),
     ]);
 
     const supportName = supportRes.data?.support_name || "";
@@ -177,7 +183,7 @@ Deno.serve(async (req) => {
       if (c.target_audience === "highlight_semana") dicaSemana = c.title;
     });
 
-    const extras = { supportName, livePrograms, dicaTarde, dicaSemana };
+    const extras = { supportName, livePrograms, dicaTarde, dicaSemana, customVars: customVarsRes.data || [] };
 
     // Determine click URL
     let clickUrl = notif.click_action || "/";

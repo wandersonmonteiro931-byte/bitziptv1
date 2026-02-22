@@ -514,6 +514,36 @@ export type Database = {
           },
         ]
       }
+      custom_variables: {
+        Row: {
+          created_at: string
+          default_value: string
+          id: string
+          is_active: boolean
+          label: string
+          updated_at: string
+          var_key: string
+        }
+        Insert: {
+          created_at?: string
+          default_value?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+          var_key: string
+        }
+        Update: {
+          created_at?: string
+          default_value?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          updated_at?: string
+          var_key?: string
+        }
+        Relationships: []
+      }
       game_memory_sessions: {
         Row: {
           created_at: string
