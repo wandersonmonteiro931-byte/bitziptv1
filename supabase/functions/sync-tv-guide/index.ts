@@ -23,7 +23,12 @@ async function fetchScheduleFromAI(
 
 IMPORTANTE:
 - Use a programação REAL e ATUALIZADA de 2025/2026 do canal
-- Para a Globo, considere a afiliada de Goiás (TV Anhanguera)
+- Considere SEMPRE a programação da cidade de SÃO PAULO, SP (capital). NÃO use programação de afiliadas regionais.
+- Para a Globo, use a grade da Globo São Paulo (TV Globo SP), NÃO de afiliadas como TV Anhanguera
+- Para o SBT, use a grade do SBT São Paulo
+- Para a Record, use a grade da Record TV São Paulo
+- Para a Band, use a grade da Band São Paulo
+- Para a RedeTV!, use a grade da RedeTV! São Paulo
 - Inclua TODOS os programas do dia, desde o primeiro da madrugada/manhã até o último da noite
 - Horários no formato HH:MM (24h)
 - Categorias: Jornal, Novela, Variedades, Filme, Série, Esporte, Religioso, Infantil, Documentário
