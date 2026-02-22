@@ -1043,6 +1043,35 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_views: {
+        Row: {
+          id: string
+          notification_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          notification_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          notification_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_views_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           id: string
@@ -1316,6 +1345,77 @@ export type Database = {
             columns: ["referrer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_notifications: {
+        Row: {
+          body_template: string
+          click_action: string
+          click_banner_id: string | null
+          click_text_body: string | null
+          click_text_title: string | null
+          created_at: string
+          created_by: string
+          failed_count: number | null
+          id: string
+          is_active: boolean
+          schedule_at: string | null
+          sent_at: string | null
+          sent_count: number | null
+          status: string
+          target_ids: string[] | null
+          target_type: string
+          title_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          click_action?: string
+          click_banner_id?: string | null
+          click_text_body?: string | null
+          click_text_title?: string | null
+          created_at?: string
+          created_by: string
+          failed_count?: number | null
+          id?: string
+          is_active?: boolean
+          schedule_at?: string | null
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string
+          target_ids?: string[] | null
+          target_type?: string
+          title_template: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          click_action?: string
+          click_banner_id?: string | null
+          click_text_body?: string | null
+          click_text_title?: string | null
+          created_at?: string
+          created_by?: string
+          failed_count?: number | null
+          id?: string
+          is_active?: boolean
+          schedule_at?: string | null
+          sent_at?: string | null
+          sent_count?: number | null
+          status?: string
+          target_ids?: string[] | null
+          target_type?: string
+          title_template?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_notifications_click_banner_id_fkey"
+            columns: ["click_banner_id"]
+            isOneToOne: false
+            referencedRelation: "content"
             referencedColumns: ["id"]
           },
         ]
