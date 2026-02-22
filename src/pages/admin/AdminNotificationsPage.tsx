@@ -185,7 +185,7 @@ const AdminNotificationsPage = () => {
         click_text_title: clickType === "text" ? (editing.click_text_title || "") : "",
         click_text_body: clickType === "text" ? (editing.click_text_body || "") : "",
         schedule_at: editing.schedule_at || null,
-        target_type: editing.target_type || "all",
+        target_type: "specific",
         target_ids: editing.target_ids || [],
         is_active: editing.is_active ?? true,
         status: editing.schedule_at ? "scheduled" : "draft",
@@ -300,7 +300,7 @@ const AdminNotificationsPage = () => {
   );
 
   const openNewNotif = () => {
-    setEditing({ target_type: "all", is_active: true, target_ids: [], click_action: "/dashboard" });
+    setEditing({ target_type: "specific", is_active: true, target_ids: [], click_action: "/dashboard" });
     setClickType("route");
   };
 
@@ -340,31 +340,7 @@ const AdminNotificationsPage = () => {
         </button>
       </div>
 
-      {/* ─── Legend ─── */}
-      <div className="mb-4">
-        <button onClick={() => setShowLegend(!showLegend)}
-          className="flex items-center gap-1.5 rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-colors w-full justify-between">
-          <span>📎 Variáveis Disponíveis</span>
-          {showLegend ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </button>
-        <AnimatePresence>
-          {showLegend && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-              <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
-                {TEMPLATE_VARS.map((v) => (
-                  <div key={v.var} className="flex items-center gap-2">
-                    <button onClick={() => navigator.clipboard.writeText(v.var)}
-                      className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
-                      {v.var} <Copy size={9} />
-                    </button>
-                    <span className="text-[10px] text-muted-foreground">{v.desc}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Legend moved inside modal only */}
 
       {/* ─── TAB: Saved Notifications ─── */}
       {activeTab === "saved" && (
@@ -375,7 +351,7 @@ const AdminNotificationsPage = () => {
             <div className="flex flex-wrap gap-1.5">
               {QUICK_TEMPLATES.map((t, i) => (
                 <button key={i} onClick={() => {
-                  setEditing({ target_type: "all", is_active: true, target_ids: [], click_action: "/dashboard", title_template: t.title, body_template: t.body });
+                  setEditing({ target_type: "specific", is_active: true, target_ids: [], click_action: "/dashboard", title_template: t.title, body_template: t.body });
                   setClickType("route");
                 }}
                   className="rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
@@ -548,6 +524,32 @@ const AdminNotificationsPage = () => {
                   <textarea value={editing.body_template || ""} onChange={(e) => setEditing({ ...editing, body_template: e.target.value })} rows={3} placeholder="Ex: Sua mensalidade de {valor} vence em {faltadias} dias..." className={`${inputCls} resize-none`} />
                 </div>
 
+                {/* Variables Legend */}
+                <div>
+                  <button onClick={() => setShowLegend(!showLegend)}
+                    className="flex items-center gap-1.5 rounded-xl bg-muted/50 px-3 py-2 text-[11px] font-semibold text-muted-foreground hover:bg-muted transition-colors w-full justify-between">
+                    <span>📎 Variáveis Disponíveis</span>
+                    {showLegend ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <AnimatePresence>
+                    {showLegend && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                        <div className="mt-2 rounded-xl border border-border bg-muted/30 p-3 space-y-1.5">
+                          {TEMPLATE_VARS.map((v) => (
+                            <div key={v.var} className="flex items-center gap-2">
+                              <button onClick={() => navigator.clipboard.writeText(v.var)}
+                                className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-mono font-bold text-primary hover:bg-primary/20 transition-colors">
+                                {v.var} <Copy size={9} />
+                              </button>
+                              <span className="text-[10px] text-muted-foreground">{v.desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 {/* Click Action */}
                 <div>
                   <label className={labelCls}>Ação ao Clicar</label>
@@ -588,39 +590,40 @@ const AdminNotificationsPage = () => {
                   <p className="mt-1 text-[10px] text-muted-foreground">Deixe vazio para envio manual</p>
                 </div>
 
-                {/* Target */}
+                {/* Target - always specific */}
                 <div>
                   <label className={labelCls}>Destinatários</label>
-                  <div className="flex gap-2 mb-2">
-                    <button onClick={() => setEditing({ ...editing, target_type: "all", target_ids: [] })}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${editing.target_type === "all" ? "bg-primary/15 text-primary" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
-                      <Users size={13} /> Todos
-                    </button>
-                    <button onClick={() => setEditing({ ...editing, target_type: "specific" })}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${editing.target_type === "specific" ? "bg-primary/15 text-primary" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
-                      <User size={13} /> Específico
-                    </button>
-                  </div>
-                  {editing.target_type === "specific" && (
-                    <div className="space-y-2">
-                      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar usuário..." className={inputCls} />
-                      <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-border p-2">
-                        {filteredUsers.slice(0, 20).map((u) => (
-                          <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
-                            <input type="checkbox" checked={(editing.target_ids || []).includes(u.id)}
-                              onChange={(e) => {
-                                const ids = editing.target_ids || [];
-                                setEditing({ ...editing, target_ids: e.target.checked ? [...ids, u.id] : ids.filter((id: string) => id !== u.id) });
-                              }}
-                              className="h-3.5 w-3.5 rounded accent-primary" />
-                            <span className="text-xs text-foreground">{u.name}</span>
-                            <span className="text-[10px] text-muted-foreground">@{u.username}</span>
-                          </label>
-                        ))}
-                      </div>
-                      {(editing.target_ids || []).length > 0 && <p className="text-[10px] text-primary font-medium">{(editing.target_ids || []).length} selecionado(s)</p>}
+                  <div className="space-y-2">
+                    <div className="flex gap-2 mb-1">
+                      <button onClick={() => {
+                        const allIds = users.map(u => u.id);
+                        setEditing({ ...editing, target_type: "specific", target_ids: allIds });
+                      }}
+                        className="rounded-lg bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
+                        Selecionar Todos
+                      </button>
+                      <button onClick={() => setEditing({ ...editing, target_type: "specific", target_ids: [] })}
+                        className="rounded-lg bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                        Limpar
+                      </button>
                     </div>
-                  )}
+                    <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar usuário..." className={inputCls} />
+                    <div className="max-h-40 overflow-y-auto space-y-1 rounded-lg border border-border p-2">
+                      {filteredUsers.slice(0, 30).map((u) => (
+                        <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
+                          <input type="checkbox" checked={(editing.target_ids || []).includes(u.id)}
+                            onChange={(e) => {
+                              const ids = editing.target_ids || [];
+                              setEditing({ ...editing, target_ids: e.target.checked ? [...ids, u.id] : ids.filter((id: string) => id !== u.id) });
+                            }}
+                            className="h-3.5 w-3.5 rounded accent-primary" />
+                          <span className="text-xs text-foreground">{u.name}</span>
+                          <span className="text-[10px] text-muted-foreground">@{u.username}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {(editing.target_ids || []).length > 0 && <p className="text-[10px] text-primary font-medium">{(editing.target_ids || []).length} selecionado(s)</p>}
+                  </div>
                 </div>
 
                 {/* Save + Send */}
