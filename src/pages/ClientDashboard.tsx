@@ -362,7 +362,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
 // --- PIX Payment Modal ---
 function PixModal({ pixModal, onClose, supportInfo, user }: {
   pixModal: { months: number; value: number; discount: number };
-  onClose: () => void;
+  onClose: (confirmed?: boolean) => void;
   supportInfo: any;
   user: any;
 }) {
@@ -536,7 +536,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
         // ignore
       }
     }
-    onClose();
+    onClose(paymentConfirmed);
   };
 
   return (
@@ -1164,7 +1164,7 @@ const ClientDashboard = () => {
 
       {/* PIX Modal */}
       <AnimatePresence>
-        {pixModal && <PixModal pixModal={pixModal} onClose={() => setPixModal(null)} supportInfo={supportInfo} user={user} />}
+        {pixModal && <PixModal pixModal={pixModal} onClose={(confirmed?: boolean) => { setPixModal(null); if (confirmed) { refreshProfile(); } }} supportInfo={supportInfo} user={user} />}
       </AnimatePresence>
 
       {/* Cancel Modal */}
