@@ -746,7 +746,7 @@ const ClientDashboard = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null>(null);
-  const [announcementPopup, setAnnouncementPopup] = useState<{ id: string; title: string; body: string; bannerUrl?: string } | null>(null);
+  
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
@@ -930,58 +930,6 @@ const ClientDashboard = () => {
     loadNotif();
   }, [location.search, location.pathname, location.hash, user?.id, preloadImage]);
 
-  // Check for active announcements — on load AND in realtime
-  const announcementPopupRef = useRef(announcementPopup);
-  announcementPopupRef.current = announcementPopup;
-
-  const loadAnnouncements = useCallback(async () => {
-    if (!user?.id) return;
-    // Don't replace if already showing one
-    if (announcementPopupRef.current) return;
-
-    const { data: announcements } = await supabase
-      .from("announcements")
-      .select("id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-    if (!announcements || announcements.length === 0) return;
-
-    const { data: dismissed } = await supabase
-      .from("announcement_dismissals")
-      .select("announcement_id")
-      .eq("user_id", user.id);
-    const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
-
-    for (const a of announcements) {
-      if (dismissedIds.has(a.id)) continue;
-      if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
-      if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
-      if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
-
-      const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
-
-      if (bannerUrl) {
-        await preloadImage(bannerUrl);
-      }
-
-      setAnnouncementPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl });
-      break;
-    }
-  }, [user?.id, preloadImage]);
-
-  useEffect(() => {
-    loadAnnouncements();
-
-    // Realtime: new or updated announcements trigger check immediately
-    const channel = supabase
-      .channel("announcements-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => {
-        loadAnnouncements();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [loadAnnouncements]);
 
   const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
@@ -1354,38 +1302,6 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* Announcement Popup (shown on app load, must click Entendi) */}
-        {announcementPopup && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-5">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
-              {announcementPopup.bannerUrl && (
-                <img src={announcementPopup.bannerUrl} alt={announcementPopup.title}
-                  className="mb-4 w-full rounded-2xl object-contain" />
-              )}
-              <h3 className="text-lg font-bold text-foreground mb-2">{announcementPopup.title}</h3>
-              {announcementPopup.body && (
-                <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{announcementPopup.body}</p>
-              )}
-              <button onClick={async () => {
-                // Record dismissal
-                if (user?.id) {
-                  await supabase.from("announcement_dismissals").insert({
-                    announcement_id: announcementPopup.id,
-                    user_id: user.id,
-                  });
-                }
-                setAnnouncementPopup(null);
-                // Check for next pending announcement after a brief delay
-                setTimeout(() => loadAnnouncements(), 500);
-              }}
-                className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
-                Entendi
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
       </AnimatePresence>
     </AppLayout>
   );
