@@ -748,6 +748,16 @@ const ClientDashboard = () => {
   const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null>(null);
   const [announcementPopup, setAnnouncementPopup] = useState<{ id: string; title: string; body: string; bannerUrl?: string } | null>(null);
 
+  const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
+    return new Promise<void>((resolve) => {
+      const img = new Image();
+      const done = () => resolve();
+      img.onload = done;
+      img.onerror = done;
+      img.src = src;
+      setTimeout(done, timeoutMs);
+    });
+  }, []);
   useEffect(() => {
     const loadData = async () => {
       const [support, apps] = await Promise.all([
@@ -861,64 +871,64 @@ const ClientDashboard = () => {
     }, 500);
   }, [location.hash, user]);
 
-  // Handle notif_id query param (deep-link from push notification click)
+  // Handle notif params (deep-link from push notification click)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const notifId = params.get("notif_id");
-    if (!notifId) return;
+    const notifType = params.get("notif_type");
+    const notifImage = params.get("notif_image");
+
+    if (!notifId && !(notifType === "image" && notifImage)) return;
 
     // Clean URL immediately
     const cleanUrl = location.pathname + (location.hash || "");
     window.history.replaceState(null, "", cleanUrl);
 
     const loadNotif = async () => {
-      const { data } = await supabase
-        .from("scheduled_notifications")
-        .select("click_text_title, click_text_body, click_banner_id")
-        .eq("id", notifId)
-        .maybeSingle();
-      if (!data) return;
-
-      let popupData: { title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null = null;
-
-      if (data.click_banner_id) {
-        // Load banner content
-        const { data: banner } = await supabase
-          .from("content")
-          .select("title, body, banner_url")
-          .eq("id", data.click_banner_id)
+      if (notifType === "image" && notifImage) {
+        const imageUrl = decodeURIComponent(notifImage);
+        await preloadImage(imageUrl);
+        setNotifPopup({ title: "", body: "", bannerUrl: imageUrl, imageOnly: true });
+      } else if (notifId) {
+        const { data } = await supabase
+          .from("scheduled_notifications")
+          .select("click_text_title, click_text_body, click_banner_id")
+          .eq("id", notifId)
           .maybeSingle();
-        if (banner) {
-          popupData = { title: banner.title, body: banner.body || "", bannerUrl: banner.banner_url || undefined };
-        }
-      } else if (data.click_text_title === "__IMAGE__" && data.click_text_body) {
-        // Image-only popup
-        popupData = { title: "", body: "", bannerUrl: data.click_text_body, imageOnly: true };
-      } else if (data.click_text_body) {
-        popupData = { title: data.click_text_title || "Aviso", body: data.click_text_body };
-      }
+        if (!data) return;
 
-      if (popupData) {
-        // Pre-load image before showing popup
-        if (popupData.bannerUrl) {
-          const img = new Image();
-          img.src = popupData.bannerUrl;
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            setTimeout(resolve, 5000);
-          });
+        let popupData: { title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null = null;
+
+        if (data.click_banner_id) {
+          // Load banner content
+          const { data: banner } = await supabase
+            .from("content")
+            .select("title, body, banner_url")
+            .eq("id", data.click_banner_id)
+            .maybeSingle();
+          if (banner) {
+            popupData = { title: banner.title, body: banner.body || "", bannerUrl: banner.banner_url || undefined };
+          }
+        } else if (data.click_text_title === "__IMAGE__" && data.click_text_body) {
+          // Image-only popup
+          popupData = { title: "", body: "", bannerUrl: data.click_text_body, imageOnly: true };
+        } else if (data.click_text_body) {
+          popupData = { title: data.click_text_title || "Aviso", body: data.click_text_body };
         }
-        setNotifPopup(popupData);
+
+        if (popupData?.bannerUrl) {
+          await preloadImage(popupData.bannerUrl);
+        }
+        if (popupData) setNotifPopup(popupData);
       }
 
       // Track view
-      if (user?.id) {
+      if (notifId && user?.id) {
         await supabase.from("notification_views").insert({ notification_id: notifId, user_id: user.id }).maybeSingle();
       }
     };
     loadNotif();
-  }, [location.search, user?.id]);
+  }, [location.search, location.pathname, location.hash, user?.id, preloadImage]);
 
   // Check for active announcements — on load AND in realtime
   const announcementPopupRef = useRef(announcementPopup);
@@ -951,19 +961,13 @@ const ClientDashboard = () => {
       const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
 
       if (bannerUrl) {
-        const img = new Image();
-        img.src = bannerUrl;
-        await new Promise<void>((resolve) => {
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-          setTimeout(resolve, 5000);
-        });
+        await preloadImage(bannerUrl);
       }
 
       setAnnouncementPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl });
       break;
     }
-  }, [user?.id]);
+  }, [user?.id, preloadImage]);
 
   useEffect(() => {
     loadAnnouncements();

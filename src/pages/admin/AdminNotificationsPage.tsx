@@ -246,11 +246,16 @@ const AdminNotificationsPage = () => {
 
   // ─── Save Notification ───
   const saveNotif = async () => {
-    if (!editing || !editing.title_template || !editing.body_template) return;
+    if (!editing || !editing.body_template) return;
+    if (clickType === "image" && !editing.click_text_body) {
+      toast({ title: "⚠️ Imagem obrigatória", description: "Selecione uma imagem para o popup." });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: any = {
-        title_template: editing.title_template,
+        title_template: editing.title_template || "",
         body_template: editing.body_template,
         click_action: clickType === "route" ? (editing.click_action || "/dashboard") : "/dashboard",
         click_banner_id: clickType === "banner" ? editing.click_banner_id : null,
@@ -726,7 +731,7 @@ const AdminNotificationsPage = () => {
               <div className="space-y-4">
                 {/* Title */}
                 <div>
-                  <label className={labelCls}>Título</label>
+                  <label className={labelCls}>Título (opcional)</label>
                   <input ref={titleRef} onFocus={() => { lastFocusedField.current = "title"; }} value={editing.title_template || ""} onChange={(e) => setEditing({ ...editing, title_template: e.target.value })} placeholder="Ex: ✅ Olá {nome}!" className={inputCls} />
                 </div>
 
@@ -928,7 +933,7 @@ const AdminNotificationsPage = () => {
 
                 {/* Save + Send */}
                 <div className="flex gap-2">
-                  <button onClick={saveNotif} disabled={saving || !editing.title_template || !editing.body_template}
+                  <button onClick={saveNotif} disabled={saving || !editing.body_template || (clickType === "image" && !editing.click_text_body)}
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all">
                     {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     {saving ? "Salvando..." : "Salvar"}
