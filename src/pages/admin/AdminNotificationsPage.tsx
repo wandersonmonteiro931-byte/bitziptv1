@@ -152,7 +152,7 @@ const AdminNotificationsPage = () => {
   const [savingVar, setSavingVar] = useState(false);
 
   // Click action type
-  const [clickType, setClickType] = useState<"route" | "banner" | "text">("route");
+  const [clickType, setClickType] = useState<"route" | "banner" | "text" | "image">("route");
 
   // Refs for inserting variables
   const titleRef = useRef<HTMLInputElement>(null);
@@ -250,10 +250,10 @@ const AdminNotificationsPage = () => {
       const payload: any = {
         title_template: editing.title_template,
         body_template: editing.body_template,
-        click_action: clickType === "route" ? (editing.click_action || "/dashboard") : clickType === "banner" ? "/dashboard" : "/dashboard",
+        click_action: clickType === "route" ? (editing.click_action || "/dashboard") : "/dashboard",
         click_banner_id: clickType === "banner" ? editing.click_banner_id : null,
-        click_text_title: clickType === "text" ? (editing.click_text_title || "") : "",
-        click_text_body: clickType === "text" ? (editing.click_text_body || "") : "",
+        click_text_title: clickType === "text" ? (editing.click_text_title || "") : clickType === "image" ? "__IMAGE__" : "",
+        click_text_body: clickType === "text" ? (editing.click_text_body || "") : clickType === "image" ? (editing.click_text_body || "") : "",
         schedule_at: editing.schedule_at || null,
         target_type: "specific",
         target_ids: editing.target_ids || [],
@@ -383,6 +383,7 @@ const AdminNotificationsPage = () => {
   const openEditNotif = (n: ScheduledNotification) => {
     setEditing(n);
     if (n.click_banner_id) setClickType("banner");
+    else if (n.click_text_title === "__IMAGE__") setClickType("image");
     else if (n.click_text_body) setClickType("text");
     else setClickType("route");
   };
@@ -762,11 +763,11 @@ const AdminNotificationsPage = () => {
                 {/* Click Action */}
                 <div>
                   <label className={labelCls}>Ação ao Clicar</label>
-                  <div className="flex gap-1.5 mb-2">
-                    {(["route", "banner", "text"] as const).map((t) => (
+                  <div className="flex gap-1.5 mb-2 flex-wrap">
+                    {(["route", "banner", "image", "text"] as const).map((t) => (
                       <button key={t} onClick={() => setClickType(t)}
                         className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${clickType === t ? "bg-primary/15 text-primary" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
-                        {t === "route" ? "📍 Tela" : t === "banner" ? "🖼️ Banner" : "📝 Texto"}
+                        {t === "route" ? "📍 Tela" : t === "banner" ? "🖼️ Banner" : t === "image" ? "📷 Imagem" : "📝 Texto"}
                       </button>
                     ))}
                   </div>
@@ -782,6 +783,18 @@ const AdminNotificationsPage = () => {
                       <option value="">Selecione um banner...</option>
                       {banners.map((b) => <option key={b.id} value={b.id}>{b.title} ({b.content_type})</option>)}
                     </select>
+                  )}
+
+                  {clickType === "image" && (
+                    <div className="space-y-2">
+                      <input value={editing.click_text_body || ""} onChange={(e) => setEditing({ ...editing, click_text_body: e.target.value })} placeholder="Cole a URL da imagem aqui..." className={inputCls} />
+                      {editing.click_text_body && (
+                        <div className="rounded-xl border border-border bg-muted/30 p-2">
+                          <img src={editing.click_text_body} alt="Preview" className="w-full rounded-lg object-contain max-h-40" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">A imagem será pré-carregada e exibida como popup ao clicar na notificação</p>
+                    </div>
                   )}
 
                   {clickType === "text" && (

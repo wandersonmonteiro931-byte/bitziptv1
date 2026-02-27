@@ -745,7 +745,7 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string } | null>(null);
+  const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null>(null);
   const [announcementPopup, setAnnouncementPopup] = useState<{ id: string; title: string; body: string; bannerUrl?: string } | null>(null);
 
   useEffect(() => {
@@ -879,6 +879,8 @@ const ClientDashboard = () => {
         .maybeSingle();
       if (!data) return;
 
+      let popupData: { title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null = null;
+
       if (data.click_banner_id) {
         // Load banner content
         const { data: banner } = await supabase
@@ -887,10 +889,27 @@ const ClientDashboard = () => {
           .eq("id", data.click_banner_id)
           .maybeSingle();
         if (banner) {
-          setNotifPopup({ title: banner.title, body: banner.body || "", bannerUrl: banner.banner_url || undefined });
+          popupData = { title: banner.title, body: banner.body || "", bannerUrl: banner.banner_url || undefined };
         }
+      } else if (data.click_text_title === "__IMAGE__" && data.click_text_body) {
+        // Image-only popup
+        popupData = { title: "", body: "", bannerUrl: data.click_text_body, imageOnly: true };
       } else if (data.click_text_body) {
-        setNotifPopup({ title: data.click_text_title || "Aviso", body: data.click_text_body });
+        popupData = { title: data.click_text_title || "Aviso", body: data.click_text_body };
+      }
+
+      if (popupData) {
+        // Pre-load image before showing popup
+        if (popupData.bannerUrl) {
+          const img = new Image();
+          img.src = popupData.bannerUrl;
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(resolve, 5000);
+          });
+        }
+        setNotifPopup(popupData);
       }
 
       // Track view
@@ -1305,24 +1324,26 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* Notification Popup (banner or text from push click) */}
+        {/* Notification Popup (banner, image, or text from push click) */}
         {notifPopup && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-5"
             onClick={() => setNotifPopup(null)}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-              className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+              className={`w-full max-w-sm rounded-3xl border border-border bg-card shadow-2xl ${notifPopup.imageOnly ? "p-3" : "p-6"}`}
               onClick={(e) => e.stopPropagation()}>
               {notifPopup.bannerUrl && (
-                <img src={notifPopup.bannerUrl} alt={notifPopup.title}
-                  className="mb-4 w-full rounded-2xl object-contain" />
+                <img src={notifPopup.bannerUrl} alt={notifPopup.title || "Imagem"}
+                  className={`w-full rounded-2xl object-contain ${notifPopup.imageOnly ? "" : "mb-4"}`} />
               )}
-              <h3 className="text-lg font-bold text-foreground mb-2">{notifPopup.title}</h3>
-              {notifPopup.body && (
+              {!notifPopup.imageOnly && notifPopup.title && (
+                <h3 className="text-lg font-bold text-foreground mb-2">{notifPopup.title}</h3>
+              )}
+              {!notifPopup.imageOnly && notifPopup.body && (
                 <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{notifPopup.body}</p>
               )}
               <button onClick={() => setNotifPopup(null)}
-                className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+                className={`w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground ${notifPopup.imageOnly ? "mt-3" : "mt-5"}`}>
                 Entendi
               </button>
             </motion.div>
