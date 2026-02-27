@@ -64,37 +64,35 @@ function CopyButton({ text }: { text: string }) {
 function BannerCarousel() {
   const [banners, setBanners] = useState<any[]>([]);
   const [current, setCurrent] = useState(0);
-  const [imagesReady, setImagesReady] = useState(false);
+  const [loadedUrls, setLoadedUrls] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const touchStartRef = useRef(0);
 
-  const loadBanners = async () => {
+  useEffect(() => {
     const now = new Date().toISOString();
-    const { data } = await supabase
+    supabase
       .from("content")
       .select("id, title, body, banner_url, redirect_url, sort_order, ends_at")
       .eq("is_active", true)
       .eq("content_type", "banner")
       .lte("starts_at", now)
-      .order("sort_order");
-    const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
-    setBanners(active);
-
-    // Preload all banner images in parallel for instant display
-    const urls = active.map(b => b.banner_url).filter(Boolean);
-    if (urls.length > 0) {
-      await Promise.all(urls.map(url => new Promise<void>(resolve => {
-        const img = new window.Image();
-        img.onload = () => resolve();
-        img.onerror = () => resolve();
-        img.src = url;
-        setTimeout(resolve, 2000);
-      })));
-    }
-    setImagesReady(true);
-  };
-
-  useEffect(() => { loadBanners(); }, []);
+      .order("sort_order")
+      .then(({ data }) => {
+        const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
+        setBanners(active);
+        // Preload all images in parallel, marking each as ready individually
+        active.forEach(b => {
+          if (!b.banner_url) {
+            setLoadedUrls(prev => new Set(prev).add(b.id));
+            return;
+          }
+          const img = new window.Image();
+          img.onload = () => setLoadedUrls(prev => new Set(prev).add(b.id));
+          img.onerror = () => setLoadedUrls(prev => new Set(prev).add(b.id));
+          img.src = b.banner_url;
+        });
+      });
+  }, []);
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -102,7 +100,9 @@ function BannerCarousel() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [banners.length]);
 
-  if (banners.length === 0 || !imagesReady) return null;
+  // Show as soon as the first banner is ready
+  const firstBanner = banners[0];
+  if (!firstBanner || !loadedUrls.has(firstBanner.id)) return null;
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartRef.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -111,21 +111,24 @@ function BannerCarousel() {
   };
 
   const banner = banners[current];
+  const isBannerLoaded = loadedUrls.has(banner.id);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
       className="mx-4 mt-2 mb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
         className="block w-full">
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
+          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
             className="w-full overflow-hidden rounded-[20px]"
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
-            {banner.banner_url ? (
-              <img src={banner.banner_url} alt={banner.title} loading="eager" decoding="async"
+            {banner.banner_url && isBannerLoaded ? (
+              <img src={banner.banner_url} alt={banner.title} loading="eager" decoding="async" fetchPriority="high"
                 className="block w-full h-auto object-contain rounded-[20px]" />
+            ) : banner.banner_url && !isBannerLoaded ? (
+              <div className="w-full aspect-[16/9] animate-pulse rounded-[20px] bg-muted/40" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30">
+              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30 p-6">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
