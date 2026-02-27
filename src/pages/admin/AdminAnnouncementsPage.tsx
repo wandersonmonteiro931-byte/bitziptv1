@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Send, Loader2, Filter, Users, User, Eye, Copy, Image, FileText, Calendar, Clock } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Bell, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Send, Loader2, Filter, Users, User, Eye, Copy, Image, FileText, Calendar, Clock, Upload } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +31,8 @@ const AdminAnnouncementsPage = () => {
   const [editing, setEditing] = useState<Partial<Announcement> | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Users & filters
   const [users, setUsers] = useState<any[]>([]);
@@ -290,11 +292,57 @@ const AdminAnnouncementsPage = () => {
                 {/* Banner URL */}
                 {editing.announcement_type === "banner" && (
                   <>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">URL da Imagem (Banner)</label>
-                    <input value={editing.banner_url || ""} onChange={e => setEditing(prev => prev ? { ...prev, banner_url: e.target.value } : prev)}
-                      className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground mb-1" placeholder="https://..." />
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Imagem do Banner</label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploading(true);
+                        try {
+                          const ext = file.name.split(".").pop() || "png";
+                          const fileName = `announcement_${Date.now()}.${ext}`;
+                          const { error: uploadError } = await supabase.storage
+                            .from("banners")
+                            .upload(fileName, file, { upsert: true });
+                          if (uploadError) throw uploadError;
+                          const { data: urlData } = supabase.storage.from("banners").getPublicUrl(fileName);
+                          setEditing(prev => prev ? { ...prev, banner_url: urlData.publicUrl } : prev);
+                          toast({ title: "Imagem enviada!" });
+                        } catch (err: any) {
+                          toast({ title: "Erro no upload", description: err.message, variant: "destructive" });
+                        } finally {
+                          setUploading(false);
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="w-full rounded-xl border-2 border-dashed border-border hover:border-primary/50 bg-muted/10 px-4 py-6 text-sm text-muted-foreground flex flex-col items-center gap-2 transition-colors mb-2"
+                    >
+                      {uploading ? (
+                        <><Loader2 size={20} className="animate-spin text-primary" /> Enviando...</>
+                      ) : (
+                        <><Upload size={20} className="text-primary" /> Clique para enviar imagem (PNG, JPG, WebP)</>
+                      )}
+                    </button>
                     {editing.banner_url && (
-                      <img src={editing.banner_url} alt="Preview" className="w-full rounded-xl mb-3 max-h-48 object-contain bg-muted/10" />
+                      <div className="relative mb-3">
+                        <img src={editing.banner_url} alt="Preview" className="w-full rounded-xl max-h-48 object-contain bg-muted/10" />
+                        <button
+                          type="button"
+                          onClick={() => setEditing(prev => prev ? { ...prev, banner_url: "" } : prev)}
+                          className="absolute top-2 right-2 p-1 rounded-full bg-destructive/80 text-destructive-foreground hover:bg-destructive"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
                     )}
                   </>
                 )}
