@@ -745,6 +745,7 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -859,7 +860,46 @@ const ClientDashboard = () => {
     }, 500);
   }, [location.hash, user]);
 
-  const requestTrustUnlock = async () => {
+  // Handle notif_id query param (deep-link from push notification click)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const notifId = params.get("notif_id");
+    if (!notifId) return;
+
+    // Clean URL immediately
+    const cleanUrl = location.pathname + (location.hash || "");
+    window.history.replaceState(null, "", cleanUrl);
+
+    const loadNotif = async () => {
+      const { data } = await supabase
+        .from("scheduled_notifications")
+        .select("click_text_title, click_text_body, click_banner_id")
+        .eq("id", notifId)
+        .maybeSingle();
+      if (!data) return;
+
+      if (data.click_banner_id) {
+        // Load banner content
+        const { data: banner } = await supabase
+          .from("content")
+          .select("title, body, banner_url")
+          .eq("id", data.click_banner_id)
+          .maybeSingle();
+        if (banner) {
+          setNotifPopup({ title: banner.title, body: banner.body || "", bannerUrl: banner.banner_url || undefined });
+        }
+      } else if (data.click_text_body) {
+        setNotifPopup({ title: data.click_text_title || "Aviso", body: data.click_text_body });
+      }
+
+      // Track view
+      if (user?.id) {
+        await supabase.from("notification_views").insert({ notification_id: notifId, user_id: user.id }).maybeSingle();
+      }
+    };
+    loadNotif();
+  }, [location.search, user?.id]);
+
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
     setTrustRequesting(true);
     try {
@@ -1200,6 +1240,30 @@ const ClientDashboard = () => {
                   {cancelRequesting ? "Enviando..." : "Confirmar"}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Notification Popup (banner or text from push click) */}
+        {notifPopup && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-5"
+            onClick={() => setNotifPopup(null)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}>
+              {notifPopup.bannerUrl && (
+                <img src={notifPopup.bannerUrl} alt={notifPopup.title}
+                  className="mb-4 w-full rounded-2xl object-contain" />
+              )}
+              <h3 className="text-lg font-bold text-foreground mb-2">{notifPopup.title}</h3>
+              {notifPopup.body && (
+                <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{notifPopup.body}</p>
+              )}
+              <button onClick={() => setNotifPopup(null)}
+                className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+                Entendi
+              </button>
             </motion.div>
           </motion.div>
         )}
