@@ -61,10 +61,24 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // --- Banner Carousel (minimal) ---
+// Optimize Supabase storage URLs with image transformation for faster loading
+const optimizeImageUrl = (url: string, width = 800): string => {
+  if (!url) return url;
+  // Only transform Supabase storage URLs
+  if (url.includes('/storage/v1/object/public/')) {
+    // Use render/image endpoint for on-the-fly resize + webp
+    return url.replace(
+      '/storage/v1/object/public/',
+      `/storage/v1/render/image/public/`
+    ) + `?width=${width}&quality=75&format=origin`;
+  }
+  return url;
+};
+
 function BannerCarousel() {
   const [banners, setBanners] = useState<any[]>([]);
   const [current, setCurrent] = useState(0);
-  const [loadedUrls, setLoadedUrls] = useState<Set<string>>(new Set());
+  const [loadedIds, setLoadedIds] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
   const touchStartRef = useRef(0);
 
@@ -80,16 +94,17 @@ function BannerCarousel() {
       .then(({ data }) => {
         const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
         setBanners(active);
-        // Preload all images in parallel, marking each as ready individually
+        // Preload all optimized images in parallel
         active.forEach(b => {
           if (!b.banner_url) {
-            setLoadedUrls(prev => new Set(prev).add(b.id));
+            setLoadedIds(prev => new Set(prev).add(b.id));
             return;
           }
           const img = new window.Image();
-          img.onload = () => setLoadedUrls(prev => new Set(prev).add(b.id));
-          img.onerror = () => setLoadedUrls(prev => new Set(prev).add(b.id));
-          img.src = b.banner_url;
+          const mark = () => setLoadedIds(prev => new Set(prev).add(b.id));
+          img.onload = mark;
+          img.onerror = mark;
+          img.src = optimizeImageUrl(b.banner_url);
         });
       });
   }, []);
@@ -100,9 +115,10 @@ function BannerCarousel() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [banners.length]);
 
-  // Show as soon as the first banner is ready
-  const firstBanner = banners[0];
-  if (!firstBanner || !loadedUrls.has(firstBanner.id)) return null;
+  // Show skeleton placeholder while loading instead of nothing
+  if (banners.length === 0) return null;
+
+  const firstReady = banners.length > 0 && loadedIds.has(banners[0].id);
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartRef.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -110,23 +126,32 @@ function BannerCarousel() {
     if (Math.abs(diff) > 50) setCurrent(c => diff > 0 ? (c + 1) % banners.length : (c - 1 + banners.length) % banners.length);
   };
 
+  // Show skeleton until first banner is ready
+  if (!firstReady) {
+    return (
+      <div className="mx-4 mt-2 mb-4">
+        <div className="w-full aspect-[2/1] animate-pulse rounded-[20px] bg-muted/30" />
+      </div>
+    );
+  }
+
   const banner = banners[current];
-  const isBannerLoaded = loadedUrls.has(banner.id);
+  const isBannerLoaded = loadedIds.has(banner.id);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }}
       className="mx-4 mt-2 mb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
         className="block w-full">
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
             className="w-full overflow-hidden rounded-[20px]"
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
             {banner.banner_url && isBannerLoaded ? (
-              <img src={banner.banner_url} alt={banner.title} loading="eager" decoding="async" fetchPriority="high"
+              <img src={optimizeImageUrl(banner.banner_url)} alt={banner.title} loading="eager" decoding="async" fetchPriority="high"
                 className="block w-full h-auto object-contain rounded-[20px]" />
             ) : banner.banner_url && !isBannerLoaded ? (
-              <div className="w-full aspect-[16/9] animate-pulse rounded-[20px] bg-muted/40" />
+              <div className="w-full aspect-[2/1] animate-pulse rounded-[20px] bg-muted/30" />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30 p-6">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
