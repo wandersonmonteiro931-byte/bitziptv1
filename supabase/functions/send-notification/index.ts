@@ -201,40 +201,69 @@ Deno.serve(async (req) => {
 
     const extras = { supportName, livePrograms, dicaTarde, dicaSemana, customVars: customVarsRes.data || [] };
 
-    // Determine click URL — append notif_id for banner/popup deep-linking
-    let clickUrl = notif.click_action || "/";
-    if (notif.click_banner_id || notif.click_text_body) {
-      const separator = clickUrl.includes("?") ? "&" : "?";
-      clickUrl = `${clickUrl}${separator}notif_id=${notification_id}`;
-    }
+    // Determine click URL base
+    const clickUrlBase = notif.click_action || "/";
 
     // Send to each user
     let totalSent = 0;
     let totalFailed = 0;
 
-    for (const profile of profiles) {
-      const title = resolveVariables(notif.title_template, profile, extras);
-      const bodyText = resolveVariables(notif.body_template, profile, extras);
+    // Send in parallel batches for faster delivery
+    const batchSize = 20;
+    for (let i = 0; i < profiles.length; i += batchSize) {
+      const batch = profiles.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (profile) => {
+          const resolvedTitle = resolveVariables(notif.title_template || "", profile, extras).trim();
+          const resolvedBody = resolveVariables(notif.body_template || "", profile, extras).trim();
+          const title = resolvedTitle || "Aviso";
+          const bodyText = resolvedBody || "Você recebeu uma nova notificação.";
 
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-          body: JSON.stringify({
-            action: "send_to_user",
-            user_id: profile.id,
-            title,
-            body: bodyText,
-            url: clickUrl,
-          }),
-        });
-        const result = await resp.json();
-        totalSent += result.sent || 0;
-        totalFailed += result.failed || 0;
-      } catch (err) {
-        totalFailed++;
-        console.error(`[SEND-NOTIF] Failed for ${profile.id}:`, err);
-      }
+          let clickUrl = clickUrlBase;
+          const params = new URLSearchParams();
+
+          // Image popup is now passed directly in URL for immediate open (no extra fetch)
+          if (notif.click_text_title === "__IMAGE__" && notif.click_text_body) {
+            params.set("notif_type", "image");
+            params.set("notif_image", encodeURIComponent(notif.click_text_body));
+          } else if (notif.click_banner_id || notif.click_text_body) {
+            params.set("notif_id", notification_id);
+          }
+
+          const query = params.toString();
+          if (query) {
+            const separator = clickUrl.includes("?") ? "&" : "?";
+            clickUrl = `${clickUrl}${separator}${query}`;
+          }
+
+          const resp = await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id: profile.id,
+              title,
+              body: bodyText,
+              url: clickUrl,
+            }),
+          });
+
+          const result = await resp.json();
+          return {
+            sent: result.sent || 0,
+            failed: result.failed || 0,
+          };
+        })
+      );
+
+      results.forEach((r) => {
+        if (r.status === "fulfilled") {
+          totalSent += r.value.sent;
+          totalFailed += r.value.failed;
+        } else {
+          totalFailed += 1;
+        }
+      });
     }
 
     // Update notification status
