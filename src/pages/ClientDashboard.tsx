@@ -900,6 +900,7 @@ const ClientDashboard = () => {
     loadNotif();
   }, [location.search, user?.id]);
 
+  const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
     setTrustRequesting(true);
     try {
