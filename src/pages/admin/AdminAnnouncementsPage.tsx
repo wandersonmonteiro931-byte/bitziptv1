@@ -115,10 +115,7 @@ const AdminAnnouncementsPage = () => {
 
   const save = async () => {
     if (!editing || !user?.id) return;
-    if (!editing.title?.trim()) {
-      toast({ title: "Título obrigatório", variant: "destructive" });
-      return;
-    }
+    // Title and body are optional now
     setSaving(true);
     try {
       const payload = {
@@ -280,7 +277,7 @@ const AdminAnnouncementsPage = () => {
                 </div>
 
                 {/* Title */}
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Título *</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Título</label>
                 <input value={editing.title || ""} onChange={e => setEditing(prev => prev ? { ...prev, title: e.target.value } : prev)}
                   className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground mb-3" placeholder="Título do aviso" />
 
