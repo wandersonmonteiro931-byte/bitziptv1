@@ -901,61 +901,64 @@ const ClientDashboard = () => {
     loadNotif();
   }, [location.search, user?.id]);
 
-  // Check for active announcements on app load
-  useEffect(() => {
+  // Check for active announcements — on load AND in realtime
+  const announcementPopupRef = useRef(announcementPopup);
+  announcementPopupRef.current = announcementPopup;
+
+  const loadAnnouncements = useCallback(async () => {
     if (!user?.id) return;
-    const loadAnnouncements = async () => {
-      const now = new Date().toISOString();
-      // Get all active announcements
-      const { data: announcements } = await supabase
-        .from("announcements")
-        .select("id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
-      if (!announcements || announcements.length === 0) return;
+    // Don't replace if already showing one
+    if (announcementPopupRef.current) return;
 
-      // Get user's dismissed announcements
-      const { data: dismissed } = await supabase
-        .from("announcement_dismissals")
-        .select("announcement_id")
-        .eq("user_id", user.id);
-      const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
+    const { data: announcements } = await supabase
+      .from("announcements")
+      .select("id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    if (!announcements || announcements.length === 0) return;
 
-      // Find first undismissed announcement that targets this user
-      for (const a of announcements) {
-        if (dismissedIds.has(a.id)) continue;
-        // Check schedule
-        if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
-        // Check expiry
-        if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
-        // Check targeting
-        if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
+    const { data: dismissed } = await supabase
+      .from("announcement_dismissals")
+      .select("announcement_id")
+      .eq("user_id", user.id);
+    const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
 
-        const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
+    for (const a of announcements) {
+      if (dismissedIds.has(a.id)) continue;
+      if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
+      if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
+      if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
 
-        // Pre-load banner image before showing popup
-        if (bannerUrl) {
-          const img = new Image();
-          img.src = bannerUrl;
-          await new Promise<void>((resolve) => {
-            img.onload = () => resolve();
-            img.onerror = () => resolve();
-            // Timeout fallback after 5s
-            setTimeout(resolve, 5000);
-          });
-        }
+      const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
 
-        setAnnouncementPopup({
-          id: a.id,
-          title: a.title,
-          body: a.body || "",
-          bannerUrl,
+      if (bannerUrl) {
+        const img = new Image();
+        img.src = bannerUrl;
+        await new Promise<void>((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          setTimeout(resolve, 5000);
         });
-        break;
       }
-    };
-    loadAnnouncements();
+
+      setAnnouncementPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl });
+      break;
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    loadAnnouncements();
+
+    // Realtime: new or updated announcements trigger check immediately
+    const channel = supabase
+      .channel("announcements-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => {
+        loadAnnouncements();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadAnnouncements]);
 
   const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
@@ -1349,6 +1352,8 @@ const ClientDashboard = () => {
                   });
                 }
                 setAnnouncementPopup(null);
+                // Check for next pending announcement after a brief delay
+                setTimeout(() => loadAnnouncements(), 500);
               }}
                 className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
                 Entendi
