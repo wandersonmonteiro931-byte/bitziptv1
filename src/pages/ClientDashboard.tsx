@@ -931,11 +931,25 @@ const ClientDashboard = () => {
         // Check targeting
         if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
 
+        const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
+
+        // Pre-load banner image before showing popup
+        if (bannerUrl) {
+          const img = new Image();
+          img.src = bannerUrl;
+          await new Promise<void>((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            // Timeout fallback after 5s
+            setTimeout(resolve, 5000);
+          });
+        }
+
         setAnnouncementPopup({
           id: a.id,
           title: a.title,
           body: a.body || "",
-          bannerUrl: a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined,
+          bannerUrl,
         });
         break;
       }
