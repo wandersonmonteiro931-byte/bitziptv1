@@ -746,6 +746,7 @@ const ClientDashboard = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string } | null>(null);
+  const [announcementPopup, setAnnouncementPopup] = useState<{ id: string; title: string; body: string; bannerUrl?: string } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -899,6 +900,48 @@ const ClientDashboard = () => {
     };
     loadNotif();
   }, [location.search, user?.id]);
+
+  // Check for active announcements on app load
+  useEffect(() => {
+    if (!user?.id) return;
+    const loadAnnouncements = async () => {
+      const now = new Date().toISOString();
+      // Get all active announcements
+      const { data: announcements } = await supabase
+        .from("announcements")
+        .select("id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (!announcements || announcements.length === 0) return;
+
+      // Get user's dismissed announcements
+      const { data: dismissed } = await supabase
+        .from("announcement_dismissals")
+        .select("announcement_id")
+        .eq("user_id", user.id);
+      const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
+
+      // Find first undismissed announcement that targets this user
+      for (const a of announcements) {
+        if (dismissedIds.has(a.id)) continue;
+        // Check schedule
+        if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
+        // Check expiry
+        if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
+        // Check targeting
+        if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
+
+        setAnnouncementPopup({
+          id: a.id,
+          title: a.title,
+          body: a.body || "",
+          bannerUrl: a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined,
+        });
+        break;
+      }
+    };
+    loadAnnouncements();
+  }, [user?.id]);
 
   const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
@@ -1262,6 +1305,37 @@ const ClientDashboard = () => {
                 <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{notifPopup.body}</p>
               )}
               <button onClick={() => setNotifPopup(null)}
+                className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+                Entendi
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Announcement Popup (shown on app load, must click Entendi) */}
+        {announcementPopup && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-5">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
+              {announcementPopup.bannerUrl && (
+                <img src={announcementPopup.bannerUrl} alt={announcementPopup.title}
+                  className="mb-4 w-full rounded-2xl object-contain" />
+              )}
+              <h3 className="text-lg font-bold text-foreground mb-2">{announcementPopup.title}</h3>
+              {announcementPopup.body && (
+                <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{announcementPopup.body}</p>
+              )}
+              <button onClick={async () => {
+                // Record dismissal
+                if (user?.id) {
+                  await supabase.from("announcement_dismissals").insert({
+                    announcement_id: announcementPopup.id,
+                    user_id: user.id,
+                  });
+                }
+                setAnnouncementPopup(null);
+              }}
                 className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
                 Entendi
               </button>
