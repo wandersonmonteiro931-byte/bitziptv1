@@ -201,8 +201,12 @@ Deno.serve(async (req) => {
 
     const extras = { supportName, livePrograms, dicaTarde, dicaSemana, customVars: customVarsRes.data || [] };
 
-    // Determine click URL
+    // Determine click URL — append notif_id for banner/popup deep-linking
     let clickUrl = notif.click_action || "/";
+    if (notif.click_banner_id || notif.click_text_body) {
+      const separator = clickUrl.includes("?") ? "&" : "?";
+      clickUrl = `${clickUrl}${separator}notif_id=${notification_id}`;
+    }
 
     // Send to each user
     let totalSent = 0;
