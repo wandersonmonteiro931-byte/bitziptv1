@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable, Filter } from "lucide-react";
+import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable, Filter, Upload } from "lucide-react";
 import { IPTV_STATUSES } from "./iptv/types";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -153,6 +153,8 @@ const AdminNotificationsPage = () => {
 
   // Click action type
   const [clickType, setClickType] = useState<"route" | "banner" | "text" | "image">("route");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Refs for inserting variables
   const titleRef = useRef<HTMLInputElement>(null);
@@ -787,10 +789,36 @@ const AdminNotificationsPage = () => {
 
                   {clickType === "image" && (
                     <div className="space-y-2">
-                      <input value={editing.click_text_body || ""} onChange={(e) => setEditing({ ...editing, click_text_body: e.target.value })} placeholder="Cole a URL da imagem aqui..." className={inputCls} />
+                      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingImage(true);
+                        try {
+                          const ext = file.name.split(".").pop() || "jpg";
+                          const path = `notif-images/${Date.now()}.${ext}`;
+                          const { error: upErr } = await supabase.storage.from("banners").upload(path, file, { upsert: true });
+                          if (upErr) throw upErr;
+                          const { data: urlData } = supabase.storage.from("banners").getPublicUrl(path);
+                          setEditing(prev => prev ? { ...prev, click_text_body: urlData.publicUrl } : prev);
+                        } catch (err: any) {
+                          toast({ title: "❌ Erro no upload", description: err.message, variant: "destructive" });
+                        } finally {
+                          setUploadingImage(false);
+                          if (imageInputRef.current) imageInputRef.current.value = "";
+                        }
+                      }} />
+                      <button onClick={() => imageInputRef.current?.click()} disabled={uploadingImage}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/30 py-4 text-sm font-medium text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50">
+                        {uploadingImage ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                        {uploadingImage ? "Enviando..." : "Selecionar Imagem"}
+                      </button>
                       {editing.click_text_body && (
-                        <div className="rounded-xl border border-border bg-muted/30 p-2">
-                          <img src={editing.click_text_body} alt="Preview" className="w-full rounded-lg object-contain max-h-40" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <div className="rounded-xl border border-border bg-muted/30 p-2 relative">
+                          <img src={editing.click_text_body} alt="Preview" className="w-full rounded-lg object-contain max-h-48" />
+                          <button onClick={() => setEditing({ ...editing, click_text_body: "" })}
+                            className="absolute top-3 right-3 rounded-full bg-background/80 p-1 text-muted-foreground hover:text-destructive transition-colors">
+                            <X size={14} />
+                          </button>
                         </div>
                       )}
                       <p className="text-[10px] text-muted-foreground">A imagem será pré-carregada e exibida como popup ao clicar na notificação</p>
