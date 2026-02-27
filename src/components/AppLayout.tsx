@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { GlobalAnnouncementPopup } from "@/components/GlobalAnnouncementPopup";
 import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay, Bell, AlertCircle } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -273,6 +274,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <main className="md:ml-64" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
         <div className="p-4 md:p-6">{children}</div>
       </main>
+
+      {/* === GLOBAL ANNOUNCEMENT POPUP === */}
+      <GlobalAnnouncementPopup />
     </div>
   );
 }
