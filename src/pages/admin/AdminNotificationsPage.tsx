@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable } from "lucide-react";
+import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable, Filter } from "lucide-react";
+import { IPTV_STATUSES } from "./iptv/types";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -136,6 +137,15 @@ const AdminNotificationsPage = () => {
   // Legend toggle
   const [showLegend, setShowLegend] = useState(false);
 
+  // Recipient filters
+  const [recipientFilterServer, setRecipientFilterServer] = useState("");
+  const [recipientFilterApp, setRecipientFilterApp] = useState("");
+  const [recipientFilterStatus, setRecipientFilterStatus] = useState("");
+  const [recipientFilterScreens, setRecipientFilterScreens] = useState("");
+  const [showRecipientFilters, setShowRecipientFilters] = useState(false);
+  const [servers, setServers] = useState<any[]>([]);
+  const [tvApps, setTvApps] = useState<any[]>([]);
+
   // Custom variables
   const [customVars, setCustomVars] = useState<{ id: string; var_key: string; label: string; default_value: string; is_active: boolean }[]>([]);
   const [editingVar, setEditingVar] = useState<{ id?: string; var_key: string; label: string; default_value: string } | null>(null);
@@ -196,13 +206,15 @@ const AdminNotificationsPage = () => {
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [usersRes, subsRes, rulesRes, notifsRes, bannersRes, varsRes] = await Promise.all([
-      supabase.from("profiles").select("id, name, username").order("name"),
+    const [usersRes, subsRes, rulesRes, notifsRes, bannersRes, varsRes, serversRes, tvAppsRes] = await Promise.all([
+      supabase.from("profiles").select("id, name, username, iptv_server, iptv_tv_app, iptv_status, iptv_connections, iptv_monthly_value, iptv_expiry").order("name"),
       supabase.from("push_subscriptions").select("id", { count: "exact" }),
       supabase.from("notification_rules").select("*").order("created_at", { ascending: true }),
       supabase.from("scheduled_notifications").select("*").order("created_at", { ascending: false }),
       supabase.from("content").select("id, title, content_type").eq("is_active", true).order("title"),
       supabase.from("custom_variables").select("*").order("created_at", { ascending: true }),
+      supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
+      supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
     ]);
     setUsers(usersRes.data || []);
     setSubCount(subsRes.count || 0);
@@ -210,6 +222,8 @@ const AdminNotificationsPage = () => {
     setNotifications((notifsRes.data as any[]) || []);
     setBanners(bannersRes.data || []);
     setCustomVars((varsRes.data as any[]) || []);
+    setServers(serversRes.data || []);
+    setTvApps(tvAppsRes.data || []);
   };
 
   // ─── Send Notification ───
@@ -347,13 +361,19 @@ const AdminNotificationsPage = () => {
     } finally { setSendingRuleManual(false); }
   };
 
-  const filteredUsers = users.filter(
-    (u) => u.name?.toLowerCase().includes(search.toLowerCase()) || u.username?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter((u) => {
+    if (search && !u.name?.toLowerCase().includes(search.toLowerCase()) && !u.username?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (recipientFilterServer && u.iptv_server !== recipientFilterServer) return false;
+    if (recipientFilterApp && !(u.iptv_tv_app || "").toLowerCase().includes(recipientFilterApp.toLowerCase())) return false;
+    if (recipientFilterStatus && u.iptv_status !== recipientFilterStatus) return false;
+    if (recipientFilterScreens && Number(u.iptv_connections || 1) !== Number(recipientFilterScreens)) return false;
+    return true;
+  });
 
-  const ruleFilteredUsers = users.filter(
-    (u) => u.name?.toLowerCase().includes(ruleManualSearch.toLowerCase()) || u.username?.toLowerCase().includes(ruleManualSearch.toLowerCase())
-  );
+  const recipientFiltersActive = [recipientFilterServer, recipientFilterApp, recipientFilterStatus, recipientFilterScreens].filter(Boolean).length;
+
+  const uniqueAppsNotif = [...new Set(users.map((u: any) => u.iptv_tv_app).filter(Boolean))].sort() as string[];
+  const uniqueScreensNotif = [...new Set(users.map((u: any) => u.iptv_connections || 1))].sort((a: number, b: number) => a - b) as number[];
 
   const openNewNotif = () => {
     setEditing({ target_type: "specific", is_active: true, target_ids: [], click_action: "/dashboard" });
@@ -779,17 +799,67 @@ const AdminNotificationsPage = () => {
                   <p className="mt-1 text-[10px] text-muted-foreground">Deixe vazio para envio manual</p>
                 </div>
 
-                {/* Target - always specific */}
+                {/* Target - with filters */}
                 <div>
                   <label className={labelCls}>Destinatários</label>
                   <div className="space-y-2">
+                    {/* Filter toggle */}
+                    <button onClick={() => setShowRecipientFilters(!showRecipientFilters)}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors w-full justify-between ${recipientFiltersActive > 0 ? "bg-primary/15 text-primary border border-primary/30" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>
+                      <span className="flex items-center gap-1.5">
+                        <Filter size={11} /> Filtrar por perfil
+                        {recipientFiltersActive > 0 && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-bold text-primary-foreground">{recipientFiltersActive}</span>}
+                      </span>
+                      {showRecipientFilters ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+                    <AnimatePresence>
+                      {showRecipientFilters && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                          <div className="rounded-lg border border-border bg-muted/30 p-3 grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-muted-foreground">Servidor</label>
+                              <select value={recipientFilterServer} onChange={(e) => setRecipientFilterServer(e.target.value)} className={`${inputCls} text-xs !py-1.5`}>
+                                <option value="">Todos</option>
+                                {servers.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-muted-foreground">📺 App TV</label>
+                              <select value={recipientFilterApp} onChange={(e) => setRecipientFilterApp(e.target.value)} className={`${inputCls} text-xs !py-1.5`}>
+                                <option value="">Todos</option>
+                                {uniqueAppsNotif.map((a) => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-muted-foreground">Status</label>
+                              <select value={recipientFilterStatus} onChange={(e) => setRecipientFilterStatus(e.target.value)} className={`${inputCls} text-xs !py-1.5`}>
+                                <option value="">Todos</option>
+                                {IPTV_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-0.5 block text-[10px] text-muted-foreground">Telas</label>
+                              <select value={recipientFilterScreens} onChange={(e) => setRecipientFilterScreens(e.target.value)} className={`${inputCls} text-xs !py-1.5`}>
+                                <option value="">Todas</option>
+                                {uniqueScreensNotif.map((s) => <option key={s} value={s}>{s} tela{s > 1 ? "s" : ""}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          {recipientFiltersActive > 0 && (
+                            <button onClick={() => { setRecipientFilterServer(""); setRecipientFilterApp(""); setRecipientFilterStatus(""); setRecipientFilterScreens(""); }}
+                              className="mt-1 text-[10px] font-medium text-destructive hover:underline">Limpar filtros</button>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     <div className="flex gap-2 mb-1">
                       <button onClick={() => {
-                        const allIds = users.map(u => u.id);
+                        const allIds = filteredUsers.map(u => u.id);
                         setEditing({ ...editing, target_type: "specific", target_ids: allIds });
                       }}
                         className="rounded-lg bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
-                        Selecionar Todos
+                        {recipientFiltersActive > 0 ? `Selecionar Filtrados (${filteredUsers.length})` : "Selecionar Todos"}
                       </button>
                       <button onClick={() => setEditing({ ...editing, target_type: "specific", target_ids: [] })}
                         className="rounded-lg bg-muted/50 px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
@@ -951,7 +1021,7 @@ const AdminNotificationsPage = () => {
               <div className="space-y-3">
                 <input value={ruleManualSearch} onChange={(e) => setRuleManualSearch(e.target.value)} placeholder="Buscar usuário..." className={inputCls} />
                 <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-border p-2">
-                  {ruleFilteredUsers.slice(0, 30).map((u) => (
+                  {users.filter((u) => u.name?.toLowerCase().includes(ruleManualSearch.toLowerCase()) || u.username?.toLowerCase().includes(ruleManualSearch.toLowerCase())).slice(0, 30).map((u) => (
                     <label key={u.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/50 cursor-pointer">
                       <input type="checkbox" checked={manualRuleUsers.includes(u.id)}
                         onChange={(e) => e.target.checked ? setManualRuleUsers([...manualRuleUsers, u.id]) : setManualRuleUsers(manualRuleUsers.filter(id => id !== u.id))}
