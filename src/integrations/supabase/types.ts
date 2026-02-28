@@ -1529,6 +1529,8 @@ export type Database = {
       }
       support_settings: {
         Row: {
+          assist_plus_provider: string
+          blessed_player_provider: string
           id: string
           support_name: string
           support_phone: string
@@ -1537,6 +1539,8 @@ export type Database = {
           whatsapp_link: string
         }
         Insert: {
+          assist_plus_provider?: string
+          blessed_player_provider?: string
           id?: string
           support_name?: string
           support_phone?: string
@@ -1545,6 +1549,8 @@ export type Database = {
           whatsapp_link?: string
         }
         Update: {
+          assist_plus_provider?: string
+          blessed_player_provider?: string
           id?: string
           support_name?: string
           support_phone?: string

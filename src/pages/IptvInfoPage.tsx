@@ -1,8 +1,10 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tv, Server, Smartphone, Calendar, User } from "lucide-react";
+import { Tv, Server, Smartphone, Calendar, User, Wifi } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatDateBRT } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -27,9 +29,27 @@ const getAppLogo = (appName: string | undefined) => {
 
 const IptvInfoPage = () => {
   const { user } = useAuth();
+  const [providerInfo, setProviderInfo] = useState({ assist_plus_provider: "", blessed_player_provider: "" });
+
+  useEffect(() => {
+    supabase.from("support_settings").select("assist_plus_provider, blessed_player_provider" as any).limit(1).single()
+      .then(({ data }) => {
+        if (data) setProviderInfo(data as any);
+      });
+  }, []);
 
   const appLogo = getAppLogo(user?.iptv_app);
   const tvAppLogo = getAppLogo(user?.iptv_tv_app);
+
+  // Determine which provider to show based on user's TV app
+  const getUserTvProvider = () => {
+    const tvApp = (user?.iptv_tv_app || "").toLowerCase();
+    if (tvApp.includes("assist")) return providerInfo.assist_plus_provider;
+    if (tvApp.includes("blessed")) return providerInfo.blessed_player_provider;
+    return "";
+  };
+
+  const tvProvider = getUserTvProvider();
 
   const info = [
     { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
@@ -76,6 +96,17 @@ const IptvInfoPage = () => {
             </div>
           ))}
         </div>
+
+        {/* Provider info */}
+        {tvProvider && (
+          <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Wifi size={14} className="text-primary" />
+              <span className="text-xs font-semibold text-primary">Provedor de Acesso</span>
+            </div>
+            <p className="text-sm font-semibold text-foreground">{tvProvider}</p>
+          </div>
+        )}
 
         {(appLogo || tvAppLogo) && (
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
