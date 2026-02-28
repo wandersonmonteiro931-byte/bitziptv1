@@ -115,7 +115,7 @@ const AdminUsersPage = () => {
   };
 
   const buildDefaultNotes = (username: string, password: string) => {
-    return `SEUS DADOS DE ACESSO AOS APLICATIVOS:\n\n🔴 BLESSED PLAYER \n\n✅ PROVEDOR: ativeapp00608\n✅ Usuário: ${username}\n✅ Senha: ${password}\n\n\n🟡 ASSIST PLUS\n\n✅ Codigo: 345746534\n✅ Usuário: ${username}\n✅ Senha: ${password}`;
+    return `SEUS DADOS DE ACESSO:\n\nASSIST PLUS E BLESSED PLAYER\n\nUSUÁRIO: ${username}\nSENHA: ${password}`;
   };
 
   const handleAutoRegister = async () => {

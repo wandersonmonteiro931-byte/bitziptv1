@@ -57,13 +57,18 @@ const AdminSettingsPage = () => {
 
       // 2. Update admin_notes for ALL users if observation provided
       if (globalObservation.trim()) {
-        const { data: allProfiles } = await supabase.from("profiles").select("id");
+        const { data: allProfiles } = await supabase.from("profiles").select("id, iptv_user, iptv_password");
         if (allProfiles && allProfiles.length > 0) {
           const batchSize = 50;
           for (let i = 0; i < allProfiles.length; i += batchSize) {
             const batch = allProfiles.slice(i, i + batchSize);
-            const ids = batch.map((p) => p.id);
-            await supabase.from("profiles").update({ admin_notes: globalObservation.trim() }).in("id", ids);
+            const promises = batch.map((p) => {
+              const note = globalObservation.trim()
+                .replace(/\{\{USUARIO\}\}/gi, p.iptv_user || "")
+                .replace(/\{\{SENHA\}\}/gi, p.iptv_password || "");
+              return supabase.from("profiles").update({ admin_notes: note }).eq("id", p.id);
+            });
+            await Promise.all(promises);
           }
         }
       }
@@ -155,8 +160,8 @@ const AdminSettingsPage = () => {
           </div>
           <div>
             <h3 className="mb-2 text-sm font-semibold text-foreground">Observação Global (para TODOS os clientes)</h3>
-            <p className="mb-1 text-[11px] text-muted-foreground">Este texto substituirá a observação de TODOS os clientes ao salvar.</p>
-            <textarea value={globalObservation} onChange={(e) => setGlobalObservation(e.target.value)} placeholder="Deixe em branco para não alterar as observações dos clientes..." rows={5}
+            <p className="mb-1 text-[11px] text-muted-foreground">Este texto substituirá a observação de TODOS os clientes ao salvar. Use <code className="bg-muted px-1 rounded text-[10px]">{"{{USUARIO}}"}</code> e <code className="bg-muted px-1 rounded text-[10px]">{"{{SENHA}}"}</code> para inserir os dados de cada cliente automaticamente.</p>
+            <textarea value={globalObservation} onChange={(e) => setGlobalObservation(e.target.value)} placeholder={"SEUS DADOS DE ACESSO:\n\nASSIST PLUS E BLESSED PLAYER\n\nUSUÁRIO: {{USUARIO}}\nSENHA: {{SENHA}}"} rows={8}
               className="w-full rounded-lg border border-border bg-muted/50 px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none" />
           </div>
 
