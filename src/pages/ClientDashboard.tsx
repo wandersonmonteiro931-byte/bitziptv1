@@ -1117,6 +1117,21 @@ const ClientDashboard = () => {
         {/* PLAN DETAILS (simple text) */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           className="rounded-2xl border border-border/40 bg-card/60 px-5 py-3">
+          {(() => {
+            const tvApp = (user?.iptv_tv_app || "").toLowerCase();
+            const providerName = tvApp.includes("assist") ? (supportInfo as any)?.assist_plus_provider
+              : tvApp.includes("blessed") ? (supportInfo as any)?.blessed_player_provider
+              : null;
+            return providerName ? (
+              <>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-muted-foreground">Provedor de Acesso</span>
+                  <span className="text-sm font-medium text-primary">{providerName}</span>
+                </div>
+                <div className="border-t border-border/20" />
+              </>
+            ) : null;
+          })()}
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Servidor</span>
             <span className="text-sm font-medium text-foreground">{user?.iptv_server || "—"}</span>
