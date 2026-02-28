@@ -149,7 +149,7 @@ function BannerCarousel() {
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
             {banner.banner_url && isBannerLoaded ? (
               <img src={optimizeImageUrl(banner.banner_url)} alt={banner.title} loading="eager" decoding="async" fetchPriority="high"
-                className="block w-full h-auto object-contain rounded-[20px]" />
+                className="block w-full rounded-[20px]" />
             ) : banner.banner_url && !isBannerLoaded ? (
               <div className="w-full aspect-[2/1] animate-pulse rounded-[20px] bg-muted/30" />
             ) : (
