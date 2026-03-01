@@ -401,6 +401,9 @@ async function handleCreateCharge(userId: string, body: any) {
     })
     .eq("id", payment_id);
 
+  // Fire background server-side polling (runs even if client closes the app)
+  scheduleBackgroundCheck(adminSupa, payment_id, cob.txid, "iptv");
+
   return jsonResp({
     txid: cob.txid,
     qrcode: qr.qrcode,
@@ -537,6 +540,9 @@ async function handleCreateCreditCharge(userId: string, body: any) {
       status: "pending",
     })
     .eq("id", purchase_id);
+
+  // Fire background server-side polling for credit purchases too
+  scheduleBackgroundCheck(adminSupa, purchase_id, cob.txid, "credit");
 
   return jsonResp({
     txid: cob.txid,
@@ -828,6 +834,71 @@ async function handleWebhook(req: Request) {
     console.error("Webhook error:", err);
     return jsonResp({ ok: true }); // Always return 200 to Efí
   }
+}
+
+// ── Server-side background polling ──────────────────────────────────────
+// Checks Efí API every 5s for up to 1 minute after charge creation.
+// Runs async — does NOT block the response to the client.
+
+function scheduleBackgroundCheck(adminSupa: any, recordId: string, txid: string, type: "iptv" | "credit") {
+  // Use EdgeRuntime.waitUntil if available, otherwise fire-and-forget
+  const checkLoop = async () => {
+    const maxAttempts = 12; // 12 × 5s = 60s
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        // First check if still pending in DB (avoid unnecessary API calls)
+        if (type === "iptv") {
+          const { data: p } = await adminSupa.from("iptv_payments").select("status").eq("id", recordId).single();
+          if (!p || p.status !== "pending") {
+            console.log(`[BG-CHECK] IPTV payment ${recordId} already processed (${p?.status}), stopping.`);
+            return;
+          }
+        } else {
+          const { data: p } = await adminSupa.from("credit_purchases").select("status").eq("id", recordId).single();
+          if (!p || p.status !== "pending") {
+            console.log(`[BG-CHECK] Credit purchase ${recordId} already processed (${p?.status}), stopping.`);
+            return;
+          }
+        }
+
+        // Check Efí API
+        const accessToken = await getAccessToken();
+        const resp = await mtlsFetchWithRetry(`/v2/cob/${txid}`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (resp.status >= 200 && resp.status < 300) {
+          const cobData = JSON.parse(resp.body);
+          console.log(`[BG-CHECK] txid ${txid} attempt ${i + 1}/${maxAttempts}: ${cobData.status}`);
+
+          if (cobData.status === "CONCLUIDA") {
+            if (type === "iptv") {
+              const { data: payment } = await adminSupa.from("iptv_payments").select("*").eq("id", recordId).eq("status", "pending").single();
+              if (payment) await confirmPaymentAndUpdateExpiry(adminSupa, payment);
+            } else {
+              const { data: purchase } = await adminSupa.from("credit_purchases").select("*").eq("id", recordId).eq("status", "pending").single();
+              if (purchase) await confirmCreditPurchase(adminSupa, purchase);
+            }
+            console.log(`[BG-CHECK] ${type} ${recordId} confirmed via background check!`);
+            return;
+          }
+
+          if (cobData.status === "REMOVIDA_PELO_USUARIO_RECEBEDOR" || cobData.status === "REMOVIDA_PELO_PSP") {
+            console.log(`[BG-CHECK] txid ${txid} was removed, stopping.`);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error(`[BG-CHECK] Error on attempt ${i + 1}:`, err.message);
+      }
+    }
+    console.log(`[BG-CHECK] ${type} ${recordId} — 1 minute elapsed, no confirmation detected.`);
+  };
+
+  // Fire and forget — the response is already sent to the client
+  checkLoop().catch(err => console.error(`[BG-CHECK] Fatal:`, err));
 }
 
 // ── Utils ────────────────────────────────────────────────────────────────
