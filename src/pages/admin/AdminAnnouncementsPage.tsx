@@ -161,6 +161,7 @@ const AdminAnnouncementsPage = () => {
         is_active: editing.is_active ?? true,
         schedule_at: editing.schedule_at || null,
         expires_at: editing.expires_at || null,
+        display_frequency: editing.display_frequency || "once",
         created_by: user.id,
       };
 
