@@ -1266,16 +1266,21 @@ const ClientDashboard = () => {
   const renewalButtonMotion = {
     initial: { scale: 1 },
     animate: {
-      scale: [1, 1.012, 1],
-      boxShadow: ["0 0 0 rgba(239,68,68,0)", "0 0 22px rgba(239,68,68,0.18)", "0 0 0 rgba(239,68,68,0)"],
+      scale: [1, 1.01, 1],
+      y: [0, -1, 0],
+      boxShadow: [
+        "0 8px 18px rgba(239,68,68,0.18)",
+        "0 12px 28px rgba(239,68,68,0.28)",
+        "0 8px 18px rgba(239,68,68,0.18)",
+      ],
     },
     transition: {
-      duration: 2.4,
+      duration: 2.8,
       repeat: Infinity,
       ease: "easeInOut" as const,
     },
-    whileHover: { scale: 1.025 },
-    whileTap: { scale: 0.97 },
+    whileHover: { scale: 1.018, y: -1 },
+    whileTap: { scale: 0.98, y: 0 },
   };
 
   return (
@@ -1348,9 +1353,15 @@ const ClientDashboard = () => {
             type="button"
             {...renewalButtonMotion}
             onClick={() => setPixModal({ months: 1, value: totalValue, discount: 0 })}
-            className="mt-5 w-full rounded-xl bg-red-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-colors hover:bg-red-500"
+            className="group relative mt-5 w-full overflow-hidden rounded-xl bg-red-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-colors hover:bg-red-500"
           >
-            <span className="inline-flex items-center justify-center gap-2">
+            <motion.span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+              animate={{ x: ["0%", "430%"] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
+            />
+            <span className="relative z-10 inline-flex items-center justify-center gap-2">
               <CreditCard size={16} />
               {mainRenewalLabel}
             </span>
