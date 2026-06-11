@@ -287,10 +287,10 @@ const AdminUsersPage = () => {
     }
 
     setEditSaving(true);
-    const res = await supabase.rpc("admin_set_referrer_by_code", {
+    const res = (await (supabase.rpc as any)("admin_set_referrer_by_code", {
       p_user_id: editUser.id,
       p_referral_code: code,
-    });
+    })) as { data: any; error: any };
     setEditSaving(false);
 
     if (res.error || res.data?.error) {
