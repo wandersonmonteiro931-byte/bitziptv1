@@ -33,6 +33,19 @@ const statusBadge: Record<string, string> = {
   blocked: "bg-destructive/15 text-destructive",
 };
 
+type AdminSetReferrerResult = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  already_linked?: boolean;
+  referrer_id?: string;
+  referrer_name?: string;
+  referred_by_code?: string;
+};
+
+const isAdminSetReferrerResult = (value: unknown): value is AdminSetReferrerResult =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 // Parser for IPTV credential text blocks
 const parseIptvText = (text: string) => {
   const result: Record<string, string> = {};
@@ -301,18 +314,19 @@ const AdminUsersPage = () => {
       p_user_id: editUser.id,
       p_referral_code: code,
     });
+    const result = isAdminSetReferrerResult(res.data) ? res.data : {};
     setEditSaving(false);
 
-    if (res.error || res.data?.error) {
+    if (res.error || result.error) {
       toast({
         title: "Erro ao vincular indicação",
-        description: res.data?.error || res.error?.message || "Verifique se a migration RPC foi aplicada no Supabase.",
+        description: result.error || res.error?.message || "Verifique se a migration RPC foi aplicada no Supabase.",
         variant: "destructive",
       });
       return;
     }
 
-    if (res.data?.already_linked) {
+    if (result.already_linked) {
       toast({
         title: "Indicação já vinculada",
         description: "Este cliente já está ligado a uma indicação.",
@@ -326,10 +340,10 @@ const AdminUsersPage = () => {
 
     setEditForm({
       ...editForm,
-      referred_by: res.data?.referrer_id || true,
+      referred_by: result.referrer_id || true,
       referred_by_code_input: "",
     });
-    setEditUser({ ...editUser, referred_by: res.data?.referrer_id || true });
+    setEditUser({ ...editUser, referred_by: result.referrer_id || true });
     await loadUsers();
   };
 

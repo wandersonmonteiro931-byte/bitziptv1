@@ -1794,6 +1794,12 @@ export type Database = {
         Returns: boolean
       }
       next_bitz_code: { Args: never; Returns: string }
+      resolve_login_identifier: {
+        Args: { p_identifier: string }
+        Returns: {
+          login_email: string
+        }[]
+      }
       wmc_referral_suffix: { Args: { p_group: number }; Returns: string }
     }
     Enums: {
