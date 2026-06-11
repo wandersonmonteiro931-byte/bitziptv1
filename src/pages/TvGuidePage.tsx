@@ -189,7 +189,7 @@ const TvGuidePage = () => {
                 : "bg-muted/50 text-muted-foreground hover:bg-muted"
             }`}
           >
-            {ch.logo_url && <img src={ch.logo_url} alt={ch.name} className="h-5 w-5 rounded-full object-cover" />}
+            {ch.logo_url && <img src={ch.logo_url} alt={ch.name} className="h-5 w-5 rounded-full object-contain" />}
             {ch.name}
           </button>
         ))}
@@ -230,7 +230,7 @@ const TvGuidePage = () => {
                     <img
                       src={channel.logo_url}
                       alt={channel.name}
-                      className="h-10 w-10 rounded-xl object-cover shadow-md"
+                      className="h-10 w-10 rounded-xl object-contain shadow-md"
                     />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary">

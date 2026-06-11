@@ -3,7 +3,23 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Tv, Plus, Edit, Trash2, X, Upload, ToggleLeft, ToggleRight, Copy, Calendar, Clock, Star, Sparkles, History, Loader2 } from "lucide-react";
+import {
+  Tv,
+  Plus,
+  Edit,
+  Trash2,
+  X,
+  Upload,
+  ToggleLeft,
+  ToggleRight,
+  Copy,
+  Calendar,
+  Clock,
+  Star,
+  Sparkles,
+  History,
+  Loader2,
+} from "lucide-react";
 import { format, addDays, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { todayBRT, formatDateBRT } from "@/lib/utils";
@@ -52,13 +68,22 @@ const AdminTvGuidePage = () => {
 
   const [channelForm, setChannelForm] = useState({ name: "", logo_url: "", sort_order: 0 });
   const [programForm, setProgramForm] = useState({
-    channel_id: "", program_date: format(new Date(), "yyyy-MM-dd"),
-    start_time: "06:00", end_time: "07:00", name: "", category: "Geral",
-    description: "", is_highlight: false,
+    channel_id: "",
+    program_date: format(new Date(), "yyyy-MM-dd"),
+    start_time: "06:00",
+    end_time: "07:00",
+    name: "",
+    category: "Geral",
+    description: "",
+    is_highlight: false,
   });
 
-  useEffect(() => { loadChannels(); }, []);
-  useEffect(() => { if (selectedChannel) loadPrograms(); }, [selectedChannel, selectedDate]);
+  useEffect(() => {
+    loadChannels();
+  }, []);
+  useEffect(() => {
+    if (selectedChannel) loadPrograms();
+  }, [selectedChannel, selectedDate]);
 
   const loadChannels = async () => {
     const { data } = await supabase.from("tv_channels").select("*").order("sort_order");
@@ -68,8 +93,11 @@ const AdminTvGuidePage = () => {
   };
 
   const loadPrograms = async () => {
-    const { data } = await supabase.from("tv_programs").select("*")
-      .eq("channel_id", selectedChannel).eq("program_date", selectedDate)
+    const { data } = await supabase
+      .from("tv_programs")
+      .select("*")
+      .eq("channel_id", selectedChannel)
+      .eq("program_date", selectedDate)
       .order("start_time");
     setPrograms((data as any[]) || []);
   };
@@ -99,7 +127,7 @@ const AdminTvGuidePage = () => {
       return;
     }
     const { data: pub } = supabase.storage.from("tv-logos").getPublicUrl(path);
-    setChannelForm(f => ({ ...f, logo_url: pub.publicUrl }));
+    setChannelForm((f) => ({ ...f, logo_url: pub.publicUrl }));
     setUploading(false);
     toast({ title: "Logo enviado!" });
   };
@@ -137,9 +165,14 @@ const AdminTvGuidePage = () => {
   const openCreateProgram = () => {
     setEditingProgram(null);
     setProgramForm({
-      channel_id: selectedChannel, program_date: selectedDate,
-      start_time: "06:00", end_time: "07:00", name: "", category: "Geral",
-      description: "", is_highlight: false,
+      channel_id: selectedChannel,
+      program_date: selectedDate,
+      start_time: "06:00",
+      end_time: "07:00",
+      name: "",
+      category: "Geral",
+      description: "",
+      is_highlight: false,
     });
     setShowProgramForm(true);
   };
@@ -147,9 +180,13 @@ const AdminTvGuidePage = () => {
   const openEditProgram = (p: Program) => {
     setEditingProgram(p);
     setProgramForm({
-      channel_id: p.channel_id, program_date: p.program_date,
-      start_time: p.start_time.slice(0, 5), end_time: p.end_time.slice(0, 5),
-      name: p.name, category: p.category, description: p.description || "",
+      channel_id: p.channel_id,
+      program_date: p.program_date,
+      start_time: p.start_time.slice(0, 5),
+      end_time: p.end_time.slice(0, 5),
+      name: p.name,
+      category: p.category,
+      description: p.description || "",
       is_highlight: p.is_highlight,
     });
     setShowProgramForm(true);
@@ -161,14 +198,21 @@ const AdminTvGuidePage = () => {
       return;
     }
     // Overlap check
-    const { data: existing } = await supabase.from("tv_programs").select("id, start_time, end_time, name")
-      .eq("channel_id", programForm.channel_id).eq("program_date", programForm.program_date);
-    const overlapping = (existing || []).filter(e => {
+    const { data: existing } = await supabase
+      .from("tv_programs")
+      .select("id, start_time, end_time, name")
+      .eq("channel_id", programForm.channel_id)
+      .eq("program_date", programForm.program_date);
+    const overlapping = (existing || []).filter((e) => {
       if (editingProgram && e.id === editingProgram.id) return false;
       return programForm.start_time < e.end_time.slice(0, 5) && programForm.end_time > e.start_time.slice(0, 5);
     });
     if (overlapping.length > 0) {
-      toast({ title: "Conflito de horário", description: `Sobrepõe: ${overlapping.map(o => o.name).join(", ")}`, variant: "destructive" });
+      toast({
+        title: "Conflito de horário",
+        description: `Sobrepõe: ${overlapping.map((o) => o.name).join(", ")}`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -208,7 +252,7 @@ const AdminTvGuidePage = () => {
   // Copy day
   const copyDay = async (targetDate: string) => {
     if (!selectedChannel || programs.length === 0) return;
-    const copies = programs.map(p => ({
+    const copies = programs.map((p) => ({
       channel_id: p.channel_id,
       program_date: targetDate,
       start_time: p.start_time,
@@ -268,8 +312,7 @@ const AdminTvGuidePage = () => {
   const loadHistoryPrograms = async (date: string) => {
     if (!date) return;
     setLoadingHistory(true);
-    const { data } = await supabase.from("tv_programs").select("*")
-      .eq("program_date", date).order("start_time");
+    const { data } = await supabase.from("tv_programs").select("*").eq("program_date", date).order("start_time");
     setHistoryPrograms((data as any[]) || []);
     setLoadingHistory(false);
   };
@@ -297,56 +340,87 @@ const AdminTvGuidePage = () => {
 
       {/* Tabs */}
       <div className="mb-5 flex gap-2">
-        <button onClick={() => setActiveTab("channels")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "channels" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+        <button
+          onClick={() => setActiveTab("channels")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "channels" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+        >
           Canais
         </button>
-        <button onClick={() => setActiveTab("programs")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "programs" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+        <button
+          onClick={() => setActiveTab("programs")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "programs" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+        >
           Programação
         </button>
-        <button onClick={() => setActiveTab("history")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "history" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
-          <span className="flex items-center gap-1"><History size={14} /> Histórico</span>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${activeTab === "history" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+        >
+          <span className="flex items-center gap-1">
+            <History size={14} /> Histórico
+          </span>
         </button>
       </div>
 
       {/* ===== CHANNELS TAB ===== */}
       {activeTab === "channels" && (
         <>
-          <button onClick={openCreateChannel} className="mb-4 flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110">
+          <button
+            onClick={openCreateChannel}
+            className="mb-4 flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110"
+          >
             <Plus size={16} /> Novo Canal
           </button>
 
           <div className="space-y-3">
             {channels.map((ch, i) => (
-              <motion.div key={ch.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+              <motion.div
+                key={ch.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
+              >
                 {ch.logo_url ? (
-                  <img src={ch.logo_url} alt={ch.name} className="h-12 w-12 rounded-xl object-cover" />
+                  <img src={ch.logo_url} alt={ch.name} className="h-12 w-12 rounded-xl object-contain" />
                 ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted"><Tv size={20} className="text-muted-foreground" /></div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+                    <Tv size={20} className="text-muted-foreground" />
+                  </div>
                 )}
                 <div className="flex-1">
                   <h3 className="text-sm font-semibold text-foreground">{ch.name}</h3>
-                  <span className={`text-[10px] font-semibold ${ch.is_active ? "text-success" : "text-muted-foreground"}`}>
+                  <span
+                    className={`text-[10px] font-semibold ${ch.is_active ? "text-success" : "text-muted-foreground"}`}
+                  >
                     {ch.is_active ? "Ativo" : "Inativo"}
                   </span>
                 </div>
                 <div className="flex gap-1.5">
-                  <button onClick={() => toggleChannel(ch.id, ch.is_active)} className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => toggleChannel(ch.id, ch.is_active)}
+                    className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-foreground"
+                  >
                     {ch.is_active ? <ToggleRight size={16} className="text-success" /> : <ToggleLeft size={16} />}
                   </button>
-                  <button onClick={() => openEditChannel(ch)} className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => openEditChannel(ch)}
+                    className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-foreground"
+                  >
                     <Edit size={16} />
                   </button>
-                  <button onClick={() => deleteChannel(ch.id)} className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => deleteChannel(ch.id)}
+                    className="rounded-lg bg-muted/50 p-2 text-muted-foreground hover:text-destructive"
+                  >
                     <Trash2 size={16} />
                   </button>
                 </div>
               </motion.div>
             ))}
-            {channels.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nenhum canal cadastrado</p>}
+            {channels.length === 0 && (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nenhum canal cadastrado</p>
+            )}
           </div>
         </>
       )}
@@ -356,12 +430,15 @@ const AdminTvGuidePage = () => {
         <>
           {/* Channel selector */}
           <div className="mb-3 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {channels.map(ch => (
-              <button key={ch.id} onClick={() => setSelectedChannel(ch.id)}
+            {channels.map((ch) => (
+              <button
+                key={ch.id}
+                onClick={() => setSelectedChannel(ch.id)}
                 className={`flex flex-shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                   selectedChannel === ch.id ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"
-                }`}>
-                {ch.logo_url && <img src={ch.logo_url} alt="" className="h-4 w-4 rounded-full object-cover" />}
+                }`}
+              >
+                {ch.logo_url && <img src={ch.logo_url} alt="" className="h-4 w-4 rounded-full object-contain" />}
                 {ch.name}
               </button>
             ))}
@@ -369,22 +446,41 @@ const AdminTvGuidePage = () => {
 
           {/* Date + actions */}
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-              className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground" />
-            <button onClick={openCreateProgram} className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground hover:brightness-110">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground"
+            />
+            <button
+              onClick={openCreateProgram}
+              className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground hover:brightness-110"
+            >
               <Plus size={14} /> Programa
             </button>
-            <button onClick={() => {
-              const target = prompt("Copiar para qual data? (AAAA-MM-DD)", format(addDays(new Date(selectedDate + "T12:00:00"), 1), "yyyy-MM-dd"));
-              if (target) copyDay(target);
-            }} className="flex items-center gap-1 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => {
+                const target = prompt(
+                  "Copiar para qual data? (AAAA-MM-DD)",
+                  format(addDays(new Date(selectedDate + "T12:00:00"), 1), "yyyy-MM-dd"),
+                );
+                if (target) copyDay(target);
+              }}
+              className="flex items-center gap-1 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+            >
               <Copy size={14} /> Copiar dia
             </button>
-            <button onClick={deleteByDate} className="flex items-center gap-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive hover:bg-destructive/20">
+            <button
+              onClick={deleteByDate}
+              className="flex items-center gap-1 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive hover:bg-destructive/20"
+            >
               <Trash2 size={14} /> Limpar dia
             </button>
-            <button onClick={() => syncWithAI(true)} disabled={syncing}
-              className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50">
+            <button
+              onClick={() => syncWithAI(true)}
+              disabled={syncing}
+              className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+            >
               {syncing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
               {syncing ? "Sincronizando..." : "Sincronizar IA"}
             </button>
@@ -393,8 +489,13 @@ const AdminTvGuidePage = () => {
           {/* Program list */}
           <div className="space-y-2">
             {programs.map((p, i) => (
-              <motion.div key={p.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
-                className={`flex items-center gap-3 rounded-xl border border-border bg-card p-3 ${!p.is_active ? "opacity-50" : ""}`}>
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.03 }}
+                className={`flex items-center gap-3 rounded-xl border border-border bg-card p-3 ${!p.is_active ? "opacity-50" : ""}`}
+              >
                 <div className="text-center">
                   <p className="text-xs font-bold text-primary">{p.start_time.slice(0, 5)}</p>
                   <p className="text-[10px] text-muted-foreground">{p.end_time.slice(0, 5)}</p>
@@ -407,13 +508,22 @@ const AdminTvGuidePage = () => {
                   <span className="text-[10px] text-muted-foreground">{p.category}</span>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => toggleProgram(p.id, p.is_active)} className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => toggleProgram(p.id, p.is_active)}
+                    className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-foreground"
+                  >
                     {p.is_active ? <ToggleRight size={14} className="text-success" /> : <ToggleLeft size={14} />}
                   </button>
-                  <button onClick={() => openEditProgram(p)} className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => openEditProgram(p)}
+                    className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-foreground"
+                  >
                     <Edit size={14} />
                   </button>
-                  <button onClick={() => deleteProgram(p.id)} className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-destructive">
+                  <button
+                    onClick={() => deleteProgram(p.id)}
+                    className="rounded-lg bg-muted/50 p-1.5 text-muted-foreground hover:text-destructive"
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -430,19 +540,29 @@ const AdminTvGuidePage = () => {
       {activeTab === "history" && (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-2">
-            <select value={historyDate} onChange={e => setHistoryDate(e.target.value)}
-              className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
-              {historyDates.map(d => (
-                <option key={d} value={d}>{formatDateBRT(d + "T12:00:00", { day: "2-digit", month: "2-digit", year: "numeric", weekday: "long" })}</option>
+            <select
+              value={historyDate}
+              onChange={(e) => setHistoryDate(e.target.value)}
+              className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground"
+            >
+              {historyDates.map((d) => (
+                <option key={d} value={d}>
+                  {formatDateBRT(d + "T12:00:00", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    weekday: "long",
+                  })}
+                </option>
               ))}
             </select>
-            <span className="text-xs text-muted-foreground">
-              {historyPrograms.length} programas
-            </span>
+            <span className="text-xs text-muted-foreground">{historyPrograms.length} programas</span>
           </div>
 
           {loadingHistory ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
           ) : historyDates.length === 0 ? (
             <div className="py-16 text-center">
               <History className="mx-auto mb-3 text-muted-foreground/30" size={48} />
@@ -452,19 +572,21 @@ const AdminTvGuidePage = () => {
             <div className="space-y-2">
               {(() => {
                 const grouped = new Map<string, Program[]>();
-                historyPrograms.forEach(p => {
+                historyPrograms.forEach((p) => {
                   if (!grouped.has(p.channel_id)) grouped.set(p.channel_id, []);
                   grouped.get(p.channel_id)!.push(p);
                 });
                 return Array.from(grouped.entries()).map(([channelId, progs]) => {
-                  const ch = channels.find(c => c.id === channelId);
+                  const ch = channels.find((c) => c.id === channelId);
                   return (
                     <div key={channelId} className="rounded-xl border border-border bg-card overflow-hidden">
                       <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-2.5">
                         {ch?.logo_url ? (
-                          <img src={ch.logo_url} alt={ch?.name} className="h-8 w-8 rounded-lg object-cover" />
+                          <img src={ch.logo_url} alt={ch?.name} className="h-8 w-8 rounded-lg object-contain" />
                         ) : (
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted"><Tv size={16} className="text-muted-foreground" /></div>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+                            <Tv size={16} className="text-muted-foreground" />
+                          </div>
                         )}
                         <div>
                           <h3 className="text-xs font-bold text-foreground">{ch?.name || "Canal"}</h3>
@@ -472,7 +594,7 @@ const AdminTvGuidePage = () => {
                         </div>
                       </div>
                       <div className="divide-y divide-border/30">
-                        {progs.map(p => (
+                        {progs.map((p) => (
                           <div key={p.id} className="flex items-center gap-3 px-4 py-2">
                             <div className="text-center">
                               <p className="text-xs font-bold text-muted-foreground">{p.start_time.slice(0, 5)}</p>
@@ -500,48 +622,77 @@ const AdminTvGuidePage = () => {
       {/* ===== CHANNEL FORM MODAL ===== */}
       <AnimatePresence>
         {showChannelForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 backdrop-blur-sm p-4 pt-10">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 backdrop-blur-sm p-4 pt-10"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-bold text-foreground">{editingChannel ? "Editar" : "Novo"} Canal</h2>
-                <button onClick={() => setShowChannelForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowChannelForm(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
               <div className="space-y-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome *</label>
-                  <input value={channelForm.name} onChange={e => setChannelForm({ ...channelForm, name: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                  <input
+                    value={channelForm.name}
+                    onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Logo do Canal</label>
                   <input type="file" ref={fileRef} accept="image/*" onChange={handleLogoUpload} className="hidden" />
                   <div className="flex gap-2">
-                    <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                      className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground hover:border-primary disabled:opacity-50">
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      disabled={uploading}
+                      className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground hover:border-primary disabled:opacity-50"
+                    >
                       <Upload size={14} /> {uploading ? "Enviando..." : "Upload"}
                     </button>
-                    <input placeholder="Ou cole a URL" value={channelForm.logo_url}
-                      onChange={e => setChannelForm({ ...channelForm, logo_url: e.target.value })}
-                      className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
+                    <input
+                      placeholder="Ou cole a URL"
+                      value={channelForm.logo_url}
+                      onChange={(e) => setChannelForm({ ...channelForm, logo_url: e.target.value })}
+                      className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
+                    />
                   </div>
                   {channelForm.logo_url && (
                     <div className="mt-2 flex justify-center">
-                      <img src={channelForm.logo_url} alt="Preview" className="h-16 w-16 rounded-xl object-cover" />
+                      <img src={channelForm.logo_url} alt="Preview" className="h-16 w-16 rounded-xl object-contain" />
                     </div>
                   )}
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Ordem</label>
-                  <input type="number" value={channelForm.sort_order} onChange={e => setChannelForm({ ...channelForm, sort_order: Number(e.target.value) })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                  <input
+                    type="number"
+                    value={channelForm.sort_order}
+                    onChange={(e) => setChannelForm({ ...channelForm, sort_order: Number(e.target.value) })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
 
-                <button onClick={saveChannel} className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110">
+                <button
+                  onClick={saveChannel}
+                  className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110"
+                >
                   {editingChannel ? "Salvar" : "Criar Canal"}
                 </button>
               </div>
@@ -553,70 +704,123 @@ const AdminTvGuidePage = () => {
       {/* ===== PROGRAM FORM MODAL ===== */}
       <AnimatePresence>
         {showProgramForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 backdrop-blur-sm p-4 pt-10">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 backdrop-blur-sm p-4 pt-10"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-bold text-foreground">{editingProgram ? "Editar" : "Novo"} Programa</h2>
-                <button onClick={() => setShowProgramForm(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowProgramForm(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
               <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Canal</label>
-                  <select value={programForm.channel_id} onChange={e => setProgramForm({ ...programForm, channel_id: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
-                    {channels.map(ch => <option key={ch.id} value={ch.id}>{ch.name}</option>)}
+                  <select
+                    value={programForm.channel_id}
+                    onChange={(e) => setProgramForm({ ...programForm, channel_id: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    {channels.map((ch) => (
+                      <option key={ch.id} value={ch.id}>
+                        {ch.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Data</label>
-                  <input type="date" value={programForm.program_date} onChange={e => setProgramForm({ ...programForm, program_date: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                  <input
+                    type="date"
+                    value={programForm.program_date}
+                    onChange={(e) => setProgramForm({ ...programForm, program_date: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted-foreground">Início</label>
-                    <input type="time" value={programForm.start_time} onChange={e => setProgramForm({ ...programForm, start_time: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    <input
+                      type="time"
+                      value={programForm.start_time}
+                      onChange={(e) => setProgramForm({ ...programForm, start_time: e.target.value })}
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted-foreground">Fim</label>
-                    <input type="time" value={programForm.end_time} onChange={e => setProgramForm({ ...programForm, end_time: e.target.value })}
-                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    <input
+                      type="time"
+                      value={programForm.end_time}
+                      onChange={(e) => setProgramForm({ ...programForm, end_time: e.target.value })}
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    />
                   </div>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome do Programa *</label>
-                  <input value={programForm.name} onChange={e => setProgramForm({ ...programForm, name: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                  <input
+                    value={programForm.name}
+                    onChange={(e) => setProgramForm({ ...programForm, name: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Categoria</label>
-                  <select value={programForm.category} onChange={e => setProgramForm({ ...programForm, category: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <select
+                    value={programForm.category}
+                    onChange={(e) => setProgramForm({ ...programForm, category: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Descrição (opcional)</label>
-                  <textarea value={programForm.description} onChange={e => setProgramForm({ ...programForm, description: e.target.value })} rows={2}
-                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                  <textarea
+                    value={programForm.description}
+                    onChange={(e) => setProgramForm({ ...programForm, description: e.target.value })}
+                    rows={2}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  />
                 </div>
 
                 <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                  <input type="checkbox" checked={programForm.is_highlight} onChange={e => setProgramForm({ ...programForm, is_highlight: e.target.checked })}
-                    className="rounded border-border" />
+                  <input
+                    type="checkbox"
+                    checked={programForm.is_highlight}
+                    onChange={(e) => setProgramForm({ ...programForm, is_highlight: e.target.checked })}
+                    className="rounded border-border"
+                  />
                   <Star size={14} className="text-warning" /> Destaque
                 </label>
 
-                <button onClick={saveProgram} className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110">
+                <button
+                  onClick={saveProgram}
+                  className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110"
+                >
                   {editingProgram ? "Salvar" : "Adicionar Programa"}
                 </button>
               </div>

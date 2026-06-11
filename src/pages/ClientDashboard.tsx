@@ -194,7 +194,7 @@ function BannerCarousel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="w-full overflow-hidden rounded-[20px]"
+            className="flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black/20"
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
           >
             {banner.banner_url && isBannerLoaded ? (
@@ -204,13 +204,12 @@ function BannerCarousel() {
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
-                className="block w-full h-auto rounded-[20px]"
-                style={{ objectFit: "contain" }}
+                className="block h-auto max-h-[70vh] w-auto max-w-full rounded-[20px] object-contain"
               />
             ) : banner.banner_url && !isBannerLoaded ? (
-              <div className="w-full h-40 animate-pulse rounded-[20px] bg-muted/30" />
+              <div className="h-40 w-full animate-pulse rounded-[20px] bg-muted/30" />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-muted/30 p-6">
+              <div className="flex min-h-40 w-full flex-col items-center justify-center bg-muted/30 p-6">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
@@ -1000,8 +999,6 @@ const ClientDashboard = () => {
   const [supportInfo, setSupportInfo] = useState<any>(null);
   const [tvApps, setTvApps] = useState<any[]>([]);
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
-  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState<number>(5);
-  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState<number>(10);
   const [pendingFutureExpiry, setPendingFutureExpiry] = useState<string | null>(null);
   const [trustRequesting, setTrustRequesting] = useState(false);
   const [trustCooldown, setTrustCooldown] = useState(false);
@@ -1769,15 +1766,19 @@ const ClientDashboard = () => {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className={`w-full max-w-sm rounded-3xl border border-border bg-card shadow-2xl ${notifPopup.imageOnly ? "p-3" : "p-6"}`}
+              className={`w-full rounded-3xl border border-border bg-card shadow-2xl ${notifPopup.imageOnly ? "max-w-[94vw] p-3" : "max-w-sm p-6"}`}
               onClick={(e) => e.stopPropagation()}
             >
               {notifPopup.bannerUrl && (
-                <img
-                  src={notifPopup.bannerUrl}
-                  alt={notifPopup.title || "Imagem"}
-                  className={`w-full rounded-2xl object-contain ${notifPopup.imageOnly ? "" : "mb-4"}`}
-                />
+                <div
+                  className={`flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 ${notifPopup.imageOnly ? "max-h-[85vh]" : "mb-4 max-h-[60vh]"}`}
+                >
+                  <img
+                    src={notifPopup.bannerUrl}
+                    alt={notifPopup.title || "Imagem"}
+                    className="h-auto max-h-[85vh] w-auto max-w-full rounded-2xl object-contain"
+                  />
+                </div>
               )}
               {!notifPopup.imageOnly && notifPopup.title && (
                 <h3 className="text-lg font-bold text-foreground mb-2">{notifPopup.title}</h3>
