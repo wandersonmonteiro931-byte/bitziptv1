@@ -290,10 +290,18 @@ const AdminUsersPage = () => {
     }
 
     setEditSaving(true);
-    const res = await supabase.rpc("admin_set_referrer_by_code", {
+    type AdminSetReferrerResult = {
+      error?: string;
+      already_linked?: boolean;
+      referrer_id?: string;
+    };
+    const res = (await (supabase.rpc as unknown as (
+      fn: "admin_set_referrer_by_code",
+      args: { p_user_id: string; p_referral_code: string },
+    ) => Promise<{ data: AdminSetReferrerResult | null; error: { message?: string } | null }>)("admin_set_referrer_by_code", {
       p_user_id: editUser.id,
       p_referral_code: code,
-    });
+    })) as { data: AdminSetReferrerResult | null; error: { message?: string } | null };
     setEditSaving(false);
 
     if (res.error || res.data?.error) {

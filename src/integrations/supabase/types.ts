@@ -1760,8 +1760,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_set_referrer_by_code: {
+        Args: { p_referral_code: string; p_user_id: string }
+        Returns: Json
+      }
       format_wmc_referral_code: { Args: { p_seq: number }; Returns: string }
       generate_wmc_referral_code: { Args: never; Returns: string }
+      get_my_referrals_with_names: {
+        Args: never
+        Returns: {
+          bonus_payment_id: string
+          created_at: string
+          first_payment_id: string
+          id: string
+          notes: string
+          referred_id: string
+          referred_iptv_user: string
+          referred_name: string
+          referred_username: string
+          referrer_id: string
+          reward_amount: number
+          reward_months: number
+          reward_type: string
+          rewarded_at: string
+          status: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
