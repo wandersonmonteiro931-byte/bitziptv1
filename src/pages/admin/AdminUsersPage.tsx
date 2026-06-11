@@ -240,6 +240,8 @@ const AdminUsersPage = () => {
       iptv_due_day: u.iptv_due_day || 10,
       iptv_client_code: u.iptv_client_code || "",
       referral_code: u.referral_code || "",
+      referred_by: u.referred_by || "",
+      referred_by_code_input: "",
       pix_key: u.pix_key || "",
       status: u.status || "active",
     });
@@ -253,6 +255,8 @@ const AdminUsersPage = () => {
     const profileData = { ...editForm };
     delete profileData.username; // username handled separately
     delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
+    delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
+    delete profileData.referred_by_code_input; // campo auxiliar da tela
 
     await supabase.functions.invoke("admin-manage-user", {
       body: { action: "update_profile", user_id: editUser.id, data: profileData },
@@ -269,6 +273,50 @@ const AdminUsersPage = () => {
     setEditUser(null);
     setEditSaving(false);
     loadUsers();
+  };
+
+  const linkReferralForEditUser = async () => {
+    if (!editUser) return;
+
+    const code = String(editForm.referred_by_code_input || "")
+      .trim()
+      .toUpperCase();
+    if (!code) {
+      toast({ title: "Informe o código de indicação", description: "Exemplo: WMC001A", variant: "destructive" });
+      return;
+    }
+
+    setEditSaving(true);
+    const res = await supabase.functions.invoke("admin-manage-user", {
+      body: {
+        action: "set_referrer_by_code",
+        user_id: editUser.id,
+        data: { referred_by_code: code },
+      },
+    });
+    setEditSaving(false);
+
+    if (res.error || res.data?.error) {
+      toast({
+        title: "Erro ao vincular indicação",
+        description: res.data?.error || res.error?.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "✅ Indicação vinculada",
+      description: "Agora esse cliente aparece como aguardando o 1º pagamento na tela de indicações.",
+    });
+
+    setEditForm({
+      ...editForm,
+      referred_by: res.data?.referrer_id || true,
+      referred_by_code_input: "",
+    });
+    setEditUser({ ...editUser, referred_by: res.data?.referrer_id || true });
+    await loadUsers();
   };
 
   const updateStatus = async (userId: string, status: string) => {
@@ -975,6 +1023,46 @@ const AdminUsersPage = () => {
                       className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Indicação recebida */}
+                <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    🎁 Indicação Recebida
+                  </p>
+                  {editForm.referred_by ? (
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+                      Este cliente já está vinculado a uma indicação. Quando ele fizer o 1º pagamento, o indicador ganha
+                      1 mês grátis automaticamente.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="mb-1 block text-xs text-muted-foreground">
+                        Código de quem indicou este cliente
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          value={editForm.referred_by_code_input || ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, referred_by_code_input: e.target.value.toUpperCase() })
+                          }
+                          placeholder="Ex: WMC001A"
+                          className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm uppercase text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={linkReferralForEditUser}
+                          disabled={editSaving || !String(editForm.referred_by_code_input || "").trim()}
+                          className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                        >
+                          Vincular
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Use para clientes antigos cadastrados pelo admin que ainda não aparecem na tela de indicações.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Dados IPTV */}
