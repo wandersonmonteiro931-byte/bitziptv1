@@ -2,15 +2,29 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Shield, CreditCard, Tv, Headphones,
-  Phone, MessageCircle, History,
-  ChevronRight, Eye, EyeOff, Lock,
-  Copy, Check, FileText, ChevronDown, ChevronUp, Receipt
+  Shield,
+  CreditCard,
+  Tv,
+  Headphones,
+  Phone,
+  MessageCircle,
+  History,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Copy,
+  Check,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Receipt,
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -54,7 +68,10 @@ function CopyButton({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <button onClick={copy} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-primary active:scale-95">
+    <button
+      onClick={copy}
+      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:text-primary active:scale-95"
+    >
       {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
     </button>
   );
@@ -65,12 +82,12 @@ function CopyButton({ text }: { text: string }) {
 const optimizeImageUrl = (url: string, width = 1200): string => {
   if (!url) return url;
   // Only transform Supabase storage URLs
-  if (url.includes('/storage/v1/object/public/')) {
+  if (url.includes("/storage/v1/object/public/")) {
     // Use render/image endpoint for on-the-fly resize + webp
-    return url.replace(
-      '/storage/v1/object/public/',
-      `/storage/v1/render/image/public/`
-    ) + `?width=${width}&quality=75&format=origin`;
+    return (
+      url.replace("/storage/v1/object/public/", `/storage/v1/render/image/public/`) +
+      `?width=${width}&quality=75&format=origin`
+    );
   }
   return url;
 };
@@ -92,16 +109,16 @@ function BannerCarousel() {
       .lte("starts_at", now)
       .order("sort_order")
       .then(({ data }) => {
-        const active = (data || []).filter(b => !b.ends_at || b.ends_at > now);
+        const active = (data || []).filter((b) => !b.ends_at || b.ends_at > now);
         setBanners(active);
         // Preload all optimized images in parallel
-        active.forEach(b => {
+        active.forEach((b) => {
           if (!b.banner_url) {
-            setLoadedIds(prev => new Set(prev).add(b.id));
+            setLoadedIds((prev) => new Set(prev).add(b.id));
             return;
           }
           const img = new window.Image();
-          const mark = () => setLoadedIds(prev => new Set(prev).add(b.id));
+          const mark = () => setLoadedIds((prev) => new Set(prev).add(b.id));
           img.onload = mark;
           img.onerror = mark;
           img.src = optimizeImageUrl(b.banner_url);
@@ -111,8 +128,10 @@ function BannerCarousel() {
 
   useEffect(() => {
     if (banners.length <= 1) return;
-    intervalRef.current = setInterval(() => setCurrent(c => (c + 1) % banners.length), 5000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    intervalRef.current = setInterval(() => setCurrent((c) => (c + 1) % banners.length), 5000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [banners.length]);
 
   // Show skeleton placeholder while loading instead of nothing
@@ -120,10 +139,13 @@ function BannerCarousel() {
 
   const firstReady = banners.length > 0 && loadedIds.has(banners[0].id);
 
-  const handleTouchStart = (e: React.TouchEvent) => { touchStartRef.current = e.touches[0].clientX; };
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = e.touches[0].clientX;
+  };
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) setCurrent(c => diff > 0 ? (c + 1) % banners.length : (c - 1 + banners.length) % banners.length);
+    if (Math.abs(diff) > 50)
+      setCurrent((c) => (diff > 0 ? (c + 1) % banners.length : (c - 1 + banners.length) % banners.length));
   };
 
   // Show skeleton until first banner is ready
@@ -139,17 +161,40 @@ function BannerCarousel() {
   const isBannerLoaded = loadedIds.has(banner.id);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }}
-      className="mx-4 mt-2 mb-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-      <a href={banner.redirect_url || "#"} target={banner.redirect_url ? "_blank" : undefined} rel="noopener noreferrer"
-        className="block w-full">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
+      className="mx-4 mt-2 mb-4"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <a
+        href={banner.redirect_url || "#"}
+        target={banner.redirect_url ? "_blank" : undefined}
+        rel="noopener noreferrer"
+        className="block w-full"
+      >
         <AnimatePresence mode="wait">
-          <motion.div key={current} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+          <motion.div
+            key={current}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             className="w-full overflow-hidden rounded-[20px]"
-            style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+            style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
+          >
             {banner.banner_url && isBannerLoaded ? (
-              <img src={optimizeImageUrl(banner.banner_url)} alt={banner.title} loading="eager" decoding="async" fetchPriority="high"
-                className="block w-full h-auto rounded-[20px]" style={{ objectFit: "contain" }} />
+              <img
+                src={optimizeImageUrl(banner.banner_url)}
+                alt={banner.title}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                className="block w-full h-auto rounded-[20px]"
+                style={{ objectFit: "contain" }}
+              />
             ) : banner.banner_url && !isBannerLoaded ? (
               <div className="w-full h-40 animate-pulse rounded-[20px] bg-muted/30" />
             ) : (
@@ -164,8 +209,11 @@ function BannerCarousel() {
       {banners.length > 1 && (
         <div className="mt-3 flex items-center justify-center gap-1.5">
           {banners.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)}
-              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-5 bg-primary/60" : "w-1.5 bg-muted-foreground/15"}`} />
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-5 bg-primary/60" : "w-1.5 bg-muted-foreground/15"}`}
+            />
           ))}
         </div>
       )}
@@ -186,7 +234,12 @@ function AccessDataBlock({ user }: { user: any }) {
     timerRef.current = setTimeout(() => setRevealed(false), 60000);
   }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   const maskUser = (val: string) => {
     if (!val || val.length <= 4) return val || "—";
@@ -198,8 +251,12 @@ function AccessDataBlock({ user }: { user: any }) {
   const iptvPass = user?.iptv_password || "—";
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-card/50 p-5">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border/40 bg-card/50 p-5"
+    >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <Lock size={13} /> Dados de Acesso
@@ -218,9 +275,7 @@ function AccessDataBlock({ user }: { user: any }) {
           <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-muted-foreground">{field.label}</p>
-              <p className="truncate font-mono text-sm text-foreground">
-                {revealed ? field.value : field.masked}
-              </p>
+              <p className="truncate font-mono text-sm text-foreground">{revealed ? field.value : field.masked}</p>
             </div>
             {revealed && <CopyButton text={field.value} />}
           </div>
@@ -229,26 +284,57 @@ function AccessDataBlock({ user }: { user: any }) {
 
       <AnimatePresence mode="wait">
         {confirming ? (
-          <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4 flex items-center gap-2">
-            <button onClick={reveal} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]">
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4 flex items-center gap-2"
+          >
+            <button
+              onClick={reveal}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]"
+            >
               <Eye size={16} /> Sim, mostrar
             </button>
-            <button onClick={() => setConfirming(false)} className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground"
+            >
               Cancelar
             </button>
           </motion.div>
         ) : revealed ? (
-          <motion.div key="hide" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4">
-            <button onClick={() => { setRevealed(false); if (timerRef.current) clearTimeout(timerRef.current); }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]">
+          <motion.div
+            key="hide"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => {
+                setRevealed(false);
+                if (timerRef.current) clearTimeout(timerRef.current);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]"
+            >
               <EyeOff size={16} /> Ocultar dados
             </button>
             <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
           </motion.div>
         ) : (
-          <motion.div key="show" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4">
-            <button onClick={() => setConfirming(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]">
+          <motion.div
+            key="show"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
+            >
               <Eye size={16} /> Mostrar dados
             </button>
           </motion.div>
@@ -265,20 +351,43 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]"
+      >
         <div className="flex items-center gap-2">
           <FileText size={14} className="text-muted-foreground" />
           <span className="font-medium text-foreground">Observações</span>
-          {urgent && <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">Atenção</span>}
+          {urgent && (
+            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
+              Atenção
+            </span>
+          )}
         </div>
-        {open ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
+        {open ? (
+          <ChevronUp size={16} className="text-muted-foreground" />
+        ) : (
+          <ChevronDown size={16} className="text-muted-foreground" />
+        )}
       </button>
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <div className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}>
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div
+              className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}
+            >
               <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
-              <button onClick={() => setOpen(false)} className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground">Fechar</button>
+              <button
+                onClick={() => setOpen(false)}
+                className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground"
+              >
+                Fechar
+              </button>
             </div>
           </motion.div>
         )}
@@ -311,20 +420,37 @@ function PaymentHistory() {
         load();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return (
-    <motion.div id="faturas" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-      <button onClick={() => setHistoryOpen(!historyOpen)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/50 px-5 py-3.5 text-sm active:opacity-80">
+    <motion.div
+      id="faturas"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.45 }}
+    >
+      <button
+        onClick={() => setHistoryOpen(!historyOpen)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/50 px-5 py-3.5 text-sm active:opacity-80"
+      >
         <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
-        <ChevronDown size={16} className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`} />
+        <ChevronDown
+          size={16}
+          className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       <AnimatePresence>
         {historyOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
             <div className="mt-1 rounded-2xl border border-border/30 bg-card/40 p-4">
               {payments.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
@@ -332,20 +458,29 @@ function PaymentHistory() {
                 <div className="space-y-2">
                   {payments.map((p) => {
                     const date = new Date(p.payment_date);
-                    const formatted = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+                    const formatted = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
                     const endParts = p.period_end?.split("-");
                     const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
                     const isPendingActivation = p.status === "paid_pending_activation";
                     return (
-                      <div key={p.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
+                      >
                         <div>
                           <p className="text-sm text-foreground">{formatted}</p>
-                          <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · até {endFormatted}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {p.months} mês(es) · até {endFormatted}
+                          </p>
                         </div>
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-foreground">R$ {Number(p.amount).toFixed(2)}</span>
-                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">Pago</span>
+                            <span className="text-sm font-semibold text-foreground">
+                              R$ {Number(p.amount).toFixed(2)}
+                            </span>
+                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                              Pago
+                            </span>
                           </div>
                           {isPendingActivation && (
                             <span className="text-[9px] text-blue-400">Aguardando liberação do suporte</span>
@@ -367,20 +502,24 @@ function PaymentHistory() {
 // --- TV App Mini Icons ---
 function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-card/50 p-5">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border/40 bg-card/50 p-5"
+    >
       <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
       <div className="flex flex-wrap gap-2">
         {tvApps.map((app) => {
           const isActive = userApp === app.name;
           const logo = getAppLogoSrc(app.name);
           return (
-            <div key={app.id}
+            <div
+              key={app.id}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${
-                isActive
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "bg-muted/15 text-muted-foreground/40"
-              }`}>
+                isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted/15 text-muted-foreground/40"
+              }`}
+            >
               {logo ? (
                 <img src={logo} alt={app.name} className="h-4 w-4 rounded-full object-contain" />
               ) : (
@@ -392,7 +531,14 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
         })}
         {tvApps.length === 0 && userApp && (
           <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary font-medium">
-            {(() => { const logo = getAppLogoSrc(userApp); return logo ? <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain" /> : <Tv size={12} />; })()}
+            {(() => {
+              const logo = getAppLogoSrc(userApp);
+              return logo ? (
+                <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain" />
+              ) : (
+                <Tv size={12} />
+              );
+            })()}
             <span>{userApp}</span>
           </div>
         )}
@@ -402,7 +548,12 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
 }
 
 // --- PIX Payment Modal ---
-function PixModal({ pixModal, onClose, supportInfo, user }: {
+function PixModal({
+  pixModal,
+  onClose,
+  supportInfo,
+  user,
+}: {
   pixModal: { months: number; value: number; discount: number };
   onClose: (confirmed?: boolean) => void;
   supportInfo: any;
@@ -420,6 +571,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const { appName } = useAppBranding();
   useEffect(() => {
     const createCharge = async () => {
       setLoading(true);
@@ -466,7 +618,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
             payment_id: payment.id,
             amount: pixModal.value,
             devedor_nome: user.name || undefined,
-            descricao: `IPTV Bitz - ${pixModal.months} mês(es)`,
+            descricao: `${appName} - ${pixModal.months} mês(es)`,
           },
         });
 
@@ -498,11 +650,7 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
       // 1. Always check DB first (fastest, most reliable)
       try {
-        const { data } = await supabase
-          .from("iptv_payments")
-          .select("status")
-          .eq("id", paymentId)
-          .maybeSingle();
+        const { data } = await supabase.from("iptv_payments").select("status").eq("id", paymentId).maybeSingle();
         if (data?.status && data.status !== "pending") {
           if (active) setPaymentConfirmed(true);
           return;
@@ -513,20 +661,19 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
       // 2. If still pending, actively check Efí API via edge function
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session) {
-          const resp = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.access_token}`,
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({ payment_id: paymentId }),
-            }
-          );
+          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ payment_id: paymentId }),
+          });
           if (resp.ok) {
             const result = await resp.json();
             if (result?.confirmed && active) {
@@ -552,15 +699,18 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
   useEffect(() => {
     if (loading || error || paymentConfirmed) return;
     const interval = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) { clearInterval(interval); return 0; }
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
   }, [loading, error, paymentConfirmed]);
 
-  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   const copyPix = () => {
     if (!pixData?.qrcode) return;
@@ -582,34 +732,43 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
-      onClick={handleClose}>
-      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+      onClick={handleClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95, y: 20 }}
         className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
-        onClick={e => e.stopPropagation()}>
-
+        onClick={(e) => e.stopPropagation()}
+      >
         {paymentConfirmed ? (
           (() => {
             // Use period_end from the payment record (calculated at creation time based on iptv_expiry)
             let formattedNewExpiry = "—";
             if (periodEnd) {
               const [y, m, d] = periodEnd.split("-").map(Number);
-              formattedNewExpiry = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+              formattedNewExpiry = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
             }
 
             return (
               <>
                 <div className="py-6 text-center">
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }}>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                  >
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
                       <Check size={40} className="text-emerald-400" />
                     </div>
                   </motion.div>
                   <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Seu pagamento foi confirmado com sucesso.
-                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">Seu pagamento foi confirmado com sucesso.</p>
 
                   <div className="mt-4 rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nova data de validade</p>
@@ -620,16 +779,19 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
                   </div>
 
                   <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
-                    <p className="text-xs font-medium text-primary">
-                      ✅ Nosso suporte já foi notificado!
-                    </p>
+                    <p className="text-xs font-medium text-primary">✅ Nosso suporte já foi notificado!</p>
                     <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>, no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará funcionando normalmente.
+                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no
+                      servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>,
+                      no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará
+                      funcionando normalmente.
                     </p>
                   </div>
                 </div>
-                <button onClick={handleClose}
-                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+                <button
+                  onClick={handleClose}
+                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+                >
                   Fechar
                 </button>
               </>
@@ -669,7 +831,11 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
                 <div className="mb-5 flex justify-center">
                   {pixData.qrcode_image ? (
                     <img
-                      src={pixData.qrcode_image.startsWith('data:') ? pixData.qrcode_image : `data:image/png;base64,${pixData.qrcode_image}`}
+                      src={
+                        pixData.qrcode_image.startsWith("data:")
+                          ? pixData.qrcode_image
+                          : `data:image/png;base64,${pixData.qrcode_image}`
+                      }
                       alt="QR Code PIX"
                       className="h-40 w-40 rounded-2xl"
                     />
@@ -685,34 +851,51 @@ function PixModal({ pixModal, onClose, supportInfo, user }: {
 
                 <div className="mb-5">
                   <p className="mb-2 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
-                  <button onClick={copyPix}
+                  <button
+                    onClick={copyPix}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.97] ${
-                      copied 
-                        ? "bg-emerald-500 text-white" 
+                      copied
+                        ? "bg-emerald-500 text-white"
                         : "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-                    }`}>
-                    {copied ? <><Check size={16} /> Código copiado!</> : <><Copy size={16} /> Copiar código PIX</>}
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <Check size={16} /> Código copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} /> Copiar código PIX
+                      </>
+                    )}
                   </button>
-                  <p className="mt-2 truncate text-center font-mono text-[10px] text-muted-foreground/60">{pixData.qrcode}</p>
+                  <p className="mt-2 truncate text-center font-mono text-[10px] text-muted-foreground/60">
+                    {pixData.qrcode}
+                  </p>
                 </div>
 
                 <div className="mb-5 rounded-xl bg-blue-500/10 px-4 py-3">
                   <p className="text-[11px] text-blue-300 leading-relaxed text-center">
-                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos de <span className="font-semibold">2 horas</span>.
+                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos
+                    de <span className="font-semibold">2 horas</span>.
                   </p>
                 </div>
 
                 <div className="mb-5 text-center">
                   <p className="text-[10px] text-muted-foreground">Tempo restante</p>
-                  <p className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}>
+                  <p
+                    className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}
+                  >
                     {formatTime(timeLeft)}
                   </p>
                 </div>
               </>
             ) : null}
 
-            <button onClick={handleClose}
-              className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground">
+            <button
+              onClick={handleClose}
+              className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground"
+            >
               Fechar
             </button>
           </>
@@ -739,7 +922,7 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
         .maybeSingle();
       if (data?.period_end) {
         const [y, m, d] = data.period_end.split("-").map(Number);
-        setFutureExpiry(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`);
+        setFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
       } else {
         setFutureExpiry(null);
       }
@@ -748,24 +931,29 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
 
     const channel = supabase
       .channel("pending-activation-banner")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => { load(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        load();
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userId]);
 
   if (effectiveStatus !== "awaiting_activation" && !futureExpiry) return null;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-      className="mx-0 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-0 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
+    >
       <p className="text-xs font-medium text-blue-400">⏳ Aguardando liberação do suporte</p>
       <p className="mt-0.5 text-[10px] text-muted-foreground">
         Seu pagamento foi recebido. O suporte está atualizando seu servidor. Em média leva menos de 2 horas.
       </p>
       {futureExpiry && (
-        <p className="mt-2 text-xs font-semibold text-blue-300">
-          Sua nova data de vencimento será: {futureExpiry}
-        </p>
+        <p className="mt-2 text-xs font-semibold text-blue-300">Sua nova data de vencimento será: {futureExpiry}</p>
       )}
     </motion.div>
   );
@@ -787,8 +975,12 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [notifPopup, setNotifPopup] = useState<{ title: string; body: string; bannerUrl?: string; imageOnly?: boolean } | null>(null);
-  
+  const [notifPopup, setNotifPopup] = useState<{
+    title: string;
+    body: string;
+    bannerUrl?: string;
+    imageOnly?: boolean;
+  } | null>(null);
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
@@ -866,7 +1058,7 @@ const ClientDashboard = () => {
         .maybeSingle();
       if (data?.period_end) {
         const [y, m, d] = data.period_end.split("-").map(Number);
-        setPendingFutureExpiry(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`);
+        setPendingFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
       } else {
         setPendingFutureExpiry(null);
       }
@@ -875,15 +1067,21 @@ const ClientDashboard = () => {
 
     const channel = supabase
       .channel("iptv-dashboard")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user?.id}` }, () => {
-        refreshProfile();
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user?.id}` },
+        () => {
+          refreshProfile();
+        },
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
         loadPendingExpiry();
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   // Handle hash navigation (from push notifications)
@@ -972,7 +1170,6 @@ const ClientDashboard = () => {
     loadNotif();
   }, [location.search, location.pathname, location.hash, user?.id, preloadImage]);
 
-
   const requestTrustUnlock = async () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
     setTrustRequesting(true);
@@ -1035,14 +1232,14 @@ const ClientDashboard = () => {
   const isOverdue = daysUntilDue < 0;
 
   // Auto-block: if expired and still "active", update status locally
-  const effectiveStatus = (isOverdue && user?.iptv_status === "active") ? "blocked" : (user?.iptv_status || "active");
+  const effectiveStatus = isOverdue && user?.iptv_status === "active" ? "blocked" : user?.iptv_status || "active";
   const status = SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
   const isDueToday = daysUntilDue === 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
   const connections = user?.iptv_connections || 1;
   const totalValue = monthlyValue * connections;
 
-  const formattedDueDate = `${String(dueDate.getDate()).padStart(2, '0')}/${String(dueDate.getMonth() + 1).padStart(2, '0')}/${dueDate.getFullYear()}`;
+  const formattedDueDate = `${String(dueDate.getDate()).padStart(2, "0")}/${String(dueDate.getMonth() + 1).padStart(2, "0")}/${dueDate.getFullYear()}`;
 
   // Progress bar: 30 days cycle
   const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
@@ -1051,21 +1248,40 @@ const ClientDashboard = () => {
   const discount3m = value3m * 0.05;
   const final3m = value3m - discount3m;
   const value6m = totalValue * 6;
-  const discount6m = value6m * 0.10;
+  const discount6m = value6m * 0.1;
   const final6m = value6m - discount6m;
+
+  const shouldAnticipateRenewal = !isOverdue && !isDueToday && daysUntilDue > 0 && daysUntilDue < 5;
+  const mainRenewalLabel = shouldAnticipateRenewal ? "Antecipar renovação" : "Renovar Plano";
+  const renewal3mLabel = shouldAnticipateRenewal ? "Antecipar 3 meses" : "Renovar 3 meses";
+  const renewal6mLabel = shouldAnticipateRenewal ? "Antecipar 6 meses" : "Renovar 6 meses";
+  const renewalButtonMotion = {
+    initial: { scale: 1 },
+    animate: {
+      scale: [1, 1.012, 1],
+      boxShadow: ["0 0 0 rgba(239,68,68,0)", "0 0 22px rgba(239,68,68,0.18)", "0 0 0 rgba(239,68,68,0)"],
+    },
+    transition: {
+      duration: 2.4,
+      repeat: Infinity,
+      ease: "easeInOut" as const,
+    },
+    whileHover: { scale: 1.025 },
+    whileTap: { scale: 0.97 },
+  };
 
   return (
     <AppLayout>
       <div className="space-y-5 pb-4">
         {/* GREETING */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between pt-1">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between pt-1"
+        >
           <div>
-            <h1 className="text-xl font-bold text-foreground">
-              Olá, {user?.name?.split(" ")[0]}
-            </h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Cliente Premium
-            </p>
+            <h1 className="text-xl font-bold text-foreground">Olá, {user?.name?.split(" ")[0]}</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Cliente Premium</p>
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
@@ -1080,8 +1296,13 @@ const ClientDashboard = () => {
         <BannerCarousel />
 
         {/* MAIN CARD — Plan */}
-        <motion.div id="plano" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className="rounded-2xl border border-border/50 bg-card/80 p-6">
+        <motion.div
+          id="plano"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="rounded-2xl border border-border/50 bg-card/80 p-6"
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground">Plano IPTV</p>
@@ -1096,7 +1317,9 @@ const ClientDashboard = () => {
               ) : isDueToday ? (
                 <span className="text-sm font-semibold text-destructive">Vence hoje</span>
               ) : (
-                <span className="text-sm text-muted-foreground">Vence em <span className="font-semibold text-foreground">{daysUntilDue} dias</span></span>
+                <span className="text-sm text-muted-foreground">
+                  Vence em <span className="font-semibold text-foreground">{daysUntilDue} dias</span>
+                </span>
               )}
             </div>
           </div>
@@ -1107,21 +1330,33 @@ const ClientDashboard = () => {
           </div>
 
           {/* Renew button */}
-          <button
+          <motion.button
+            type="button"
+            {...renewalButtonMotion}
             onClick={() => setPixModal({ months: 1, value: totalValue, discount: 0 })}
-            className="mt-5 w-full rounded-xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground transition-all active:scale-[0.98]">
-            Renovar Plano
-          </button>
+            className="mt-5 w-full rounded-xl bg-red-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-colors hover:bg-red-500"
+          >
+            <span className="inline-flex items-center justify-center gap-2">
+              <CreditCard size={16} />
+              {mainRenewalLabel}
+            </span>
+          </motion.button>
         </motion.div>
 
         {/* PLAN DETAILS (simple text) */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-          className="rounded-2xl border border-border/40 bg-card/60 px-5 py-3">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="rounded-2xl border border-border/40 bg-card/60 px-5 py-3"
+        >
           {(() => {
             const tvApp = (user?.iptv_tv_app || "").toLowerCase();
-            const providerName = tvApp.includes("assist") ? (supportInfo as any)?.assist_plus_provider
-              : tvApp.includes("blessed") ? (supportInfo as any)?.blessed_player_provider
-              : null;
+            const providerName = tvApp.includes("assist")
+              ? (supportInfo as any)?.assist_plus_provider
+              : tvApp.includes("blessed")
+                ? (supportInfo as any)?.blessed_player_provider
+                : null;
             return providerName ? (
               <>
                 <div className="flex items-center justify-between py-2">
@@ -1146,23 +1381,27 @@ const ClientDashboard = () => {
             <span className="text-sm text-muted-foreground">Validade</span>
             <div className="text-right">
               <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
-              {pendingFutureExpiry && (
-                <p className="text-[10px] text-blue-400 mt-0.5">Nova: {pendingFutureExpiry}</p>
-              )}
+              {pendingFutureExpiry && <p className="text-[10px] text-blue-400 mt-0.5">Nova: {pendingFutureExpiry}</p>}
             </div>
           </div>
         </motion.div>
 
         {/* COUNTDOWN WARNING (only if close to due) */}
         {daysUntilDue <= 7 && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
             className={`rounded-2xl border p-4 ${
-              isOverdue || isDueToday
-                ? "border-destructive/15 bg-destructive/5"
-                : "border-warning/15 bg-warning/5"
-            }`}>
+              isOverdue || isDueToday ? "border-destructive/15 bg-destructive/5" : "border-warning/15 bg-warning/5"
+            }`}
+          >
             <p className={`text-sm font-medium ${isOverdue || isDueToday ? "text-destructive" : "text-warning"}`}>
-              {isOverdue ? `Vencido há ${Math.abs(daysUntilDue)} dia(s)` : isDueToday ? "Último dia para pagamento" : `Faltam ${daysUntilDue} dias para o vencimento`}
+              {isOverdue
+                ? `Vencido há ${Math.abs(daysUntilDue)} dia(s)`
+                : isDueToday
+                  ? "Último dia para pagamento"
+                  : `Faltam ${daysUntilDue} dias para o vencimento`}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Bloqueio automático às 23:59 caso não identificado pagamento.
@@ -1172,11 +1411,15 @@ const ClientDashboard = () => {
 
         {/* TRUST ACTIVE BANNER */}
         {effectiveStatus === "trust_active" && (
-          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3">
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3"
+          >
             <p className="text-xs font-medium text-cyan-400">🤝 Ativo em Confiança</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Você tem 3 dias para efetuar o pagamento. Caso contrário, seu acesso será bloqueado e não será possível solicitar novo desbloqueio de confiança.
+              Você tem 3 dias para efetuar o pagamento. Caso contrário, seu acesso será bloqueado e não será possível
+              solicitar novo desbloqueio de confiança.
             </p>
           </motion.div>
         )}
@@ -1191,7 +1434,9 @@ const ClientDashboard = () => {
               </div>
             ) : trustCooldown ? (
               <div className="rounded-2xl border border-muted/30 bg-muted/10 px-4 py-3 text-center">
-                <p className="text-xs text-muted-foreground">Desbloqueio de confiança indisponível (30 dias de espera).</p>
+                <p className="text-xs text-muted-foreground">
+                  Desbloqueio de confiança indisponível (30 dias de espera).
+                </p>
               </div>
             ) : (
               <button
@@ -1206,27 +1451,43 @@ const ClientDashboard = () => {
         )}
 
         {/* RENEWAL OPTIONS (3m, 6m) — discrete */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="rounded-2xl border border-border/30 bg-card/40 px-5 py-1">
-          <button onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
-            className="flex w-full items-center justify-between py-3.5 text-left active:opacity-70">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="rounded-2xl border border-border/30 bg-card/40 px-5 py-1"
+        >
+          <motion.button
+            type="button"
+            whileHover={{ x: 4, scale: 1.01 }}
+            whileTap={{ scale: 0.985 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
+            className="flex w-full items-center justify-between rounded-xl px-2 py-3.5 text-left transition-colors hover:bg-red-500/5"
+          >
             <div>
-              <p className="text-sm text-foreground">Renovar 3 meses</p>
+              <p className="text-sm text-foreground">{renewal3mLabel}</p>
               <p className="text-[11px] text-muted-foreground">5% de desconto</p>
             </div>
             <span className="text-sm text-muted-foreground">R$ {final3m.toFixed(2)}</span>
-          </button>
+          </motion.button>
 
           <div className="border-t border-border/20" />
 
-          <button onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
-            className="flex w-full items-center justify-between py-3.5 text-left active:opacity-70">
+          <motion.button
+            type="button"
+            whileHover={{ x: 4, scale: 1.01 }}
+            whileTap={{ scale: 0.985 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
+            className="flex w-full items-center justify-between rounded-xl px-2 py-3.5 text-left transition-colors hover:bg-red-500/5"
+          >
             <div>
-              <p className="text-sm text-foreground">Renovar 6 meses</p>
+              <p className="text-sm text-foreground">{renewal6mLabel}</p>
               <p className="text-[11px] text-muted-foreground">10% de desconto</p>
             </div>
             <span className="text-sm text-muted-foreground">R$ {final6m.toFixed(2)}</span>
-          </button>
+          </motion.button>
         </motion.div>
 
         {/* PAYMENT HISTORY (collapsible) */}
@@ -1260,8 +1521,13 @@ const ClientDashboard = () => {
 
         {/* SUPPORT */}
         {supportInfo && (
-          <motion.div id="suporte" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
-            className="rounded-2xl border border-border/40 bg-card/50 p-5">
+          <motion.div
+            id="suporte"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="rounded-2xl border border-border/40 bg-card/50 p-5"
+          >
             <p className="mb-3 text-xs text-muted-foreground">Suporte</p>
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted/20 text-sm">👤</div>
@@ -1271,12 +1537,18 @@ const ClientDashboard = () => {
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <a href={supportInfo.whatsapp_link} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-success/10 px-3 py-2.5 text-sm font-medium text-success active:scale-[0.98]">
+              <a
+                href={supportInfo.whatsapp_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-success/10 px-3 py-2.5 text-sm font-medium text-success active:scale-[0.98]"
+              >
                 <MessageCircle size={15} /> WhatsApp
               </a>
-              <a href={`tel:${supportInfo.support_phone.replace(/\D/g, "")}`}
-                className="flex items-center justify-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]">
+              <a
+                href={`tel:${supportInfo.support_phone.replace(/\D/g, "")}`}
+                className="flex items-center justify-center gap-2 rounded-xl bg-primary/10 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
+              >
                 <Phone size={15} /> Ligar
               </a>
             </div>
@@ -1293,18 +1565,38 @@ const ClientDashboard = () => {
 
       {/* PIX Modal */}
       <AnimatePresence>
-        {pixModal && <PixModal pixModal={pixModal} onClose={(confirmed?: boolean) => { setPixModal(null); if (confirmed) { refreshProfile(); } }} supportInfo={supportInfo} user={user} />}
+        {pixModal && (
+          <PixModal
+            pixModal={pixModal}
+            onClose={(confirmed?: boolean) => {
+              setPixModal(null);
+              if (confirmed) {
+                refreshProfile();
+              }
+            }}
+            supportInfo={supportInfo}
+            user={user}
+          />
+        )}
       </AnimatePresence>
 
       {/* Cancel Modal */}
       <AnimatePresence>
         {showCancelModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
-            onClick={() => setShowCancelModal(false)}>
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+            onClick={() => setShowCancelModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
               className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
-              onClick={e => e.stopPropagation()}>
+              onClick={(e) => e.stopPropagation()}
+            >
               <h3 className="text-lg font-bold text-foreground mb-1">Solicitar Cancelamento</h3>
               <p className="text-xs text-muted-foreground mb-4">
                 Tem certeza que deseja solicitar o cancelamento do seu plano IPTV? O suporte analisará sua solicitação.
@@ -1320,12 +1612,17 @@ const ClientDashboard = () => {
                 />
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setShowCancelModal(false)}
-                  className="flex-1 rounded-xl bg-muted/20 py-3 text-sm text-muted-foreground">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 rounded-xl bg-muted/20 py-3 text-sm text-muted-foreground"
+                >
                   Voltar
                 </button>
-                <button onClick={requestCancellation} disabled={cancelRequesting}
-                  className="flex-1 rounded-xl bg-destructive py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-50">
+                <button
+                  onClick={requestCancellation}
+                  disabled={cancelRequesting}
+                  className="flex-1 rounded-xl bg-destructive py-3 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+                >
                   {cancelRequesting ? "Enviando..." : "Confirmar"}
                 </button>
               </div>
@@ -1335,15 +1632,25 @@ const ClientDashboard = () => {
 
         {/* Notification Popup (banner, image, or text from push click) */}
         {notifPopup && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-5"
-            onClick={() => setNotifPopup(null)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            onClick={() => setNotifPopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
               className={`w-full max-w-sm rounded-3xl border border-border bg-card shadow-2xl ${notifPopup.imageOnly ? "p-3" : "p-6"}`}
-              onClick={(e) => e.stopPropagation()}>
+              onClick={(e) => e.stopPropagation()}
+            >
               {notifPopup.bannerUrl && (
-                <img src={notifPopup.bannerUrl} alt={notifPopup.title || "Imagem"}
-                  className={`w-full rounded-2xl object-contain ${notifPopup.imageOnly ? "" : "mb-4"}`} />
+                <img
+                  src={notifPopup.bannerUrl}
+                  alt={notifPopup.title || "Imagem"}
+                  className={`w-full rounded-2xl object-contain ${notifPopup.imageOnly ? "" : "mb-4"}`}
+                />
               )}
               {!notifPopup.imageOnly && notifPopup.title && (
                 <h3 className="text-lg font-bold text-foreground mb-2">{notifPopup.title}</h3>
@@ -1351,14 +1658,15 @@ const ClientDashboard = () => {
               {!notifPopup.imageOnly && notifPopup.body && (
                 <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{notifPopup.body}</p>
               )}
-              <button onClick={() => setNotifPopup(null)}
-                className={`w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground ${notifPopup.imageOnly ? "mt-3" : "mt-5"}`}>
+              <button
+                onClick={() => setNotifPopup(null)}
+                className={`w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground ${notifPopup.imageOnly ? "mt-3" : "mt-5"}`}
+              >
                 Entendi
               </button>
             </motion.div>
           </motion.div>
         )}
-
       </AnimatePresence>
     </AppLayout>
   );
