@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/AppLayout";
-import { Settings, Loader2, Tv, Bell, Send, Upload, Image as ImageIcon, Smartphone } from "lucide-react";
+import { Settings, Loader2, Tv, Bell, Send, Upload, Image as ImageIcon, Smartphone, Percent } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -75,7 +75,9 @@ const AdminSettingsPage = () => {
         min_withdrawal: parseFloat(settings.min_withdrawal),
         referral_value: parseFloat(settings.referral_value),
         monthly_limit: parseFloat(settings.monthly_limit),
-      })
+        renewal_discount_3m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_3m_percent || 0))),
+        renewal_discount_6m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_6m_percent || 0))),
+      } as any)
       .eq("id", settings.id);
     setSaving(false);
     toast({ title: "Configurações salvas!" });
@@ -423,6 +425,48 @@ const AdminSettingsPage = () => {
               className={inputCls}
             />
           </div>
+
+          <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15">
+                <Percent size={16} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Descontos de Renovação</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Altere as porcentagens dos botões de 3 e 6 meses. Atualiza instantaneamente para todos.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto para renovar 3 meses (%)</h4>
+                <input
+                  value={settings.renewal_discount_3m_percent ?? 5}
+                  onChange={(e) => setSettings({ ...settings, renewal_discount_3m_percent: e.target.value })}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className={inputCls + " max-w-full"}
+                />
+              </div>
+              <div>
+                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto para renovar 6 meses (%)</h4>
+                <input
+                  value={settings.renewal_discount_6m_percent ?? 10}
+                  onChange={(e) => setSettings({ ...settings, renewal_discount_6m_percent: e.target.value })}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className={inputCls + " max-w-full"}
+                />
+              </div>
+            </div>
+          </div>
+
           <button
             onClick={save}
             disabled={saving}

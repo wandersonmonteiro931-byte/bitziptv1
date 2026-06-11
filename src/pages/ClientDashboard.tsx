@@ -66,6 +66,11 @@ const getTimeGreeting = () => {
   return "Boa noite";
 };
 
+const formatDiscountPercent = (value: number) => {
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.00$/, "").replace(/0$/, "");
+};
+
 // --- Copy Button ---
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -1001,12 +1006,22 @@ const ClientDashboard = () => {
   }, []);
   useEffect(() => {
     const loadData = async () => {
-      const [support, apps] = await Promise.all([
+      const [support, apps, platform] = await Promise.all([
         supabase.from("support_settings").select("*").limit(1).maybeSingle(),
         supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
+        supabase
+          .from("platform_settings")
+          .select("renewal_discount_3m_percent, renewal_discount_6m_percent")
+          .limit(1)
+          .maybeSingle(),
       ]);
       setSupportInfo(support.data);
       setTvApps(apps.data || []);
+
+      if (platform.data) {
+        setRenewalDiscount3mPercent(Number((platform.data as any).renewal_discount_3m_percent ?? 5));
+        setRenewalDiscount6mPercent(Number((platform.data as any).renewal_discount_6m_percent ?? 10));
+      }
     };
     loadData();
 
@@ -1083,6 +1098,11 @@ const ClientDashboard = () => {
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
         loadPendingExpiry();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "platform_settings" }, (payload) => {
+        const next = payload.new as any;
+        setRenewalDiscount3mPercent(Number(next.renewal_discount_3m_percent ?? 5));
+        setRenewalDiscount6mPercent(Number(next.renewal_discount_6m_percent ?? 10));
       })
       .subscribe();
 
@@ -1252,10 +1272,10 @@ const ClientDashboard = () => {
   const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
 
   const value3m = totalValue * 3;
-  const discount3m = value3m * 0.05;
+  const discount3m = value3m * (renewalDiscount3mPercent / 100);
   const final3m = value3m - discount3m;
   const value6m = totalValue * 6;
-  const discount6m = value6m * 0.1;
+  const discount6m = value6m * (renewalDiscount6mPercent / 100);
   const final6m = value6m - discount6m;
 
   const isNearDueNotice = !isOverdue && !isDueToday && daysUntilDue >= 1 && daysUntilDue <= 4;
@@ -1501,7 +1521,9 @@ const ClientDashboard = () => {
           >
             <div>
               <p className="text-sm text-foreground">{renewal3mLabel}</p>
-              <p className="text-[11px] text-muted-foreground">5% de desconto</p>
+              <p className="text-[11px] text-muted-foreground">
+                {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
+              </p>
             </div>
             <span className="text-sm text-muted-foreground">R$ {final3m.toFixed(2)}</span>
           </motion.button>
@@ -1518,7 +1540,9 @@ const ClientDashboard = () => {
           >
             <div>
               <p className="text-sm text-foreground">{renewal6mLabel}</p>
-              <p className="text-[11px] text-muted-foreground">10% de desconto</p>
+              <p className="text-[11px] text-muted-foreground">
+                {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
+              </p>
             </div>
             <span className="text-sm text-muted-foreground">R$ {final6m.toFixed(2)}</span>
           </motion.button>
