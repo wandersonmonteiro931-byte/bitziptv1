@@ -127,7 +127,7 @@ const AdminAnnouncementsPage = () => {
       is_active: true,
       schedule_at: null,
       expires_at: null,
-      display_frequency: "once",
+      display_frequency: "always",
     });
   };
 
@@ -576,22 +576,22 @@ const AdminAnnouncementsPage = () => {
                 )}
 
                 {/* Frequency */}
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Frequência de exibição</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Frequência de exibição</label>
                 <select
-                  value={editing.display_frequency || "once"}
+                  value={editing.display_frequency || "always"}
                   onChange={(e) =>
                     setEditing((prev) =>
                       prev ? { ...prev, display_frequency: e.target.value as "always" | "once" } : prev,
                     )
                   }
-                  className="w-full rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground mb-2"
+                  className="mb-2 w-full rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm text-foreground"
                 >
-                  <option value="once">Aparecer uma vez até o admin resetar</option>
                   <option value="always">Aparecer sempre que entrar no app</option>
+                  <option value="once">Aparecer uma vez até o admin resetar</option>
                 </select>
                 <p className="mb-4 text-[10px] text-muted-foreground">
-                  Use "sempre" para avisos importantes ou banners de divulgação que devem aparecer em toda abertura do
-                  app.
+                  "Sempre" aparece imediatamente para clientes conectados e volta a aparecer a cada nova entrada/reload
+                  do app.
                 </p>
 
                 {/* Schedule */}

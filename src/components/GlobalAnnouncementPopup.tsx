@@ -9,19 +9,28 @@ interface AnnouncementData {
   body: string;
   bannerUrl?: string;
   displayFrequency: "always" | "once";
+  updatedAt?: string;
 }
 
 export function GlobalAnnouncementPopup() {
   const { user, isAdmin } = useAuth();
   const [popup, setPopup] = useState<AnnouncementData | null>(null);
-  const popupRef = useRef(popup);
-  const dismissedThisLoadRef = useRef<Set<string>>(new Set());
+  const popupRef = useRef<AnnouncementData | null>(null);
+  const dismissedThisOpenRef = useRef<Set<string>>(new Set());
+  const loadingRef = useRef(false);
+
   popupRef.current = popup;
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
       const img = new Image();
-      const done = () => resolve();
+      let finished = false;
+      const done = () => {
+        if (finished) return;
+        finished = true;
+        resolve();
+      };
+
       img.onload = done;
       img.onerror = done;
       img.src = src;
@@ -29,70 +38,107 @@ export function GlobalAnnouncementPopup() {
     });
   }, []);
 
-  const loadAnnouncements = useCallback(async () => {
-    if (!user?.id || isAdmin) return;
-    if (popupRef.current) return;
+  const loadAnnouncements = useCallback(
+    async (force = false) => {
+      if (!user?.id || isAdmin) return;
+      if (loadingRef.current) return;
+      if (popupRef.current && !force) return;
 
-    const { data: announcementsRaw } = await supabase
-      .from("announcements")
-      .select(
-        "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency" as any,
-      )
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-    const announcements = (announcementsRaw || []) as any[];
-    if (announcements.length === 0) return;
+      loadingRef.current = true;
 
-    const { data: dismissed } = await supabase
-      .from("announcement_dismissals")
-      .select("announcement_id")
-      .eq("user_id", user.id);
-    const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
+      try {
+        const now = new Date().toISOString();
 
-    for (const a of announcements) {
-      const displayFrequency = (a.display_frequency || "once") as "always" | "once";
+        const { data: announcements, error } = await supabase
+          .from("announcements")
+          .select(
+            "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency, updated_at, created_at",
+          )
+          .eq("is_active", true)
+          .or(`schedule_at.is.null,schedule_at.lte.${now}`)
+          .or(`expires_at.is.null,expires_at.gt.${now}`)
+          .order("created_at", { ascending: false });
 
-      // "Sempre ao entrar": aparece a cada nova abertura/reload do app, mas não reabre na mesma tela após clicar Entendi.
-      if (dismissedThisLoadRef.current.has(a.id)) continue;
+        if (error || !announcements || announcements.length === 0) {
+          if (force) setPopup(null);
+          return;
+        }
 
-      // "Uma vez": depois que o cliente clicar Entendi, não aparece mais até o admin resetar visualizações.
-      if (displayFrequency !== "always" && dismissedIds.has(a.id)) continue;
+        const { data: dismissed } = await supabase
+          .from("announcement_dismissals")
+          .select("announcement_id")
+          .eq("user_id", user.id);
 
-      if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
-      if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
-      if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
+        const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
 
-      const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
+        for (const a of announcements as any[]) {
+          const displayFrequency = (a.display_frequency || "once") as "always" | "once";
 
-      if (bannerUrl) {
-        await preloadImage(bannerUrl);
+          // Evita reabrir várias vezes no mesmo carregamento depois que o cliente clicou "Entendi".
+          if (dismissedThisOpenRef.current.has(a.id) && !force) continue;
+
+          // "Uma vez": respeita dismissão salva no banco.
+          // "Sempre": ignora dismissão antiga e aparece de novo em cada entrada/reload do app.
+          if (displayFrequency !== "always" && dismissedIds.has(a.id)) continue;
+
+          if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
+
+          const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
+          if (bannerUrl) await preloadImage(bannerUrl);
+
+          setPopup({
+            id: a.id,
+            title: a.title || "",
+            body: a.body || "",
+            bannerUrl,
+            displayFrequency,
+            updatedAt: a.updated_at,
+          });
+          return;
+        }
+
+        if (force) setPopup(null);
+      } finally {
+        loadingRef.current = false;
       }
-
-      setPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl, displayFrequency });
-      break;
-    }
-  }, [user?.id, isAdmin, preloadImage]);
+    },
+    [user?.id, isAdmin, preloadImage],
+  );
 
   useEffect(() => {
     if (!user?.id || isAdmin) return;
 
-    loadAnnouncements();
+    loadAnnouncements(true);
 
     const channel = supabase
-      .channel("global-announcements-realtime")
+      .channel(`global-announcements-realtime-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => {
-        loadAnnouncements();
+        // Admin criou/editou/ativou aviso: limpa a trava da sessão e mostra imediatamente.
+        dismissedThisOpenRef.current.clear();
+        setPopup(null);
+        setTimeout(() => loadAnnouncements(true), 250);
       })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "announcement_dismissals", filter: `user_id=eq.${user.id}` },
+        () => {
+          setTimeout(() => loadAnnouncements(true), 250);
+        },
+      )
       .subscribe();
 
+    const handleFocus = () => loadAnnouncements(true);
+    window.addEventListener("focus", handleFocus);
+
     return () => {
+      window.removeEventListener("focus", handleFocus);
       supabase.removeChannel(channel);
     };
   }, [loadAnnouncements, user?.id, isAdmin]);
 
   const dismiss = async () => {
     if (popup && user?.id) {
-      dismissedThisLoadRef.current.add(popup.id);
+      dismissedThisOpenRef.current.add(popup.id);
 
       if (popup.displayFrequency !== "always") {
         await supabase.from("announcement_dismissals").insert({
@@ -103,7 +149,7 @@ export function GlobalAnnouncementPopup() {
     }
 
     setPopup(null);
-    setTimeout(() => loadAnnouncements(), 500);
+    setTimeout(() => loadAnnouncements(false), 500);
   };
 
   if (isAdmin || !popup) return null;
@@ -114,24 +160,31 @@ export function GlobalAnnouncementPopup() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-5"
+        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm"
       >
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+          initial={{ scale: 0.96, opacity: 0, y: 8 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 8 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="w-full max-w-[94vw] rounded-3xl border border-border bg-card p-4 shadow-2xl sm:max-w-md sm:p-6"
         >
           {popup.bannerUrl && (
-            <img
-              src={popup.bannerUrl}
-              alt={popup.title}
-              className="mb-4 h-auto max-h-[70vh] w-auto max-w-full rounded-2xl object-contain mx-auto"
-            />
+            <div className="mb-4 flex max-h-[75vh] w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20">
+              <img
+                src={popup.bannerUrl}
+                alt={popup.title || "Aviso"}
+                className="h-auto max-h-[75vh] w-auto max-w-full rounded-2xl object-contain"
+              />
+            </div>
           )}
-          {popup.title && <h3 className="text-lg font-bold text-foreground mb-2">{popup.title}</h3>}
+
+          {popup.title && <h3 className="mb-2 text-lg font-bold text-foreground">{popup.title}</h3>}
+
           {popup.body && (
-            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{popup.body}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{popup.body}</p>
           )}
+
           <button
             onClick={dismiss}
             className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
