@@ -239,6 +239,7 @@ const AdminUsersPage = () => {
       iptv_monthly_value: u.iptv_monthly_value || 0,
       iptv_due_day: u.iptv_due_day || 10,
       iptv_client_code: u.iptv_client_code || "",
+      referral_code: u.referral_code || "",
       pix_key: u.pix_key || "",
       status: u.status || "active",
     });
@@ -251,6 +252,7 @@ const AdminUsersPage = () => {
     // Update profile fields
     const profileData = { ...editForm };
     delete profileData.username; // username handled separately
+    delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
 
     await supabase.functions.invoke("admin-manage-user", {
       body: { action: "update_profile", user_id: editUser.id, data: profileData },
@@ -937,13 +939,19 @@ const AdminUsersPage = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Chave PIX</label>
+                      <label className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                        <Gift size={13} /> Código de Indicação
+                      </label>
                       <input
-                        value={editForm.pix_key}
-                        onChange={(e) => setEditForm({ ...editForm, pix_key: e.target.value })}
-                        placeholder="CPF, telefone, e-mail..."
-                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        value={editForm.referral_code || ""}
+                        readOnly
+                        placeholder="WMC001A"
+                        className="w-full cursor-copy rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-sm font-semibold uppercase text-red-300 focus:border-red-500/50 focus:outline-none"
+                        onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
                       />
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Código sequencial automático para indicar novos clientes.
+                      </p>
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Status Plataforma</label>
@@ -957,6 +965,15 @@ const AdminUsersPage = () => {
                         <option value="blocked">Bloqueado</option>
                       </select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">Chave PIX</label>
+                    <input
+                      value={editForm.pix_key}
+                      onChange={(e) => setEditForm({ ...editForm, pix_key: e.target.value })}
+                      placeholder="CPF, telefone, e-mail..."
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    />
                   </div>
                 </div>
 
@@ -1162,6 +1179,9 @@ const AdminUsersPage = () => {
                   <td className="px-4 py-3">
                     <p className="font-medium text-foreground">{user.name}</p>
                     <p className="text-xs text-muted-foreground">@{user.username}</p>
+                    {user.referral_code && (
+                      <p className="mt-0.5 text-[10px] font-semibold text-red-400">Indicação: {user.referral_code}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-semibold text-foreground">R$ {Number(user.balance).toFixed(2)}</span>
