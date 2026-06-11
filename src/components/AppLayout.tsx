@@ -35,6 +35,13 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
+const getTimeGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Bom dia";
+  if (hour >= 12 && hour < 18) return "Boa tarde";
+  return "Boa noite";
+};
+
 const clientLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/missions", label: "Missões", icon: Target },
@@ -128,7 +135,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </span>
             ) : (
               <>
-                Olá, <span className="font-semibold text-foreground">{user?.name?.split(" ")[0]}</span>
+                {getTimeGreeting()}, <span className="font-semibold text-foreground">{user?.name?.split(" ")[0]}</span>
               </>
             )}
           </p>

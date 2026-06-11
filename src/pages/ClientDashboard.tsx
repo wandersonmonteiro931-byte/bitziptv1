@@ -59,6 +59,13 @@ const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; dotColor
   trust_active: { label: "Ativo em Confiança", color: "text-cyan-400", dotColor: "bg-cyan-400", pulse: true },
 };
 
+const getTimeGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Bom dia";
+  if (hour >= 12 && hour < 18) return "Boa tarde";
+  return "Boa noite";
+};
+
 // --- Copy Button ---
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -1293,7 +1300,9 @@ const ClientDashboard = () => {
           className="flex items-center justify-between pt-1"
         >
           <div>
-            <h1 className="text-xl font-bold text-foreground">Olá, {user?.name?.split(" ")[0]}</h1>
+            <h1 className="text-xl font-bold text-foreground">
+              {getTimeGreeting()}, {user?.name?.split(" ")[0]}
+            </h1>
             <p
               className={`mt-0.5 text-xs font-medium ${
                 isOverdue ? "text-red-400" : isDueToday || isNearDueNotice ? "text-amber-400" : "text-emerald-400"
