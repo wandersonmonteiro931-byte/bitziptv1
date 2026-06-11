@@ -1,6 +1,27 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Search, Plus, Ban, Trash2, DollarSign, X, Snowflake, Eye, UsersRound, History, Filter, ClipboardPaste, CheckCircle2, AlertCircle, Pencil, Save, Archive, RotateCcw } from "lucide-react";
+import {
+  Users,
+  Search,
+  Plus,
+  Ban,
+  Trash2,
+  DollarSign,
+  X,
+  Snowflake,
+  Eye,
+  UsersRound,
+  History,
+  Filter,
+  ClipboardPaste,
+  CheckCircle2,
+  AlertCircle,
+  Pencil,
+  Save,
+  Archive,
+  RotateCcw,
+  Gift,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -40,8 +61,9 @@ const parseIptvText = (text: string) => {
   if (connMatch) result.connections = connMatch[1].trim();
 
   // Server/DNS
-  const dnsMatch = text.match(/🌀\s*\*?DNS[^:]*:?\*?\s*https?:\/?\/?([^\s/]+)/i)
-    || text.match(/✅\s*\*?DNS\*?\s*https?:\/?\/?([^\s/]+)/i);
+  const dnsMatch =
+    text.match(/🌀\s*\*?DNS[^:]*:?\*?\s*https?:\/?\/?([^\s/]+)/i) ||
+    text.match(/✅\s*\*?DNS\*?\s*https?:\/?\/?([^\s/]+)/i);
   if (dnsMatch) result.server = dnsMatch[1].trim();
 
   // Plan
@@ -74,6 +96,7 @@ const AdminUsersPage = () => {
   const [parsedData, setParsedData] = useState<Record<string, string> | null>(null);
   const [autoName, setAutoName] = useState("");
   const [autoEmail, setAutoEmail] = useState("");
+  const [autoReferredByCode, setAutoReferredByCode] = useState("");
   const [autoCreating, setAutoCreating] = useState(false);
   const [editUser, setEditUser] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -90,7 +113,18 @@ const AdminUsersPage = () => {
   const [bulkDesc, setBulkDesc] = useState("");
   const [bulkMode, setBulkMode] = useState<"add" | "remove" | "set">("add");
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
-  const [form, setForm] = useState({ name: "", username: "", email: "", password: "", role: "client", iptv_user: "", iptv_server: "", iptv_app: "", iptv_expiry: "" });
+  const [form, setForm] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    role: "client",
+    iptv_user: "",
+    iptv_server: "",
+    iptv_app: "",
+    iptv_expiry: "",
+    referred_by_code: "",
+  });
   const [creating, setCreating] = useState(false);
 
   const loadUsers = async () => {
@@ -98,15 +132,16 @@ const AdminUsersPage = () => {
     setUsers(data || []);
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
-  const filtered = users.filter(
-    (u) => {
-      const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase());
-      if (showArchived) return matchSearch && u.status === "archived";
-      return matchSearch && u.status !== "archived";
-    }
-  );
+  const filtered = users.filter((u) => {
+    const matchSearch =
+      u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase());
+    if (showArchived) return matchSearch && u.status === "archived";
+    return matchSearch && u.status !== "archived";
+  });
 
   const handlePasteAnalyze = () => {
     if (!pastedText.trim()) return;
@@ -138,6 +173,7 @@ const AdminUsersPage = () => {
         iptv_connections: parsedData.connections ? parseInt(parsedData.connections) : 1,
         iptv_monthly_value: parsedData.monthly_value ? parseFloat(parsedData.monthly_value) : 0,
         iptv_status: "active",
+        referred_by_code: autoReferredByCode.trim().toUpperCase() || undefined,
         admin_notes: buildDefaultNotes(iptvUser, iptvPass),
       },
     });
@@ -151,6 +187,7 @@ const AdminUsersPage = () => {
       setParsedData(null);
       setAutoName("");
       setAutoEmail("");
+      setAutoReferredByCode("");
       loadUsers();
     }
   };
@@ -162,7 +199,11 @@ const AdminUsersPage = () => {
     }
     setCreating(true);
     const res = await supabase.functions.invoke("admin-create-user", {
-      body: { ...form, referral_code: form.username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase() },
+      body: {
+        ...form,
+        referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined,
+        referral_code: form.username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
+      },
     });
     setCreating(false);
     if (res.error || res.data?.error) {
@@ -170,7 +211,18 @@ const AdminUsersPage = () => {
     } else {
       toast({ title: "Usuário criado com sucesso!" });
       setShowCreate(false);
-      setForm({ name: "", username: "", email: "", password: "", role: "client", iptv_user: "", iptv_server: "", iptv_app: "", iptv_expiry: "" });
+      setForm({
+        name: "",
+        username: "",
+        email: "",
+        password: "",
+        role: "client",
+        iptv_user: "",
+        iptv_server: "",
+        iptv_app: "",
+        iptv_expiry: "",
+        referred_by_code: "",
+      });
       loadUsers();
     }
   };
@@ -248,11 +300,19 @@ const AdminUsersPage = () => {
       // Set balance to exact value: calculate diff
       const diff = val - Number(showBalanceAdjust.balance);
       await supabase.functions.invoke("admin-manage-user", {
-        body: { action: "adjust_balance", user_id: showBalanceAdjust.id, data: { amount: diff, description: balanceDesc } },
+        body: {
+          action: "adjust_balance",
+          user_id: showBalanceAdjust.id,
+          data: { amount: diff, description: balanceDesc },
+        },
       });
     } else {
       await supabase.functions.invoke("admin-manage-user", {
-        body: { action: "adjust_balance", user_id: showBalanceAdjust.id, data: { amount: val, description: balanceDesc } },
+        body: {
+          action: "adjust_balance",
+          user_id: showBalanceAdjust.id,
+          data: { amount: val, description: balanceDesc },
+        },
       });
     }
     toast({ title: "Saldo ajustado!" });
@@ -293,9 +353,10 @@ const AdminUsersPage = () => {
   };
 
   const archiveUser = async (userId: string) => {
-    if (!confirm("Tem certeza que deseja arquivar este cliente? Ele será deslogado e poderá ser reativado depois.")) return;
+    if (!confirm("Tem certeza que deseja arquivar este cliente? Ele será deslogado e poderá ser reativado depois."))
+      return;
     // Optimistic: remove from list immediately
-    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: "archived" } : u));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: "archived" } : u)));
     const res = await supabase.functions.invoke("admin-manage-user", {
       body: { action: "archive_user", user_id: userId, data: {} },
     });
@@ -319,13 +380,19 @@ const AdminUsersPage = () => {
   const viewHistory = async (u: any) => {
     setShowUserHistory(u);
     setHistoryFilter("all");
-    const { data } = await supabase.from("balance_history").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(100);
+    const { data } = await supabase
+      .from("balance_history")
+      .select("*")
+      .eq("user_id", u.id)
+      .order("created_at", { ascending: false })
+      .limit(100);
     setUserHistory(data || []);
   };
 
   const toggleSelect = (id: string) => {
     const s = new Set(selectedUsers);
-    if (s.has(id)) s.delete(id); else s.add(id);
+    if (s.has(id)) s.delete(id);
+    else s.add(id);
     setSelectedUsers(s);
   };
 
@@ -343,22 +410,43 @@ const AdminUsersPage = () => {
     <AppLayout>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground"><Users className="text-primary" /> Gerenciar Usuários</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <Users className="text-primary" /> Gerenciar Usuários
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">{users.length} usuários cadastrados</p>
         </div>
         <div className="flex gap-2">
           {selectedUsers.size > 0 && (
-            <button onClick={() => setShowBulkAdjust(true)} className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:brightness-110">
+            <button
+              onClick={() => setShowBulkAdjust(true)}
+              className="flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:brightness-110"
+            >
               <UsersRound size={16} /> Ajuste em Massa ({selectedUsers.size})
             </button>
           )}
-          <button onClick={() => setShowArchived(!showArchived)} className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all hover:brightness-110 ${showArchived ? "bg-warning text-warning-foreground" : "bg-muted text-muted-foreground"}`}>
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all hover:brightness-110 ${showArchived ? "bg-warning text-warning-foreground" : "bg-muted text-muted-foreground"}`}
+          >
             <Archive size={16} /> {showArchived ? "Ver Ativos" : "Arquivados"}
           </button>
-          <button onClick={() => { setShowAutoRegister(true); setPastedText(""); setParsedData(null); setAutoName(""); setAutoEmail(""); }} className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-all hover:brightness-110">
+          <button
+            onClick={() => {
+              setShowAutoRegister(true);
+              setPastedText("");
+              setParsedData(null);
+              setAutoName("");
+              setAutoEmail("");
+              setAutoReferredByCode("");
+            }}
+            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-all hover:brightness-110"
+          >
             <ClipboardPaste size={16} /> Cadastro Automático
           </button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:brightness-110">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:brightness-110"
+          >
             <Plus size={16} /> Criar Usuário
           </button>
         </div>
@@ -368,10 +456,17 @@ const AdminUsersPage = () => {
       <AnimatePresence>
         {showCreate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground">Criar Usuário</h2>
-                <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
+                </button>
               </div>
               <div className="space-y-3">
                 {[
@@ -383,20 +478,34 @@ const AdminUsersPage = () => {
                   { key: "iptv_server", label: "Servidor IPTV", type: "text" },
                   { key: "iptv_app", label: "App IPTV", type: "text" },
                   { key: "iptv_expiry", label: "Vencimento IPTV", type: "date" },
+                  { key: "referred_by_code", label: "Código de indicação recebido (opcional)", type: "text" },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="mb-1 block text-xs text-muted-foreground">{f.label}</label>
-                    <input type={f.type} value={(form as any)[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                    <input
+                      type={f.type}
+                      value={(form as any)[f.key]}
+                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    />
                   </div>
                 ))}
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">Função</label>
-                  <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
                     <option value="client">Cliente</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
-                <button onClick={createUser} disabled={creating} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
+                <button
+                  onClick={createUser}
+                  disabled={creating}
+                  className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
+                >
                   {creating ? "Criando..." : "Criar Usuário"}
                 </button>
               </div>
@@ -409,24 +518,40 @@ const AdminUsersPage = () => {
       <AnimatePresence>
         {showAutoRegister && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
                   <ClipboardPaste size={20} className="text-primary" /> Cadastro Automático
                 </h2>
-                <button onClick={() => setShowAutoRegister(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowAutoRegister(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
 
               <p className="mb-4 text-sm text-muted-foreground">
-                Cole o texto com as credenciais IPTV do cliente abaixo. O sistema irá extrair automaticamente os dados necessários.
+                Cole o texto com as credenciais IPTV do cliente abaixo. O sistema irá extrair automaticamente os dados
+                necessários.
               </p>
 
               {/* Step 1: Paste */}
               <div className="mb-4">
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">📋 Texto com credenciais IPTV</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  📋 Texto com credenciais IPTV
+                </label>
                 <textarea
                   value={pastedText}
-                  onChange={(e) => { setPastedText(e.target.value); setParsedData(null); }}
+                  onChange={(e) => {
+                    setPastedText(e.target.value);
+                    setParsedData(null);
+                  }}
                   rows={6}
                   placeholder="Cole aqui o texto com as informações do cliente (usuário, senha, DNS, vencimento, etc.)..."
                   className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none font-mono"
@@ -442,14 +567,22 @@ const AdminUsersPage = () => {
                           toast({ title: "📋 Texto colado da área de transferência!" });
                         }
                       } catch {
-                        toast({ title: "Erro", description: "Permita o acesso à área de transferência", variant: "destructive" });
+                        toast({
+                          title: "Erro",
+                          description: "Permita o acesso à área de transferência",
+                          variant: "destructive",
+                        });
                       }
                     }}
                     className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:brightness-110"
                   >
                     <ClipboardPaste size={14} /> Colar
                   </button>
-                  <button onClick={handlePasteAnalyze} disabled={!pastedText.trim()} className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:brightness-110 disabled:opacity-50">
+                  <button
+                    onClick={handlePasteAnalyze}
+                    disabled={!pastedText.trim()}
+                    className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:brightness-110 disabled:opacity-50"
+                  >
                     🔍 Analisar Texto
                   </button>
                 </div>
@@ -500,17 +633,54 @@ const AdminUsersPage = () => {
                       <h3 className="text-sm font-semibold text-foreground">Dados do Cliente</h3>
                       <div>
                         <label className="mb-1 block text-xs text-muted-foreground">Nome do cliente *</label>
-                        <input type="text" value={autoName} onChange={(e) => setAutoName(e.target.value)} placeholder="Nome completo do cliente" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                        <input
+                          type="text"
+                          value={autoName}
+                          onChange={(e) => setAutoName(e.target.value)}
+                          placeholder="Nome completo do cliente"
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
                       </div>
                       <div>
                         <label className="mb-1 block text-xs text-muted-foreground">E-mail (opcional)</label>
-                        <input type="email" value={autoEmail} onChange={(e) => setAutoEmail(e.target.value)} placeholder="email@exemplo.com" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                        <input
+                          type="email"
+                          value={autoEmail}
+                          onChange={(e) => setAutoEmail(e.target.value)}
+                          placeholder="email@exemplo.com"
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Gift size={13} /> Código de indicação recebido (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={autoReferredByCode}
+                          onChange={(e) => setAutoReferredByCode(e.target.value.toUpperCase())}
+                          placeholder="Ex: ALEX1234"
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm uppercase text-foreground focus:border-primary focus:outline-none"
+                        />
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          Quando esse cliente fizer o 1º pagamento, o dono do código ganha 1 mês grátis automaticamente.
+                        </p>
                       </div>
                       <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                        💡 Login: <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong> {parsedData.password || parsedData.username}
-                        {!autoEmail && <span> · E-mail auto: <strong>{parsedData.username}@iptv.bitz</strong></span>}
+                        💡 Login: <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong>{" "}
+                        {parsedData.password || parsedData.username}
+                        {!autoEmail && (
+                          <span>
+                            {" "}
+                            · E-mail auto: <strong>{parsedData.username}@iptv.bitz</strong>
+                          </span>
+                        )}
                       </div>
-                      <button onClick={handleAutoRegister} disabled={autoCreating || !autoName.trim()} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
+                      <button
+                        onClick={handleAutoRegister}
+                        disabled={autoCreating || !autoName.trim()}
+                        className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
+                      >
                         {autoCreating ? "Cadastrando..." : "✅ Cadastrar Cliente"}
                       </button>
                     </div>
@@ -526,20 +696,58 @@ const AdminUsersPage = () => {
       <AnimatePresence>
         {showBalanceAdjust && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-sm rounded-2xl p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-sm rounded-2xl p-6"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground">Ajustar Saldo</h2>
-                <button onClick={() => setShowBalanceAdjust(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowBalanceAdjust(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <p className="mb-2 text-sm text-muted-foreground">{showBalanceAdjust.name} · Saldo: R$ {Number(showBalanceAdjust.balance).toFixed(2)}</p>
+              <p className="mb-2 text-sm text-muted-foreground">
+                {showBalanceAdjust.name} · Saldo: R$ {Number(showBalanceAdjust.balance).toFixed(2)}
+              </p>
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <button onClick={() => setBalanceMode("adjust")} className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${balanceMode === "adjust" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>Adicionar/Remover</button>
-                  <button onClick={() => setBalanceMode("set")} className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${balanceMode === "set" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>Definir Valor</button>
+                  <button
+                    onClick={() => setBalanceMode("adjust")}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${balanceMode === "adjust" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+                  >
+                    Adicionar/Remover
+                  </button>
+                  <button
+                    onClick={() => setBalanceMode("set")}
+                    className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${balanceMode === "set" ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+                  >
+                    Definir Valor
+                  </button>
                 </div>
-                <input type="number" placeholder={balanceMode === "set" ? "Novo saldo exato" : "Valor (+ ou -)"} value={balanceAmount} onChange={(e) => setBalanceAmount(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-                <input placeholder="Observação (obrigatória)" value={balanceDesc} onChange={(e) => setBalanceDesc(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-                <button onClick={adjustBalance} className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110">Aplicar</button>
+                <input
+                  type="number"
+                  placeholder={balanceMode === "set" ? "Novo saldo exato" : "Valor (+ ou -)"}
+                  value={balanceAmount}
+                  onChange={(e) => setBalanceAmount(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+                <input
+                  placeholder="Observação (obrigatória)"
+                  value={balanceDesc}
+                  onChange={(e) => setBalanceDesc(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  onClick={adjustBalance}
+                  className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:brightness-110"
+                >
+                  Aplicar
+                </button>
               </div>
             </motion.div>
           </div>
@@ -550,23 +758,51 @@ const AdminUsersPage = () => {
       <AnimatePresence>
         {showBulkAdjust && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-md rounded-2xl p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-md rounded-2xl p-6"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground">Ajuste em Massa</h2>
-                <button onClick={() => setShowBulkAdjust(false)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowBulkAdjust(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
               <p className="mb-4 text-sm text-muted-foreground">{selectedUsers.size} usuários selecionados</p>
               <div className="space-y-3">
                 <div className="flex gap-2">
                   {(["add", "remove", "set"] as const).map((m) => (
-                    <button key={m} onClick={() => setBulkMode(m)} className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${bulkMode === m ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+                    <button
+                      key={m}
+                      onClick={() => setBulkMode(m)}
+                      className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium ${bulkMode === m ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+                    >
                       {m === "add" ? "Adicionar" : m === "remove" ? "Remover" : "Definir"}
                     </button>
                   ))}
                 </div>
-                <input type="number" placeholder="Valor" value={bulkAmount} onChange={(e) => setBulkAmount(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-                <input placeholder="Observação (obrigatória)" value={bulkDesc} onChange={(e) => setBulkDesc(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-                <button onClick={bulkAdjust} className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110">
+                <input
+                  type="number"
+                  placeholder="Valor"
+                  value={bulkAmount}
+                  onChange={(e) => setBulkAmount(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+                <input
+                  placeholder="Observação (obrigatória)"
+                  value={bulkDesc}
+                  onChange={(e) => setBulkDesc(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+                <button
+                  onClick={bulkAdjust}
+                  className="w-full rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:brightness-110"
+                >
                   Aplicar para {selectedUsers.size} usuários
                 </button>
               </div>
@@ -579,21 +815,50 @@ const AdminUsersPage = () => {
       <AnimatePresence>
         {showUserHistory && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-lg rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-lg rounded-2xl p-6 max-h-[85vh] overflow-y-auto"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground">Histórico · {showUserHistory.name}</h2>
-                <button onClick={() => setShowUserHistory(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button
+                  onClick={() => setShowUserHistory(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <p className="mb-4 text-sm text-muted-foreground">Saldo atual: R$ {Number(showUserHistory.balance).toFixed(2)} · Total ganho: R$ {Number(showUserHistory.total_earned).toFixed(2)}</p>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Saldo atual: R$ {Number(showUserHistory.balance).toFixed(2)} · Total ganho: R${" "}
+                {Number(showUserHistory.total_earned).toFixed(2)}
+              </p>
               <div className="mb-4 flex flex-wrap gap-2">
                 {["all", "credit", "debit", "withdrawal", "mission", "referral"].map((f) => (
-                  <button key={f} onClick={() => setHistoryFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-medium ${historyFilter === f ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}>
-                    {f === "all" ? "Todos" : f === "credit" ? "Crédito" : f === "debit" ? "Débito" : f === "withdrawal" ? "Saque" : f === "mission" ? "Missão" : "Indicação"}
+                  <button
+                    key={f}
+                    onClick={() => setHistoryFilter(f)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium ${historyFilter === f ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"}`}
+                  >
+                    {f === "all"
+                      ? "Todos"
+                      : f === "credit"
+                        ? "Crédito"
+                        : f === "debit"
+                          ? "Débito"
+                          : f === "withdrawal"
+                            ? "Saque"
+                            : f === "mission"
+                              ? "Missão"
+                              : "Indicação"}
                   </button>
                 ))}
               </div>
               <div className="space-y-2">
-                {filteredHistory.length === 0 && <p className="text-sm text-muted-foreground">Nenhum registro encontrado.</p>}
+                {filteredHistory.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nenhum registro encontrado.</p>
+                )}
                 {filteredHistory.map((item) => {
                   const isDebit = item.type === "debit" || item.type === "withdrawal";
                   return (
@@ -601,8 +866,15 @@ const AdminUsersPage = () => {
                       <div>
                         <p className="text-sm font-medium text-foreground">{item.description}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDateBRT(item.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          {" · "}<span className="rounded bg-muted px-1 py-0.5 text-[10px]">{item.type}</span>
+                          {formatDateBRT(item.created_at, {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          {" · "}
+                          <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{item.type}</span>
                         </p>
                       </div>
                       <span className={`text-sm font-semibold ${isDebit ? "text-destructive" : "text-success"}`}>
@@ -618,41 +890,67 @@ const AdminUsersPage = () => {
       </AnimatePresence>
 
       {/* Search */}
-      
+
       {/* Edit User Modal */}
       <AnimatePresence>
         {editUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
                   <Pencil size={18} className="text-primary" /> Editar Cliente · {editUser.name}
                 </h2>
-                <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground"><X size={20} /></button>
+                <button onClick={() => setEditUser(null)} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
+                </button>
               </div>
 
               <div className="space-y-4">
                 {/* Dados Pessoais */}
                 <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">👤 Dados Pessoais</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    👤 Dados Pessoais
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Nome</label>
-                      <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Username</label>
-                      <input value={editForm.username} disabled className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed" />
+                      <input
+                        value={editForm.username}
+                        disabled
+                        className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Chave PIX</label>
-                      <input value={editForm.pix_key} onChange={(e) => setEditForm({ ...editForm, pix_key: e.target.value })} placeholder="CPF, telefone, e-mail..." className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.pix_key}
+                        onChange={(e) => setEditForm({ ...editForm, pix_key: e.target.value })}
+                        placeholder="CPF, telefone, e-mail..."
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Status Plataforma</label>
-                      <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      >
                         <option value="active">Ativo</option>
                         <option value="suspended">Suspenso</option>
                         <option value="blocked">Bloqueado</option>
@@ -667,37 +965,66 @@ const AdminUsersPage = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Usuário IPTV</label>
-                      <input value={editForm.iptv_user} onChange={(e) => setEditForm({ ...editForm, iptv_user: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_user}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_user: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Senha IPTV</label>
-                      <input value={editForm.iptv_password} onChange={(e) => setEditForm({ ...editForm, iptv_password: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_password}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_password: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Servidor</label>
-                      <input value={editForm.iptv_server} onChange={(e) => setEditForm({ ...editForm, iptv_server: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_server}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_server: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">App IPTV</label>
-                      <input value={editForm.iptv_app} onChange={(e) => setEditForm({ ...editForm, iptv_app: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_app}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_app: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">App TV</label>
-                      <input value={editForm.iptv_tv_app} onChange={(e) => setEditForm({ ...editForm, iptv_tv_app: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_tv_app}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_tv_app: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Código Cliente</label>
-                      <input value={editForm.iptv_client_code} onChange={(e) => setEditForm({ ...editForm, iptv_client_code: e.target.value })} placeholder="BTZ-XXXXX" className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        value={editForm.iptv_client_code}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_client_code: e.target.value })}
+                        placeholder="BTZ-XXXXX"
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Status IPTV</label>
-                      <select value={editForm.iptv_status} onChange={(e) => setEditForm({ ...editForm, iptv_status: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none">
+                      <select
+                        value={editForm.iptv_status}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_status: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      >
                         <option value="active">Ativo</option>
                         <option value="blocked">Bloqueado</option>
                         <option value="maintenance">Em Manutenção</option>
@@ -710,7 +1037,12 @@ const AdminUsersPage = () => {
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Vencimento IPTV</label>
-                      <input type="date" value={editForm.iptv_expiry} onChange={(e) => setEditForm({ ...editForm, iptv_expiry: e.target.value })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        type="date"
+                        value={editForm.iptv_expiry}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_expiry: e.target.value })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                   </div>
                 </div>
@@ -721,23 +1053,50 @@ const AdminUsersPage = () => {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Valor Mensal (R$)</label>
-                      <input type="number" step="0.01" value={editForm.iptv_monthly_value} onChange={(e) => setEditForm({ ...editForm, iptv_monthly_value: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editForm.iptv_monthly_value}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_monthly_value: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Conexões</label>
-                      <input type="number" min="1" value={editForm.iptv_connections} onChange={(e) => setEditForm({ ...editForm, iptv_connections: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        type="number"
+                        min="1"
+                        value={editForm.iptv_connections}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_connections: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs text-muted-foreground">Dia Vencimento</label>
-                      <input type="number" min="1" max="28" value={editForm.iptv_due_day} onChange={(e) => setEditForm({ ...editForm, iptv_due_day: Number(e.target.value) })} className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                      <input
+                        type="number"
+                        min="1"
+                        max="28"
+                        value={editForm.iptv_due_day}
+                        onChange={(e) => setEditForm({ ...editForm, iptv_due_day: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                     </div>
                   </div>
                   <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                    💡 Valor total: <strong>R$ {(Number(editForm.iptv_monthly_value) * Number(editForm.iptv_connections)).toFixed(2)}</strong>/mês
+                    💡 Valor total:{" "}
+                    <strong>
+                      R$ {(Number(editForm.iptv_monthly_value) * Number(editForm.iptv_connections)).toFixed(2)}
+                    </strong>
+                    /mês
                   </div>
                 </div>
 
-                <button onClick={saveEditUser} disabled={editSaving} className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50">
+                <button
+                  onClick={saveEditUser}
+                  disabled={editSaving}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:brightness-110 disabled:opacity-50"
+                >
                   <Save size={16} />
                   {editSaving ? "Salvando..." : "Salvar Alterações"}
                 </button>
@@ -750,7 +1109,12 @@ const AdminUsersPage = () => {
       {/* Search */}
       <div className="relative mb-6">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-lg border border-border bg-muted/50 py-3 pl-10 pr-4 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" placeholder="Buscar por nome ou usuário..." />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-lg border border-border bg-muted/50 py-3 pl-10 pr-4 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          placeholder="Buscar por nome ou usuário..."
+        />
       </div>
 
       {/* Table */}
@@ -760,7 +1124,12 @@ const AdminUsersPage = () => {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-3 py-3 text-left">
-                  <input type="checkbox" checked={selectedUsers.size === filtered.length && filtered.length > 0} onChange={selectAll} className="rounded border-border" />
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.size === filtered.length && filtered.length > 0}
+                    onChange={selectAll}
+                    className="rounded border-border"
+                  />
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Código</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Usuário</th>
@@ -771,9 +1140,20 @@ const AdminUsersPage = () => {
             </thead>
             <tbody>
               {filtered.map((user, i) => (
-                <motion.tr key={user.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="border-b border-border/50 hover:bg-muted/20">
+                <motion.tr
+                  key={user.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.03 }}
+                  className="border-b border-border/50 hover:bg-muted/20"
+                >
                   <td className="px-3 py-3">
-                    <input type="checkbox" checked={selectedUsers.has(user.id)} onChange={() => toggleSelect(user.id)} className="rounded border-border" />
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.has(user.id)}
+                      onChange={() => toggleSelect(user.id)}
+                      className="rounded border-border"
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs font-semibold text-primary">{user.iptv_client_code}</span>
@@ -791,34 +1171,64 @@ const AdminUsersPage = () => {
                     )}
                   </td>
                   <td className="hidden px-4 py-3 sm:table-cell">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[user.status] || ""}`}>
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[user.status] || ""}`}
+                    >
                       {user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Bloqueado"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEditUser(user)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary" title="Editar">
+                      <button
+                        onClick={() => openEditUser(user)}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                        title="Editar"
+                      >
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => setShowBalanceAdjust(user)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Ajustar saldo">
+                      <button
+                        onClick={() => setShowBalanceAdjust(user)}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        title="Ajustar saldo"
+                      >
                         <DollarSign size={16} />
                       </button>
-                      <button onClick={() => viewHistory(user)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Histórico">
+                      <button
+                        onClick={() => viewHistory(user)}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        title="Histórico"
+                      >
                         <History size={16} />
                       </button>
-                      <button onClick={() => toggleFreeze(user.id, user.balance_frozen)} className={`rounded-lg p-1.5 ${user.balance_frozen ? "text-destructive" : "text-muted-foreground"} hover:bg-muted hover:text-foreground`} title={user.balance_frozen ? "Descongelar" : "Congelar"}>
+                      <button
+                        onClick={() => toggleFreeze(user.id, user.balance_frozen)}
+                        className={`rounded-lg p-1.5 ${user.balance_frozen ? "text-destructive" : "text-muted-foreground"} hover:bg-muted hover:text-foreground`}
+                        title={user.balance_frozen ? "Descongelar" : "Congelar"}
+                      >
                         <Snowflake size={16} />
                       </button>
                       {user.status === "archived" ? (
-                        <button onClick={() => reactivateUser(user.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-success/10 hover:text-success" title="Reativar">
+                        <button
+                          onClick={() => reactivateUser(user.id)}
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-success/10 hover:text-success"
+                          title="Reativar"
+                        >
                           <RotateCcw size={16} />
                         </button>
                       ) : (
                         <>
-                          <button onClick={() => updateStatus(user.id, user.status === "active" ? "suspended" : "active")} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title={user.status === "active" ? "Suspender" : "Ativar"}>
+                          <button
+                            onClick={() => updateStatus(user.id, user.status === "active" ? "suspended" : "active")}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            title={user.status === "active" ? "Suspender" : "Ativar"}
+                          >
                             <Ban size={16} />
                           </button>
-                          <button onClick={() => archiveUser(user.id)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Arquivar">
+                          <button
+                            onClick={() => archiveUser(user.id)}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            title="Arquivar"
+                          >
                             <Archive size={16} />
                           </button>
                         </>
