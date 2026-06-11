@@ -33,14 +33,15 @@ export function GlobalAnnouncementPopup() {
     if (!user?.id || isAdmin) return;
     if (popupRef.current) return;
 
-    const { data: announcements } = await supabase
+    const { data: announcementsRaw } = await supabase
       .from("announcements")
       .select(
-        "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency",
+        "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency" as any,
       )
       .eq("is_active", true)
       .order("created_at", { ascending: false });
-    if (!announcements || announcements.length === 0) return;
+    const announcements = (announcementsRaw || []) as any[];
+    if (announcements.length === 0) return;
 
     const { data: dismissed } = await supabase
       .from("announcement_dismissals")
