@@ -86,7 +86,11 @@ export function PWAUpdatePrompt() {
         className="w-full max-w-sm text-center"
       >
         <div className="mx-auto mb-6">
-          <img src={logoUrl} alt={appTitle} className="mx-auto h-20 w-20 rounded-2xl shadow-lg shadow-primary/20" />
+          <img
+            src={logoUrl}
+            alt={appTitle}
+            className="mx-auto h-20 w-20 rounded-2xl object-contain shadow-lg shadow-primary/20"
+          />
         </div>
 
         <motion.div

@@ -138,7 +138,7 @@ const LoginPage = () => {
             <img
               src={logoUrl}
               alt={appTitle}
-              className="relative h-20 w-20 rounded-2xl object-cover shadow-2xl ring-2 ring-primary/30"
+              className="relative h-20 w-20 rounded-2xl object-contain shadow-2xl ring-2 ring-primary/30"
             />
           </div>
           <h1 className="font-display text-2xl font-bold tracking-widest text-white">{appTitleUpper}</h1>

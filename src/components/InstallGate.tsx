@@ -153,7 +153,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
               style={{ width: 88, height: 88 }}
             >
-              <img src={logoUrl} alt={appTitle} className="h-full w-full object-cover" />
+              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain" />
             </div>
           </div>
         </motion.div>
@@ -314,7 +314,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-contain" />
                     </div>
                   </motion.div>
                 </div>
@@ -361,7 +361,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-contain" />
                     </div>
                   </motion.div>
                 </div>
@@ -420,7 +420,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               <div className="mt-1 flex items-center gap-2">
                 <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                   <div className="h-8 w-8 overflow-hidden rounded-xl border border-primary/30">
-                    <img src={logoUrl} alt="" className="h-full w-full object-cover" />
+                    <img src={logoUrl} alt="" className="h-full w-full object-contain" />
                   </div>
                 </motion.div>
                 <ChevronRight size={14} className="text-muted-foreground" />

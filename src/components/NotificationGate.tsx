@@ -74,7 +74,7 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
             className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
             style={{ width: 80, height: 80 }}
           >
-            <img src={logoUrl} alt={appTitle} className="h-full w-full object-cover" />
+            <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain" />
           </div>
         </div>
 

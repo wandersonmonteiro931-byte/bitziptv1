@@ -116,7 +116,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         {/* Mobile: Logo */}
         <div className="flex items-center gap-2 md:hidden">
-          <img src={logoUrl} alt={appTitle} className="h-8 w-8 rounded-lg object-cover" />
+          <img src={logoUrl} alt={appTitle} className="h-8 w-8 rounded-lg object-contain" />
           <span className="font-display text-xs font-bold tracking-wider text-foreground">{appTitleUpper}</span>
         </div>
         {/* Desktop: greeting */}
@@ -158,7 +158,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* === DESKTOP SIDEBAR === */}
       <aside className="fixed left-0 top-0 z-40 hidden h-full w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-          <img src={logoUrl} alt={appTitle} className="h-10 w-10 rounded-lg object-cover" />
+          <img src={logoUrl} alt={appTitle} className="h-10 w-10 rounded-lg object-contain" />
           <div>
             <h2 className="font-display text-sm font-bold tracking-wider text-foreground">{appTitleUpper}</h2>
             <p className="text-xs text-muted-foreground">{isAdmin ? "Administração" : "Fidelidade"}</p>

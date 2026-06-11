@@ -374,7 +374,7 @@ const AdminSettingsPage = () => {
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prévia</p>
             <div className="mx-auto h-24 w-24 overflow-hidden rounded-3xl border border-primary/30 bg-muted shadow-lg shadow-primary/10">
               {appLogoUrl ? (
-                <img src={appLogoUrl} alt={appName || "Logo"} className="h-full w-full object-cover" />
+                <img src={appLogoUrl} alt={appName || "Logo"} className="h-full w-full object-contain" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">Logo</div>
               )}
@@ -384,7 +384,7 @@ const AdminSettingsPage = () => {
             <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2">
               <div className="h-7 w-7 overflow-hidden rounded-lg bg-muted">
                 {appFaviconUrl ? (
-                  <img src={appFaviconUrl} alt="Favicon" className="h-full w-full object-cover" />
+                  <img src={appFaviconUrl} alt="Favicon" className="h-full w-full object-contain" />
                 ) : null}
               </div>
               <span className="text-xs text-muted-foreground">Ícone de instalação</span>
