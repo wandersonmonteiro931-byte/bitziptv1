@@ -87,7 +87,7 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/~oauth/, /^\/version\.json/],
-        globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,png,jpg,svg,woff2}"],
         globIgnores: ["**/push-sw.js", "**/service-worker.js"],
         runtimeCaching: [
           {

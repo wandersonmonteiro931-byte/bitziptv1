@@ -13,27 +13,21 @@ type RemoteVersion = {
 };
 
 const CHECK_INTERVAL_MS = 2500;
-const UPDATE_FLAG_KEY = "wmcflix_force_update_pending";
 
 function getCurrentBuild(): number {
   return Number(__BUILD_TIMESTAMP__ || 0);
 }
 
-async function clearOldPwaData() {
+async function clearPwaCaches() {
   if ("caches" in window) {
     const keys = await caches.keys();
     await Promise.all(keys.map((key) => caches.delete(key)));
-  }
-
-  if ("serviceWorker" in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(registrations.map((registration) => registration.unregister()));
   }
 }
 
 function buildReloadUrl() {
   const url = new URL(window.location.href);
-  url.searchParams.set("force_update", String(Date.now()));
+  url.searchParams.set("pwa_update", String(Date.now()));
   return url.toString();
 }
 
@@ -75,7 +69,7 @@ export function PWAUpdatePrompt() {
         forcePrompt(remoteTimestamp);
       }
     } catch {
-      // Sem internet ou deploy em propagação: tenta novamente no próximo intervalo.
+      // Se estiver sem internet ou em propagação, tenta novamente no próximo ciclo.
     }
   }, [forcePrompt, updating]);
 
@@ -110,19 +104,12 @@ export function PWAUpdatePrompt() {
       runChecks();
       intervalRef.current = setInterval(runChecks, CHECK_INTERVAL_MS);
 
-      const visibleCheck = () => {
+      document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "visible") runChecks();
-      };
+      });
 
-      document.addEventListener("visibilitychange", visibleCheck);
       window.addEventListener("focus", runChecks);
       window.addEventListener("online", runChecks);
-
-      return () => {
-        document.removeEventListener("visibilitychange", visibleCheck);
-        window.removeEventListener("focus", runChecks);
-        window.removeEventListener("online", runChecks);
-      };
     },
     onRegisterError(error) {
       console.error("SW registration error:", error);
@@ -135,7 +122,6 @@ export function PWAUpdatePrompt() {
     const handleControllerChange = () => {
       if (reloadingRef.current) return;
       reloadingRef.current = true;
-      sessionStorage.setItem(UPDATE_FLAG_KEY, "1");
       window.location.replace(buildReloadUrl());
     };
 
@@ -149,7 +135,6 @@ export function PWAUpdatePrompt() {
 
   const handleUpdate = async () => {
     setUpdating(true);
-    sessionStorage.setItem(UPDATE_FLAG_KEY, "1");
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -167,7 +152,7 @@ export function PWAUpdatePrompt() {
     }
 
     try {
-      await clearOldPwaData();
+      await clearPwaCaches();
     } catch {
       // Mesmo se falhar, recarrega com cache-buster.
     }
@@ -194,11 +179,7 @@ export function PWAUpdatePrompt() {
 
         <motion.div
           animate={{ rotate: updating ? 360 : [0, -8, 8, 0] }}
-          transition={{
-            duration: updating ? 1 : 0.75,
-            repeat: updating ? Infinity : Infinity,
-            repeatDelay: updating ? 0 : 1.2,
-          }}
+          transition={{ duration: updating ? 1 : 0.75, repeat: Infinity, repeatDelay: updating ? 0 : 1.2 }}
           className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-500/15"
         >
           {updating ? (
@@ -211,7 +192,7 @@ export function PWAUpdatePrompt() {
         <h2 className="text-xl font-bold text-white">Atualização obrigatória</h2>
 
         <p className="mt-2 text-sm leading-relaxed text-zinc-300">
-          Uma nova versão do sistema foi publicada. Atualize agora para continuar usando.
+          Uma nova versão foi publicada. Atualize agora para continuar usando o sistema.
         </p>
 
         {remoteBuild && <p className="mt-2 text-[10px] text-zinc-500">Nova versão detectada: {remoteBuild}</p>}
