@@ -1437,30 +1437,62 @@ export type Database = {
       }
       referrals: {
         Row: {
+          bonus_payment_id: string | null
           created_at: string
+          first_payment_id: string | null
           id: string
+          notes: string | null
           referred_id: string
           referrer_id: string
           reward_amount: number
+          reward_months: number
+          reward_type: string
+          rewarded_at: string | null
           status: string
         }
         Insert: {
+          bonus_payment_id?: string | null
           created_at?: string
+          first_payment_id?: string | null
           id?: string
+          notes?: string | null
           referred_id: string
           referrer_id: string
           reward_amount?: number
+          reward_months?: number
+          reward_type?: string
+          rewarded_at?: string | null
           status?: string
         }
         Update: {
+          bonus_payment_id?: string | null
           created_at?: string
+          first_payment_id?: string | null
           id?: string
+          notes?: string | null
           referred_id?: string
           referrer_id?: string
           reward_amount?: number
+          reward_months?: number
+          reward_type?: string
+          rewarded_at?: string | null
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "referrals_bonus_payment_id_fkey"
+            columns: ["bonus_payment_id"]
+            isOneToOne: false
+            referencedRelation: "iptv_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_first_payment_id_fkey"
+            columns: ["first_payment_id"]
+            isOneToOne: false
+            referencedRelation: "iptv_payments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "referrals_referred_id_fkey"
             columns: ["referred_id"]
@@ -1728,6 +1760,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      format_wmc_referral_code: { Args: { p_seq: number }; Returns: string }
+      generate_wmc_referral_code: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1736,6 +1770,7 @@ export type Database = {
         Returns: boolean
       }
       next_bitz_code: { Args: never; Returns: string }
+      wmc_referral_suffix: { Args: { p_group: number }; Returns: string }
     }
     Enums: {
       app_role: "admin" | "client"
