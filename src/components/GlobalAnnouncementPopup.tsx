@@ -8,12 +8,14 @@ interface AnnouncementData {
   title: string;
   body: string;
   bannerUrl?: string;
+  displayFrequency: "always" | "once";
 }
 
 export function GlobalAnnouncementPopup() {
   const { user, isAdmin } = useAuth();
   const [popup, setPopup] = useState<AnnouncementData | null>(null);
   const popupRef = useRef(popup);
+  const dismissedThisLoadRef = useRef<Set<string>>(new Set());
   popupRef.current = popup;
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
@@ -33,7 +35,9 @@ export function GlobalAnnouncementPopup() {
 
     const { data: announcements } = await supabase
       .from("announcements")
-      .select("id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at")
+      .select(
+        "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency",
+      )
       .eq("is_active", true)
       .order("created_at", { ascending: false });
     if (!announcements || announcements.length === 0) return;
@@ -45,7 +49,14 @@ export function GlobalAnnouncementPopup() {
     const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
 
     for (const a of announcements) {
-      if (dismissedIds.has(a.id)) continue;
+      const displayFrequency = (a.display_frequency || "once") as "always" | "once";
+
+      // "Sempre ao entrar": aparece a cada nova abertura/reload do app, mas não reabre na mesma tela após clicar Entendi.
+      if (dismissedThisLoadRef.current.has(a.id)) continue;
+
+      // "Uma vez": depois que o cliente clicar Entendi, não aparece mais até o admin resetar visualizações.
+      if (displayFrequency !== "always" && dismissedIds.has(a.id)) continue;
+
       if (a.schedule_at && new Date(a.schedule_at) > new Date()) continue;
       if (a.expires_at && new Date(a.expires_at) < new Date()) continue;
       if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
@@ -56,7 +67,7 @@ export function GlobalAnnouncementPopup() {
         await preloadImage(bannerUrl);
       }
 
-      setPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl });
+      setPopup({ id: a.id, title: a.title, body: a.body || "", bannerUrl, displayFrequency });
       break;
     }
   }, [user?.id, isAdmin, preloadImage]);
@@ -73,16 +84,23 @@ export function GlobalAnnouncementPopup() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [loadAnnouncements, user?.id, isAdmin]);
 
   const dismiss = async () => {
     if (popup && user?.id) {
-      await supabase.from("announcement_dismissals").insert({
-        announcement_id: popup.id,
-        user_id: user.id,
-      });
+      dismissedThisLoadRef.current.add(popup.id);
+
+      if (popup.displayFrequency !== "always") {
+        await supabase.from("announcement_dismissals").insert({
+          announcement_id: popup.id,
+          user_id: user.id,
+        });
+      }
     }
+
     setPopup(null);
     setTimeout(() => loadAnnouncements(), 500);
   };
@@ -91,22 +109,32 @@ export function GlobalAnnouncementPopup() {
 
   return (
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-5">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-          className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-5"
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+        >
           {popup.bannerUrl && (
-            <img src={popup.bannerUrl} alt={popup.title}
-              className="mb-4 w-full rounded-2xl object-contain" />
+            <img
+              src={popup.bannerUrl}
+              alt={popup.title}
+              className="mb-4 h-auto max-h-[70vh] w-auto max-w-full rounded-2xl object-contain mx-auto"
+            />
           )}
-          {popup.title && (
-            <h3 className="text-lg font-bold text-foreground mb-2">{popup.title}</h3>
-          )}
+          {popup.title && <h3 className="text-lg font-bold text-foreground mb-2">{popup.title}</h3>}
           {popup.body && (
             <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{popup.body}</p>
           )}
-          <button onClick={dismiss}
-            className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
+          <button
+            onClick={dismiss}
+            className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+          >
             Entendi
           </button>
         </motion.div>
