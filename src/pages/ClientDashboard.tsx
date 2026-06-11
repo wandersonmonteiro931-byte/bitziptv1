@@ -999,8 +999,6 @@ const ClientDashboard = () => {
   const [supportInfo, setSupportInfo] = useState<any>(null);
   const [tvApps, setTvApps] = useState<any[]>([]);
   const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
-  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
-  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
   const [pendingFutureExpiry, setPendingFutureExpiry] = useState<string | null>(null);
   const [trustRequesting, setTrustRequesting] = useState(false);
   const [trustCooldown, setTrustCooldown] = useState(false);
