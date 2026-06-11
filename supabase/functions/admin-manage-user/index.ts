@@ -214,6 +214,16 @@ Deno.serve(async (req) => {
           }
         }
 
+        // REGRA FIXA: senha de login sempre igual à Senha IPTV.
+        if (typeof updateData.iptv_password === "string" && updateData.iptv_password.trim()) {
+          const { error: authPwdError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+            password: updateData.iptv_password.trim(),
+          });
+          if (authPwdError) {
+            throw new Error(`Erro ao atualizar senha do cliente: ${authPwdError.message}`);
+          }
+        }
+
         const { error } = await supabaseAdmin.from("profiles").update(updateData).eq("id", user_id);
         if (error) throw new Error(error.message);
 
