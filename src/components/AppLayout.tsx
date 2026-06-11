@@ -149,7 +149,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
         {isAdmin && (
-          <div className="flex items-center gap-1 rounded-full bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary">
+          <div className="flex items-center gap-1 rounded-full bg-red-500/15 px-3 py-1.5 text-xs font-bold text-red-500">
             <Shield size={13} /> Admin
           </div>
         )}
@@ -175,7 +175,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                       isActive
-                        ? "bg-primary/15 text-primary glow-border"
+                        ? "bg-red-500/15 text-red-500 border border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.12)]"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     )}
                   >
@@ -216,7 +216,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   to={link.to}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground",
+                    isActive ? "text-red-500" : "text-muted-foreground",
                   )}
                 >
                   <link.icon size={20} />
@@ -251,7 +251,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   to={link.to}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground",
+                    isActive ? "text-red-500" : "text-muted-foreground",
                   )}
                 >
                   <link.icon size={20} />
