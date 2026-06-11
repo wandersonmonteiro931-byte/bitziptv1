@@ -3,11 +3,37 @@ import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { GlobalAnnouncementPopup } from "@/components/GlobalAnnouncementPopup";
-import { Wallet, LayoutDashboard, Target, Users, History, Tv, Menu, X, Shield, Settings, LogOut, Gift, Megaphone, BarChart3, Diamond, Gamepad2, Ticket, Package, CupSoda, CircleDot, Brain, Image, MonitorPlay, Bell, AlertCircle } from "lucide-react";
+import {
+  Wallet,
+  LayoutDashboard,
+  Target,
+  Users,
+  History,
+  Tv,
+  Menu,
+  X,
+  Shield,
+  Settings,
+  LogOut,
+  Gift,
+  Megaphone,
+  BarChart3,
+  Diamond,
+  Gamepad2,
+  Ticket,
+  Package,
+  CupSoda,
+  CircleDot,
+  Brain,
+  Image,
+  MonitorPlay,
+  Bell,
+  AlertCircle,
+} from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import logo from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 const clientLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
@@ -73,6 +99,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
+  const appTitleUpper = appTitle.toUpperCase();
   const balance = Number(user?.balance || 0);
   const isFrozen = user?.balance_frozen;
   const canWithdraw = balance >= 30 && !isFrozen;
@@ -81,19 +110,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
       {/* === TOP HEADER BAR === */}
-      <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-3 md:left-64" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+      <header
+        className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-3 md:left-64"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(3.5rem + env(safe-area-inset-top, 0px))" }}
+      >
         {/* Mobile: Logo */}
         <div className="flex items-center gap-2 md:hidden">
-          <img src={logo} alt="Bitz IPTV" className="h-8 w-8 rounded-lg object-cover" />
-          <span className="font-display text-xs font-bold tracking-wider text-foreground">BITZ IPTV</span>
+          <img src={logoUrl} alt={appTitle} className="h-8 w-8 rounded-lg object-cover" />
+          <span className="font-display text-xs font-bold tracking-wider text-foreground">{appTitleUpper}</span>
         </div>
         {/* Desktop: greeting */}
         <div className="hidden md:block">
           <p className="text-sm text-muted-foreground">
             {isAdmin ? (
-              <span className="flex items-center gap-1"><Shield size={12} /> Administrador</span>
+              <span className="flex items-center gap-1">
+                <Shield size={12} /> Administrador
+              </span>
             ) : (
-              <>Olá, <span className="font-semibold text-foreground">{user?.name?.split(" ")[0]}</span></>
+              <>
+                Olá, <span className="font-semibold text-foreground">{user?.name?.split(" ")[0]}</span>
+              </>
             )}
           </p>
         </div>
@@ -104,7 +140,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <button className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
               <Bell size={18} />
             </button>
-            <button onClick={() => navigate("/iptv-info")} className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+            <button
+              onClick={() => navigate("/iptv-info")}
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
               <Settings size={18} />
             </button>
           </div>
@@ -119,9 +158,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* === DESKTOP SIDEBAR === */}
       <aside className="fixed left-0 top-0 z-40 hidden h-full w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-          <img src={logo} alt="Bitz IPTV" className="h-10 w-10 rounded-lg object-cover" />
+          <img src={logoUrl} alt={appTitle} className="h-10 w-10 rounded-lg object-cover" />
           <div>
-            <h2 className="font-display text-sm font-bold tracking-wider text-foreground">BITZ IPTV</h2>
+            <h2 className="font-display text-sm font-bold tracking-wider text-foreground">{appTitleUpper}</h2>
             <p className="text-xs text-muted-foreground">{isAdmin ? "Administração" : "Fidelidade"}</p>
           </div>
         </div>
@@ -137,7 +176,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                       isActive
                         ? "bg-primary/15 text-primary glow-border"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     )}
                   >
                     <link.icon size={18} />
@@ -164,7 +203,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       {/* === MOBILE BOTTOM NAV === */}
       {!isAdmin && (
-        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-sidebar md:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-sidebar md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
           <div className="flex items-stretch">
             {clientBottomNav.map((link) => {
               const isActive = location.pathname === link.to;
@@ -174,7 +216,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   to={link.to}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground"
+                    isActive ? "text-primary" : "text-muted-foreground",
                   )}
                 >
                   <link.icon size={20} />
@@ -187,7 +229,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               onClick={() => setMenuOpen(!menuOpen)}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                menuOpen ? "text-primary" : "text-muted-foreground"
+                menuOpen ? "text-primary" : "text-muted-foreground",
               )}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -209,7 +251,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   to={link.to}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground"
+                    isActive ? "text-primary" : "text-muted-foreground",
                   )}
                 >
                   <link.icon size={20} />
@@ -221,7 +263,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               onClick={() => setMenuOpen(!menuOpen)}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                menuOpen ? "text-primary" : "text-muted-foreground"
+                menuOpen ? "text-primary" : "text-muted-foreground",
               )}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -234,7 +276,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* === MOBILE MENU OVERLAY === */}
       {menuOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm md:hidden" onClick={() => setMenuOpen(false)} />
+          <div
+            className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm md:hidden"
+            onClick={() => setMenuOpen(false)}
+          />
           <div className="fixed bottom-14 left-0 right-0 z-50 rounded-t-2xl border-t border-border bg-sidebar p-4 md:hidden">
             <div className="mb-3 rounded-lg bg-muted/50 p-3">
               <p className="text-sm font-medium text-foreground">{user?.name}</p>
@@ -250,7 +295,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                       onClick={() => setMenuOpen(false)}
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                        isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent"
+                        isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground hover:bg-sidebar-accent",
                       )}
                     >
                       <link.icon size={18} />
@@ -261,7 +306,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
               })}
             </ul>
             <button
-              onClick={() => { setMenuOpen(false); logout(); }}
+              onClick={() => {
+                setMenuOpen(false);
+                logout();
+              }}
               className="mt-3 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-destructive transition-colors hover:bg-destructive/10"
             >
               <LogOut size={16} /> Sair
@@ -271,7 +319,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* === MAIN CONTENT === */}
-      <main className="md:ml-64" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))', paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <main
+        className="md:ml-64"
+        style={{
+          paddingTop: "calc(3.5rem + env(safe-area-inset-top, 0px))",
+          paddingBottom: "calc(5rem + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
         <div className="p-4 md:p-6">{children}</div>
       </main>
 

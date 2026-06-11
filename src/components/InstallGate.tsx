@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import logoBitz from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -62,6 +62,9 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [installing, setInstalling] = useState(false);
   const [adminBypass, setAdminBypass] = useState(false);
   const checkedRef = useRef(false);
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
+  const appTitleUpper = appTitle.toUpperCase();
 
   useEffect(() => {
     if (checkedRef.current) return;
@@ -150,7 +153,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
               style={{ width: 88, height: 88 }}
             >
-              <img src={logoBitz} alt="Bitz IPTV" className="h-full w-full object-cover" />
+              <img src={logoUrl} alt={appTitle} className="h-full w-full object-cover" />
             </div>
           </div>
         </motion.div>
@@ -161,7 +164,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           transition={{ delay: 0.15 }}
           className="mb-1 text-center"
         >
-          <h1 className="font-display text-xl font-bold tracking-wider text-foreground">BITZ IPTV</h1>
+          <h1 className="font-display text-xl font-bold tracking-wider text-foreground">{appTitleUpper}</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Programa Oficial de Fidelidade</p>
         </motion.div>
 
@@ -311,7 +314,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-cover" />
                     </div>
                   </motion.div>
                 </div>
@@ -358,7 +361,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-cover" />
                     </div>
                   </motion.div>
                 </div>
@@ -397,7 +400,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/40">
             <Shield size={9} /> Conexão segura · Dados criptografados
           </div>
-          <p className="text-[10px] text-muted-foreground/25">© Bitz IPTV 2026 · Todos os direitos reservados</p>
+          <p className="text-[10px] text-muted-foreground/25">© {appTitle} 2026 · Todos os direitos reservados</p>
         </motion.div>
       </div>
 
@@ -417,11 +420,11 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               <div className="mt-1 flex items-center gap-2">
                 <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                   <div className="h-8 w-8 overflow-hidden rounded-xl border border-primary/30">
-                    <img src={logoBitz} alt="" className="h-full w-full object-cover" />
+                    <img src={logoUrl} alt="" className="h-full w-full object-cover" />
                   </div>
                 </motion.div>
                 <ChevronRight size={14} className="text-muted-foreground" />
-                <span className="text-xs font-semibold text-foreground">Abra o Bitz IPTV</span>
+                <span className="text-xs font-semibold text-foreground">Abra o {appTitle}</span>
               </div>
             </div>
           ) : showManualSteps ? (

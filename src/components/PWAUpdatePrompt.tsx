@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
-import logoBitz from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 declare const __BUILD_TIMESTAMP__: number;
 const UPDATED_BUILD_KEY = "pwa_updated_build";
@@ -15,6 +15,8 @@ function isCurrentBuild(): boolean {
 
 export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
   const [updating, setUpdating] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const suppressRef = useRef(isCurrentBuild());
@@ -84,7 +86,7 @@ export function PWAUpdatePrompt() {
         className="w-full max-w-sm text-center"
       >
         <div className="mx-auto mb-6">
-          <img src={logoBitz} alt="Bitz IPTV" className="mx-auto h-20 w-20 rounded-2xl shadow-lg shadow-primary/20" />
+          <img src={logoUrl} alt={appTitle} className="mx-auto h-20 w-20 rounded-2xl shadow-lg shadow-primary/20" />
         </div>
 
         <motion.div

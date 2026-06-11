@@ -1,71 +1,62 @@
-// ═══════════════════════════════════════════════════════════════
-// BITZ IPTV — PUSH NOTIFICATION HANDLERS
-// This code is PREPENDED to sw.js by the build plugin,
-// ensuring handlers are registered SYNCHRONOUSLY at the TOP LEVEL
-// before any Workbox module loading (which is async).
-// ═══════════════════════════════════════════════════════════════
+// PUSH NOTIFICATION HANDLERS
+// Mantém título/ícone das notificações compatíveis com a identidade configurável do app.
+var APP_BRANDING_CACHE = {
+  appName: "Bitz IPTV",
+  appShortName: "Bitz IPTV",
+  appDescription: "Bitz IPTV - Programa de Fidelidade",
+  logoUrl: "/logo-bitz.jpg",
+  faviconUrl: "/logo-bitz.jpg",
+};
+
+self.addEventListener("message", function (event) {
+  if (!event.data || event.data.type !== "APP_BRANDING_UPDATED") return;
+  APP_BRANDING_CACHE = Object.assign({}, APP_BRANDING_CACHE, event.data.branding || {});
+});
 
 self.addEventListener("push", function (event) {
-  event.waitUntil(
-    (function () {
-      var title = "Bitz IPTV";
-      var body = "Nova notificação";
-      var icon = "/logo-bitz.jpg";
-      var badge = "/logo-bitz.jpg";
-      var url = "/";
+  var data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: event.data ? event.data.text() : "Nova notificação" };
+  }
 
-      if (event.data) {
-        try {
-          var rawText = event.data.text();
-          if (rawText) {
-            try {
-              var data = JSON.parse(rawText);
-              title = data.title || title;
-              body = data.body || data.message || body;
-              icon = data.icon || icon;
-              badge = data.badge || badge;
-              if (data.data && data.data.url) url = data.data.url;
-            } catch (e) {
-              body = rawText;
-            }
-          }
-        } catch (e) {
-          // stream unavailable — show default notification
-        }
-      }
+  var title = data.title || APP_BRANDING_CACHE.appName || "Nova notificação";
+  var icon = data.icon || APP_BRANDING_CACHE.faviconUrl || APP_BRANDING_CACHE.logoUrl || "/logo-bitz.jpg";
+  var badge = data.badge || APP_BRANDING_CACHE.faviconUrl || APP_BRANDING_CACHE.logoUrl || "/logo-bitz.jpg";
 
-      return self.registration.showNotification(title, {
-        body: body,
-        icon: icon,
-        badge: badge,
-        vibrate: [200, 100, 200],
-        tag: "bitz-" + Date.now(),
-        renotify: true,
-        requireInteraction: true,
-        data: { url: url }
-      });
-    })()
-  );
+  var options = {
+    body: data.body || "",
+    icon: icon,
+    badge: badge,
+    data: data.data || { url: data.url || "/" },
+    vibrate: [100, 50, 100],
+    requireInteraction: !!data.requireInteraction,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || "/";
+
+  var targetUrl = "/";
+  try {
+    targetUrl =
+      (event.notification.data && (event.notification.data.url || event.notification.data.click_action)) || "/";
+  } catch (e) {}
+
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (windowClients) {
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
-        if (client.url.indexOf(self.location.origin) !== -1 && "focus" in client) {
-          client.navigate(url);
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i += 1) {
+        var client = clientList[i];
+        if (client.url && "focus" in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
-      return self.clients.openWindow(url);
-    })
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+      return undefined;
+    }),
   );
 });
-
-// ═══════════════════════════════════════════════════════════════
-// END OF PUSH HANDLERS — Workbox code follows below
-// ═══════════════════════════════════════════════════════════════
-

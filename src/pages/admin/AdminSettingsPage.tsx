@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { normalizeAppBranding, saveStoredAppBranding } from "@/hooks/useAppBranding";
+import { normalizeAppBranding, previewAppBranding, saveStoredAppBranding } from "@/hooks/useAppBranding";
 
 const AdminSettingsPage = () => {
   const { toast } = useToast();
@@ -20,6 +20,7 @@ const AdminSettingsPage = () => {
   const [appFaviconUrl, setAppFaviconUrl] = useState("");
   const [savingBranding, setSavingBranding] = useState(false);
   const [uploadingBranding, setUploadingBranding] = useState<"logo" | "favicon" | null>(null);
+  const [brandingLoaded, setBrandingLoaded] = useState(false);
 
   // Provider & observation
   const [supportSettings, setSupportSettings] = useState<any>(null);
@@ -43,6 +44,7 @@ const AdminSettingsPage = () => {
         setAppLogoUrl(branding.logoUrl);
         setAppFaviconUrl(branding.faviconUrl);
         saveStoredAppBranding(branding);
+        setBrandingLoaded(true);
       }
       if (ss.data) {
         setSupportSettings(ss.data);
@@ -51,6 +53,18 @@ const AdminSettingsPage = () => {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!brandingLoaded) return;
+
+    previewAppBranding({
+      appName: appName.trim() || "Bitz IPTV",
+      appShortName: appShortName.trim() || appName.trim() || "Bitz IPTV",
+      appDescription: appDescription.trim() || `${appName.trim() || "Bitz IPTV"} - Programa de Fidelidade`,
+      logoUrl: appLogoUrl.trim(),
+      faviconUrl: appFaviconUrl.trim() || appLogoUrl.trim(),
+    });
+  }, [brandingLoaded, appName, appShortName, appDescription, appLogoUrl, appFaviconUrl]);
 
   const save = async () => {
     if (!settings) return;
@@ -341,7 +355,8 @@ const AdminSettingsPage = () => {
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
               <p className="text-[11px] text-muted-foreground">
                 O navegador usa o favicon e o manifesto no momento da instalação. Se o app já estiver instalado no
-                celular, remova e instale novamente para atualizar o ícone na tela inicial.
+                celular ou no computador, remova o app antigo e instale novamente para atualizar nome e ícone da tela
+                inicial.
               </p>
             </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import logo from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Lock, User, Loader2, MessageCircle, Shield, AlertTriangle } from "lucide-react";
 
@@ -21,11 +21,20 @@ const LoginPage = () => {
   const [supportLink, setSupportLink] = useState("https://wa.me/5562995657915");
   const { login, isAdmin, user } = useAuth();
   const navigate = useNavigate();
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
+  const appTitleUpper = appTitle.toUpperCase();
 
   // Fetch support link
   useEffect(() => {
-    supabase.from("support_settings").select("whatsapp_link").limit(1).single()
-      .then(({ data }) => { if (data?.whatsapp_link) setSupportLink(data.whatsapp_link); });
+    supabase
+      .from("support_settings")
+      .select("whatsapp_link")
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.whatsapp_link) setSupportLink(data.whatsapp_link);
+      });
   }, []);
 
   // Lockout timer
@@ -44,44 +53,47 @@ const LoginPage = () => {
 
   const isLockedOut = lockoutEnd !== null && Date.now() < lockoutEnd;
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isLockedOut || submitting) return;
-    setError("");
-    setSubmitting(true);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (isLockedOut || submitting) return;
+      setError("");
+      setSubmitting(true);
 
-    try {
-      // Try login with @iptv.bitz first, then fallback to @bitziptv.local for legacy users
-      const emailValue = username.includes("@") ? username : `${username}@iptv.bitz`;
-      let err = await login(emailValue, password);
-      
-      // Fallback for legacy accounts
-      if (err && !username.includes("@")) {
-        err = await login(`${username}@bitziptv.local`, password);
-      }
+      try {
+        // Try login with @iptv.bitz first, then fallback to @bitziptv.local for legacy users
+        const emailValue = username.includes("@") ? username : `${username}@iptv.bitz`;
+        let err = await login(emailValue, password);
 
-      if (err) {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-
-        if (newAttempts >= MAX_ATTEMPTS) {
-          setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
-          setError(`Muitas tentativas. Aguarde ${LOCKOUT_SECONDS}s.`);
-        } else if (err.toLowerCase().includes("invalid")) {
-          setError("Usuário ou senha inválidos.");
-        } else {
-          setError("Usuário ou senha inválidos.");
+        // Fallback for legacy accounts
+        if (err && !username.includes("@")) {
+          err = await login(`${username}@bitziptv.local`, password);
         }
+
+        if (err) {
+          const newAttempts = attempts + 1;
+          setAttempts(newAttempts);
+
+          if (newAttempts >= MAX_ATTEMPTS) {
+            setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
+            setError(`Muitas tentativas. Aguarde ${LOCKOUT_SECONDS}s.`);
+          } else if (err.toLowerCase().includes("invalid")) {
+            setError("Usuário ou senha inválidos.");
+          } else {
+            setError("Usuário ou senha inválidos.");
+          }
+          setSubmitting(false);
+          return;
+        }
+        // Success — useEffect handles redirect, but add safety timeout
+        setTimeout(() => setSubmitting(false), 8000);
+      } catch {
+        setError("Erro ao conectar. Tente novamente.");
         setSubmitting(false);
-        return;
       }
-      // Success — useEffect handles redirect, but add safety timeout
-      setTimeout(() => setSubmitting(false), 8000);
-    } catch {
-      setError("Erro ao conectar. Tente novamente.");
-      setSubmitting(false);
-    }
-  }, [username, password, attempts, isLockedOut, submitting, login]);
+    },
+    [username, password, attempts, isLockedOut, submitting, login],
+  );
 
   // Redirect when authenticated
   useEffect(() => {
@@ -123,9 +135,13 @@ const LoginPage = () => {
         >
           <div className="relative mb-4">
             <div className="absolute -inset-2 animate-pulse rounded-2xl bg-primary/20 blur-xl" />
-            <img src={logo} alt="Bitz IPTV" className="relative h-20 w-20 rounded-2xl object-cover shadow-2xl ring-2 ring-primary/30" />
+            <img
+              src={logoUrl}
+              alt={appTitle}
+              className="relative h-20 w-20 rounded-2xl object-cover shadow-2xl ring-2 ring-primary/30"
+            />
           </div>
-          <h1 className="font-display text-2xl font-bold tracking-widest text-white">BITZ IPTV</h1>
+          <h1 className="font-display text-2xl font-bold tracking-widest text-white">{appTitleUpper}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Plataforma Oficial de Fidelidade</p>
         </motion.div>
 
@@ -231,9 +247,7 @@ const LoginPage = () => {
           </form>
 
           {/* Info text */}
-          <p className="mt-5 text-center text-xs text-white/30">
-            Acesso exclusivo para clientes cadastrados.
-          </p>
+          <p className="mt-5 text-center text-xs text-white/30">Acesso exclusivo para clientes cadastrados.</p>
         </motion.div>
 
         {/* Support section */}
@@ -256,7 +270,7 @@ const LoginPage = () => {
 
           <div className="mt-4 flex items-center gap-1.5 text-[10px] text-white/15">
             <Shield size={10} />
-            <span>Conexão segura • Bitz IPTV © 2026</span>
+            <span>Conexão segura • {appTitle} © 2026</span>
           </div>
         </motion.div>
       </motion.div>

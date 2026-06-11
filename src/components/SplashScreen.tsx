@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import logoBitz from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 export function SplashScreen({ children }: { children: React.ReactNode }) {
   const [show, setShow] = useState(true);
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
+  const appTitleUpper = appTitle.toUpperCase();
 
   useEffect(() => {
     const timer = setTimeout(() => setShow(false), 2400);
@@ -44,8 +47,11 @@ export function SplashScreen({ children }: { children: React.ReactNode }) {
                 transition={{ delay: 0.3, duration: 0.6 }}
                 className="absolute -inset-4 rounded-3xl bg-primary/20 blur-xl"
               />
-              <div className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30" style={{ width: 110, height: 110 }}>
-                <img src={logoBitz} alt="Bitz IPTV" className="h-full w-full object-cover" />
+              <div
+                className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
+                style={{ width: 110, height: 110 }}
+              >
+                <img src={logoUrl} alt={appTitle} className="h-full w-full object-cover" />
               </div>
             </motion.div>
 
@@ -56,7 +62,7 @@ export function SplashScreen({ children }: { children: React.ReactNode }) {
               transition={{ delay: 0.5, duration: 0.5 }}
               className="mt-5 font-display text-2xl font-bold tracking-widest text-foreground"
             >
-              BITZ IPTV
+              {appTitleUpper}
             </motion.h1>
 
             <motion.p
@@ -69,12 +75,7 @@ export function SplashScreen({ children }: { children: React.ReactNode }) {
             </motion.p>
 
             {/* Loading indicator */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="mt-8"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="mt-8">
               <div className="h-1 w-16 overflow-hidden rounded-full bg-muted/30">
                 <motion.div
                   initial={{ x: "-100%" }}

@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Bell, BellOff, Shield, AlertTriangle } from "lucide-react";
-import logoBitz from "@/assets/logo-bitz.jpg";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 export const NotificationGate = ({ children }: { children: React.ReactNode }) => {
   const [permission, setPermission] = useState<string>("loading");
   const [requesting, setRequesting] = useState(false);
   const [notificationSupported, setNotificationSupported] = useState(true);
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = appName || "Bitz IPTV";
+  const appTitleUpper = appTitle.toUpperCase();
 
   const checkPermission = useCallback(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -67,12 +70,15 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
         {/* Logo */}
         <div className="relative mb-4">
           <div className="absolute -inset-3 animate-pulse rounded-3xl bg-primary/20 blur-xl" />
-          <div className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30" style={{ width: 80, height: 80 }}>
-            <img src={logoBitz} alt="Bitz IPTV" className="h-full w-full object-cover" />
+          <div
+            className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
+            style={{ width: 80, height: 80 }}
+          >
+            <img src={logoUrl} alt={appTitle} className="h-full w-full object-cover" />
           </div>
         </div>
 
-        <h1 className="font-display text-xl font-bold tracking-wider text-foreground mb-1">BITZ IPTV</h1>
+        <h1 className="font-display text-xl font-bold tracking-wider text-foreground mb-1">{appTitleUpper}</h1>
         <p className="text-xs text-muted-foreground mb-6">Plataforma Oficial de Fidelidade</p>
 
         {/* Card */}
@@ -94,8 +100,8 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
               {!notificationSupported
                 ? "Seu navegador não suporta notificações push. Instale o aplicativo pela tela inicial para ativar as notificações e continuar usando."
                 : isDenied
-                ? "As notificações estão bloqueadas no seu navegador. Para usar o app, você precisa ativá-las nas configurações do celular."
-                : "Para continuar usando o app, é obrigatório ativar as notificações push. Você receberá avisos importantes sobre sua conta."}
+                  ? "As notificações estão bloqueadas no seu navegador. Para usar o app, você precisa ativá-las nas configurações do celular."
+                  : "Para continuar usando o app, é obrigatório ativar as notificações push. Você receberá avisos importantes sobre sua conta."}
             </p>
 
             {isDenied ? (
@@ -106,8 +112,12 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
                     <div className="text-left text-xs text-yellow-400">
                       <p className="font-semibold mb-1">Como ativar:</p>
                       <ol className="list-decimal pl-3 space-y-0.5 text-yellow-400/80">
-                        <li>Abra as <strong>Configurações</strong> do celular</li>
-                        <li>Vá em <strong>Notificações</strong> → <strong>Navegador</strong></li>
+                        <li>
+                          Abra as <strong>Configurações</strong> do celular
+                        </li>
+                        <li>
+                          Vá em <strong>Notificações</strong> → <strong>Navegador</strong>
+                        </li>
                         <li>Permita notificações para este site</li>
                         <li>Volte e recarregue o app</li>
                       </ol>
@@ -138,7 +148,7 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
         {/* Footer */}
         <div className="mt-6 flex items-center gap-1.5 text-[10px] text-muted-foreground/40">
           <Shield size={9} />
-          <span>Conexão segura · Bitz IPTV © 2026</span>
+          <span>Conexão segura · {appTitle} © 2026</span>
         </div>
       </motion.div>
     </div>

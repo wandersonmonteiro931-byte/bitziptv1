@@ -25,10 +25,7 @@ function prependPushToSW(): Plugin {
           return;
         }
 
-        const pushCode = fs.readFileSync(
-          path.resolve(__dirname, "public/push-sw.js"),
-          "utf-8"
-        );
+        const pushCode = fs.readFileSync(path.resolve(__dirname, "public/push-sw.js"), "utf-8");
         const existingSW = fs.readFileSync(swPath, "utf-8");
 
         // Prepend push handler code before the workbox code
@@ -56,13 +53,13 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       strategies: "generateSW",
-      registerType: "prompt",
+      registerType: "autoUpdate",
       includeAssets: ["logo-bitz.jpg", "favicon.ico"],
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
         globIgnores: ["**/push-sw.js", "**/service-worker.js"],
-        skipWaiting: false,
+        skipWaiting: true,
         clientsClaim: true,
       },
       manifest: {

@@ -1,21 +1,39 @@
 <!doctype html>
-<html lang="pt-BR" translate="no" class="notranslate">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-    <meta name="google" content="notranslate" />
-    <meta http-equiv="Content-Language" content="pt-BR" />
-    <title>Bitz IPTV</title>
-    <meta name="description" content="Bitz IPTV - Programa de Fidelidade" />
-    <meta name="author" content="Bitz IPTV" />
-
-    <!-- PWA Meta Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a0a0a" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Bitz IPTV</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('bitz_app_branding');
+          if (!stored) return;
+          var branding = JSON.parse(stored);
+          var appName = (branding.appName || branding.app_name || 'Bitz IPTV').trim();
+          var shortName = (branding.appShortName || branding.app_short_name || appName).trim();
+          var description = (branding.appDescription || branding.app_description || (appName + ' - Programa de Fidelidade')).trim();
+          var logo = (branding.logoUrl || branding.app_logo_url || '/logo-bitz.jpg').trim();
+          var favicon = (branding.faviconUrl || branding.app_favicon_url || logo).trim();
+
+          document.title = appName;
+          document.documentElement.setAttribute('data-app-name', appName);
+
+          window.__APP_BRANDING_BOOT__ = { appName: appName, appShortName: shortName, appDescription: description, logoUrl: logo, faviconUrl: favicon };
+        } catch (e) {}
+      })();
+    </script>
+    <meta name="description" content="Bitz IPTV - Programa de Fidelidade" />
+    <meta name="author" content="Bitz IPTV" />
+    <meta name="application-name" content="Bitz IPTV" />
     <meta name="apple-mobile-web-app-title" content="Bitz IPTV" />
     <link rel="apple-touch-icon" href="/logo-bitz.jpg" />
     <link rel="icon" href="/logo-bitz.jpg" type="image/jpeg" />
+    <link rel="shortcut icon" href="/logo-bitz.jpg" type="image/jpeg" />
 
     <meta property="og:title" content="Bitz IPTV" />
     <meta property="og:description" content="Bitz IPTV - Programa de Fidelidade" />
@@ -23,9 +41,10 @@
     <meta property="og:image" content="/logo-bitz.jpg" />
 
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Bitz IPTV" />
+    <meta name="twitter:description" content="Bitz IPTV - Programa de Fidelidade" />
     <meta name="twitter:image" content="/logo-bitz.jpg" />
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
