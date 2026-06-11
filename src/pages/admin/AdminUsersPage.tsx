@@ -305,10 +305,17 @@ const AdminUsersPage = () => {
       return;
     }
 
-    toast({
-      title: "✅ Indicação vinculada",
-      description: "Agora esse cliente aparece como aguardando o 1º pagamento na tela de indicações.",
-    });
+    if (res.data?.already_linked) {
+      toast({
+        title: "Indicação já vinculada",
+        description: "Este cliente já está ligado a uma indicação.",
+      });
+    } else {
+      toast({
+        title: "✅ Indicação vinculada",
+        description: "Agora esse cliente aparece como aguardando o 1º pagamento na tela de indicações.",
+      });
+    }
 
     setEditForm({
       ...editForm,

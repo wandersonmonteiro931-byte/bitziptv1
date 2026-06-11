@@ -277,17 +277,6 @@ Deno.serve(async (req) => {
         if (targetError) throw new Error(targetError.message);
         if (!targetProfile) throw new Error("Cliente não encontrado.");
 
-        const { data: existingReferral } = await supabaseAdmin
-          .from("referrals")
-          .select("id, status")
-          .eq("referred_id", user_id)
-          .neq("status", "rejected")
-          .maybeSingle();
-
-        if (targetProfile.referred_by || existingReferral) {
-          throw new Error("Este cliente já possui uma indicação vinculada.");
-        }
-
         const { data: referrer, error: referrerError } = await supabaseAdmin
           .from("profiles")
           .select("id, name, username, referral_code")
@@ -298,6 +287,24 @@ Deno.serve(async (req) => {
         if (!referrer) throw new Error("Código de indicação não encontrado.");
         if (referrer.id === user_id) throw new Error("O cliente não pode indicar ele mesmo.");
 
+        const { data: existingBefore } = await supabaseAdmin
+          .from("referrals")
+          .select("id, status, referrer_id")
+          .eq("referred_id", user_id)
+          .neq("status", "rejected")
+          .maybeSingle();
+
+        if (targetProfile.referred_by || existingBefore) {
+          result = {
+            success: true,
+            already_linked: true,
+            referrer_id: targetProfile.referred_by || existingBefore?.referrer_id || null,
+            message: "Este cliente já possui uma indicação vinculada.",
+          };
+          break;
+        }
+
+        // Atualiza o profile. Se o trigger SQL existir, ele já cria a linha em referrals automaticamente.
         const { error: updateErr } = await supabaseAdmin
           .from("profiles")
           .update({ referred_by: referrer.id })
@@ -305,17 +312,27 @@ Deno.serve(async (req) => {
 
         if (updateErr) throw new Error(updateErr.message);
 
-        const { error: referralErr } = await supabaseAdmin.from("referrals").insert({
-          referrer_id: referrer.id,
-          referred_id: user_id,
-          reward_amount: 0,
-          status: "pending",
-          reward_type: "free_month",
-          reward_months: 1,
-          notes: "Indicação vinculada manualmente pelo admin. Aguardando o primeiro pagamento do indicado.",
-        });
+        // Confere se o trigger criou a indicação. Se não criou, insere manualmente.
+        const { data: existingAfter } = await supabaseAdmin
+          .from("referrals")
+          .select("id, status, referrer_id")
+          .eq("referred_id", user_id)
+          .neq("status", "rejected")
+          .maybeSingle();
 
-        if (referralErr) throw new Error(referralErr.message);
+        if (!existingAfter) {
+          const { error: referralErr } = await supabaseAdmin.from("referrals").insert({
+            referrer_id: referrer.id,
+            referred_id: user_id,
+            reward_amount: 0,
+            status: "pending",
+            reward_type: "free_month",
+            reward_months: 1,
+            notes: "Indicação vinculada manualmente pelo admin. Aguardando o primeiro pagamento do indicado.",
+          });
+
+          if (referralErr) throw new Error(referralErr.message);
+        }
 
         await supabaseAdmin.from("admin_audit_logs").insert({
           admin_id: caller.id,
