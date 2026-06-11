@@ -1181,6 +1181,11 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          app_description: string
+          app_favicon_url: string | null
+          app_logo_url: string | null
+          app_name: string
+          app_short_name: string
           id: string
           min_withdrawal: number
           monthly_limit: number
@@ -1188,6 +1193,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          app_description?: string
+          app_favicon_url?: string | null
+          app_logo_url?: string | null
+          app_name?: string
+          app_short_name?: string
           id?: string
           min_withdrawal?: number
           monthly_limit?: number
@@ -1195,6 +1205,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          app_description?: string
+          app_favicon_url?: string | null
+          app_logo_url?: string | null
+          app_name?: string
+          app_short_name?: string
           id?: string
           min_withdrawal?: number
           monthly_limit?: number
