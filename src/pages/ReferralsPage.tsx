@@ -13,11 +13,15 @@ const ReferralsPage = () => {
 
   const loadReferrals = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("referrals")
-      .select("*, referred:profiles!referrals_referred_id_fkey(name, username, iptv_user)")
-      .eq("referrer_id", user.id)
-      .order("created_at", { ascending: false });
+
+    const { data, error } = await (supabase as any).rpc("get_my_referrals_with_names");
+
+    if (error) {
+      console.error("Erro ao carregar indicações:", error);
+      setReferrals([]);
+      return;
+    }
+
     setReferrals(data || []);
   };
 
@@ -129,9 +133,16 @@ const ReferralsPage = () => {
                   )}
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {ref.referred?.name || ref.referred?.username || "Cliente indicado"}
+                      {ref.referred_name ||
+                        ref.referred_username ||
+                        ref.referred?.name ||
+                        ref.referred?.username ||
+                        "Cliente indicado"}
                     </p>
                     <p className="text-xs text-muted-foreground">Indicado em {formatDateBRT(ref.created_at)}</p>
+                    {ref.referred_iptv_user && (
+                      <p className="text-[10px] text-muted-foreground/80">Usuário IPTV: {ref.referred_iptv_user}</p>
+                    )}
                     {ref.rewarded_at && (
                       <p className="text-[10px] text-emerald-400">Bônus liberado em {formatDateBRT(ref.rewarded_at)}</p>
                     )}
