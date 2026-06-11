@@ -3,7 +3,21 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Diamond, Ticket, RotateCcw, Trophy, Flame, Star, TrendingUp, Zap, Crown, Sparkles, Shield, Volume2, VolumeX } from "lucide-react";
+import {
+  Diamond,
+  Ticket,
+  RotateCcw,
+  Trophy,
+  Flame,
+  Star,
+  TrendingUp,
+  Zap,
+  Crown,
+  Sparkles,
+  Shield,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { sfx, setMuted as setSfxMuted, isMuted } from "@/lib/sounds";
@@ -13,16 +27,16 @@ import { formatDateTimeBRT, nowBRT } from "@/lib/utils";
 // PRIZE DEFINITIONS
 // ═══════════════════════════════════════════════
 const PRIZE_DATA: Record<string, { emoji: string; label: string; color: string; glow: string }> = {
-  nada:  { emoji: "❌", label: "Nada",       color: "#888",    glow: "transparent" },
-  r1:    { emoji: "🪙", label: "R$ 1",       color: "#4ade80", glow: "#4ade8040" },
-  r5:    { emoji: "💵", label: "R$ 5",       color: "#22c55e", glow: "#22c55e40" },
-  c1:    { emoji: "💎", label: "1 💎",       color: "#60a5fa", glow: "#60a5fa40" },
-  c3:    { emoji: "💎", label: "3 💎",       color: "#3b82f6", glow: "#3b82f640" },
-  r30:   { emoji: "💰", label: "R$ 30",      color: "#f59e0b", glow: "#f59e0b40" },
-  r50:   { emoji: "🤑", label: "R$ 50",      color: "#f97316", glow: "#f9731640" },
-  r100:  { emoji: "🏆", label: "R$ 100",     color: "#eab308", glow: "#eab30860" },
-  r500:  { emoji: "👑", label: "R$ 500",     color: "#a855f7", glow: "#a855f760" },
-  r1000: { emoji: "🌟", label: "R$ 1.000",   color: "#ec4899", glow: "#ec489960" },
+  nada: { emoji: "❌", label: "Nada", color: "#888", glow: "transparent" },
+  r1: { emoji: "🪙", label: "R$ 1", color: "#4ade80", glow: "#4ade8040" },
+  r5: { emoji: "💵", label: "R$ 5", color: "#22c55e", glow: "#22c55e40" },
+  c1: { emoji: "💎", label: "1 💎", color: "#60a5fa", glow: "#60a5fa40" },
+  c3: { emoji: "💎", label: "3 💎", color: "#3b82f6", glow: "#3b82f640" },
+  r30: { emoji: "💰", label: "R$ 30", color: "#f59e0b", glow: "#f59e0b40" },
+  r50: { emoji: "🤑", label: "R$ 50", color: "#f97316", glow: "#f9731640" },
+  r100: { emoji: "🏆", label: "R$ 100", color: "#eab308", glow: "#eab30860" },
+  r500: { emoji: "👑", label: "R$ 500", color: "#a855f7", glow: "#a855f760" },
+  r1000: { emoji: "🌟", label: "R$ 1.000", color: "#ec4899", glow: "#ec489960" },
 };
 
 // ═══════════════════════════════════════════════
@@ -77,16 +91,19 @@ function clearGameState() {
 // ═══════════════════════════════════════════════
 function ConfettiEffect({ active }: { active: boolean }) {
   const particles = useMemo(
-    () => Array.from({ length: 60 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      delay: Math.random() * 0.5,
-      duration: 1.5 + Math.random() * 2,
-      color: ["#FFD700", "#FF6B35", "#00D4FF", "#FF2D95", "#39FF14", "#FFE100", "#a855f7"][Math.floor(Math.random() * 7)],
-      size: 4 + Math.random() * 8,
-      rotation: Math.random() * 360,
-    })),
-    []
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        delay: Math.random() * 0.5,
+        duration: 1.5 + Math.random() * 2,
+        color: ["#FFD700", "#FF6B35", "#00D4FF", "#FF2D95", "#39FF14", "#FFE100", "#a855f7"][
+          Math.floor(Math.random() * 7)
+        ],
+        size: 4 + Math.random() * 8,
+        rotation: Math.random() * 360,
+      })),
+    [],
   );
   if (!active) return null;
   return (
@@ -115,7 +132,7 @@ interface ScratchCellHandle {
 
 const CELL_SIZE = 200;
 const BRUSH_RADIUS = 38; // Large brush - reveals wherever finger passes
-const REVEAL_THRESHOLD = 0.20; // 20% to auto-reveal
+const REVEAL_THRESHOLD = 0.2; // 20% to auto-reveal
 const CHECK_INTERVAL = 3; // Check every 3 strokes
 
 const ScratchCell = React.forwardRef<
@@ -161,7 +178,10 @@ const ScratchCell = React.forwardRef<
     ctx.strokeStyle = "rgba(100, 200, 255, 0.06)";
     ctx.lineWidth = 0.5;
     for (let i = -CELL_SIZE; i < CELL_SIZE * 2; i += 12) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + CELL_SIZE, CELL_SIZE); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + CELL_SIZE, CELL_SIZE);
+      ctx.stroke();
     }
 
     // Question mark
@@ -220,55 +240,62 @@ const ScratchCell = React.forwardRef<
   }, [index, onReveal]);
 
   // Draw a brush stroke as a thick line from lastPoint to current point
-  const brushStroke = useCallback((x: number, y: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas || cellRevealed.current || disabled) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = BRUSH_RADIUS * 2;
-
-    const prev = lastPoint.current;
-    if (prev) {
-      // Draw a thick line between previous and current position
-      ctx.beginPath();
-      ctx.moveTo(prev.x, prev.y);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-    } else {
-      // First touch: just draw a dot
-      ctx.beginPath();
-      ctx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    lastPoint.current = { x, y };
-
-    // Only check percentage every N strokes for performance
-    strokeCount.current++;
-    if (strokeCount.current % CHECK_INTERVAL === 0) {
-      checkRevealPercent();
-    }
-  }, [disabled, checkRevealPercent]);
-
-  React.useImperativeHandle(ref, () => ({
-    scratchAt(clientX: number, clientY: number) {
+  const brushStroke = useCallback(
+    (x: number, y: number) => {
       const canvas = canvasRef.current;
       if (!canvas || cellRevealed.current || disabled) return;
-      const rect = canvas.getBoundingClientRect();
-      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
-        // Pointer left this cell, reset lastPoint so we don't draw a line across
-        lastPoint.current = null;
-        return;
+      const ctx = canvas.getContext("2d")!;
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = BRUSH_RADIUS * 2;
+
+      const prev = lastPoint.current;
+      if (prev) {
+        // Draw a thick line between previous and current position
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else {
+        // First touch: just draw a dot
+        ctx.beginPath();
+        ctx.arc(x, y, BRUSH_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
       }
-      const x = (clientX - rect.left) * (CELL_SIZE / rect.width);
-      const y = (clientY - rect.top) * (CELL_SIZE / rect.height);
-      brushStroke(x, y);
+      lastPoint.current = { x, y };
+
+      // Only check percentage every N strokes for performance
+      strokeCount.current++;
+      if (strokeCount.current % CHECK_INTERVAL === 0) {
+        checkRevealPercent();
+      }
     },
-    resetLastPoint() {
-      lastPoint.current = null;
-    },
-  }), [brushStroke, disabled]);
+    [disabled, checkRevealPercent],
+  );
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      scratchAt(clientX: number, clientY: number) {
+        const canvas = canvasRef.current;
+        if (!canvas || cellRevealed.current || disabled) return;
+        const rect = canvas.getBoundingClientRect();
+        if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+          // Pointer left this cell, reset lastPoint so we don't draw a line across
+          lastPoint.current = null;
+          return;
+        }
+        const x = (clientX - rect.left) * (CELL_SIZE / rect.width);
+        const y = (clientY - rect.top) * (CELL_SIZE / rect.height);
+        brushStroke(x, y);
+      },
+      resetLastPoint() {
+        lastPoint.current = null;
+      },
+    }),
+    [brushStroke, disabled],
+  );
 
   const prize = PRIZE_DATA[prizeKey] || PRIZE_DATA["nada"];
 
@@ -280,14 +307,15 @@ const ScratchCell = React.forwardRef<
           ? "2px solid hsl(45 100% 55%)"
           : revealed
             ? `1px solid ${prize.color}30`
-            : "1px solid hsl(270 30% 30% / 0.4)",
-        boxShadow: isMatched
-          ? `0 0 20px ${prize.glow}, 0 0 40px ${prize.glow}`
-          : "none",
+            : "1px solid hsl(0 35% 22% / 0.55)",
+        boxShadow: isMatched ? `0 0 20px ${prize.glow}, 0 0 40px ${prize.glow}` : "none",
       }}
       animate={
         isMatched
-          ? { scale: [1, 1.12, 1.05], boxShadow: [`0 0 0px transparent`, `0 0 30px ${prize.glow}`, `0 0 15px ${prize.glow}`] }
+          ? {
+              scale: [1, 1.12, 1.05],
+              boxShadow: [`0 0 0px transparent`, `0 0 30px ${prize.glow}`, `0 0 15px ${prize.glow}`],
+            }
           : {}
       }
       transition={{ duration: 0.8, repeat: isMatched ? 3 : 0, ease: "easeInOut" }}
@@ -341,14 +369,8 @@ function LuckBar({ gamesPlayed }: { gamesPlayed: number }) {
             key={i}
             className="h-2.5 w-1.5 rounded-full transition-all duration-500"
             style={{
-              background:
-                i <= level
-                  ? `hsl(${90 + i * 15} 80% ${45 + i * 2}%)`
-                  : "hsl(220 15% 18%)",
-              boxShadow:
-                i <= level
-                  ? `0 0 6px hsl(${90 + i * 15} 80% 50% / 0.6)`
-                  : "none",
+              background: i <= level ? `hsl(${90 + i * 15} 80% ${45 + i * 2}%)` : "hsl(220 15% 18%)",
+              boxShadow: i <= level ? `0 0 6px hsl(${90 + i * 15} 80% 50% / 0.6)` : "none",
             }}
           />
         ))}
@@ -376,11 +398,7 @@ function NearMissIndicator({ grid, revealedCells }: { grid: string[]; revealedCe
   if (revealedCount < 2 || bestCount < 2) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="text-center py-1"
-    >
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-1">
       <motion.p
         className="text-xs font-bold"
         style={{ color: "hsl(45 100% 55%)" }}
@@ -485,9 +503,7 @@ const ScratchCardPage = () => {
         .order("created_at", { ascending: false })
         .limit(20);
       return (data || []).filter(
-        (a: any) =>
-          a.credit_challenges?.name === "Raspadinha" ||
-          a.metadata?.challenge_type === "scratch_card"
+        (a: any) => a.credit_challenges?.name === "Raspadinha" || a.metadata?.challenge_type === "scratch_card",
       );
     },
     enabled: !!user?.id,
@@ -500,16 +516,11 @@ const ScratchCardPage = () => {
         .from("challenge_attempts")
         .select("credits_spent, credits_won, metadata")
         .eq("user_id", user?.id);
-      const scratches = (data || []).filter(
-        (a: any) => a.metadata?.challenge_type === "scratch_card"
-      );
+      const scratches = (data || []).filter((a: any) => a.metadata?.challenge_type === "scratch_card");
       return {
         total: scratches.length,
         totalWon: scratches.reduce((s, a) => s + a.credits_won, 0),
-        totalBalanceWon: scratches.reduce(
-          (s, a: any) => s + (a.metadata?.balance_won || 0),
-          0
-        ),
+        totalBalanceWon: scratches.reduce((s, a: any) => s + (a.metadata?.balance_won || 0), 0),
         totalSpent: scratches.reduce((s, a) => s + a.credits_spent, 0),
       };
     },
@@ -649,9 +660,8 @@ const ScratchCardPage = () => {
         return current; // don't modify, just read
       });
     },
-    [grid, wonPrizeKey, backendResult, gameFinished, refreshProfile]
+    [grid, wonPrizeKey, backendResult, gameFinished, refreshProfile],
   );
-
 
   // ── Derived values ──
   const cost = scratchChallenge?.cost_credits || 1;
@@ -694,7 +704,13 @@ const ScratchCardPage = () => {
             Encontre 3 iguais e ganhe o prêmio! 🎰
           </p>
         </div>
-        <button onClick={() => { setMutedLocal(!muted); setSfxMuted(!muted); }} className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          onClick={() => {
+            setMutedLocal(!muted);
+            setSfxMuted(!muted);
+          }}
+          className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors"
+        >
           {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
@@ -705,7 +721,12 @@ const ScratchCardPage = () => {
           { icon: Diamond, label: "Créditos", value: `${userCredits}`, color: "hsl(var(--primary))" },
           { icon: Flame, label: "Streak", value: `${streakData?.streak || 0}🔥`, color: "hsl(30 100% 55%)" },
           { icon: Trophy, label: "Ganhos💎", value: `${stats?.totalWon || 0}`, color: "hsl(145 70% 45%)" },
-          { icon: TrendingUp, label: "Ganhos💰", value: `R$${(stats?.totalBalanceWon || 0).toFixed(0)}`, color: "hsl(45 100% 50%)" },
+          {
+            icon: TrendingUp,
+            label: "Ganhos💰",
+            value: `R$${(stats?.totalBalanceWon || 0).toFixed(0)}`,
+            color: "hsl(45 100% 50%)",
+          },
         ].map((s) => (
           <div
             key={s.label}
@@ -716,8 +737,12 @@ const ScratchCardPage = () => {
             }}
           >
             <s.icon size={14} style={{ color: s.color }} className="mx-auto" />
-            <p className="text-[9px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>{s.label}</p>
-            <p className="text-sm font-bold" style={{ color: "hsl(var(--foreground))" }}>{s.value}</p>
+            <p className="text-[9px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+              {s.label}
+            </p>
+            <p className="text-sm font-bold" style={{ color: "hsl(var(--foreground))" }}>
+              {s.value}
+            </p>
           </div>
         ))}
       </div>
@@ -730,16 +755,13 @@ const ScratchCardPage = () => {
               className={`flex items-center gap-1 rounded-full bg-gradient-to-r ${levelColors[userLevel] || levelColors.bronze} px-2.5 py-1`}
             >
               <Crown size={11} className="text-white" />
-              <span className="text-[10px] font-bold text-white capitalize">
-                {userLevel}
-              </span>
+              <span className="text-[10px] font-bold text-white capitalize">{userLevel}</span>
             </div>
             {isVip && (
               <div
                 className="flex items-center gap-1 rounded-full px-2 py-0.5"
                 style={{
-                  background:
-                    "linear-gradient(135deg, hsl(45 100% 40%), hsl(30 100% 40%))",
+                  background: "linear-gradient(135deg, hsl(45 100% 40%), hsl(30 100% 40%))",
                 }}
               >
                 <Star size={9} className="text-white" />
@@ -756,36 +778,27 @@ const ScratchCardPage = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="rounded-2xl overflow-hidden"
           style={{
-            background:
-              "linear-gradient(160deg, hsl(250 25% 10%), hsl(220 20% 7%))",
+            background: "linear-gradient(160deg, hsl(250 25% 10%), hsl(220 20% 7%))",
             border: "1px solid hsl(260 30% 22% / 0.6)",
-            boxShadow:
-              "0 0 40px hsl(260 40% 15% / 0.4), inset 0 1px 0 hsl(260 30% 30% / 0.15)",
+            boxShadow: "0 0 40px hsl(260 40% 15% / 0.4), inset 0 1px 0 hsl(260 30% 30% / 0.15)",
           }}
         >
           {/* Card Header */}
           <div
             className="px-4 py-3 text-center"
             style={{
-              background:
-                "linear-gradient(90deg, hsl(280 60% 20% / 0.5), hsl(200 60% 20% / 0.5))",
+              background: "linear-gradient(90deg, hsl(280 60% 20% / 0.5), hsl(200 60% 20% / 0.5))",
               borderBottom: "1px solid hsl(260 30% 25% / 0.4)",
             }}
           >
             <div className="flex items-center justify-center gap-2 mb-1">
               <Sparkles size={14} style={{ color: "hsl(45 100% 60%)" }} />
-              <span
-                className="text-xs font-bold uppercase tracking-wider"
-                style={{ color: "hsl(45 100% 60%)" }}
-              >
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "hsl(45 100% 60%)" }}>
                 Raspe & Ganhe
               </span>
               <Sparkles size={14} style={{ color: "hsl(45 100% 60%)" }} />
             </div>
-            <p
-              className="text-[10px]"
-              style={{ color: "hsl(var(--muted-foreground))" }}
-            >
+            <p className="text-[10px]" style={{ color: "hsl(var(--muted-foreground))" }}>
               {gameState === "idle"
                 ? "Compre para começar a raspar!"
                 : gameState === "scratching"
@@ -863,7 +876,9 @@ const ScratchCardPage = () => {
                   {grid.map((prizeKey, i) => (
                     <ScratchCell
                       key={`cell-${i}-${grid.join("")}`}
-                      ref={(el) => { cellRefs.current[i] = el; }}
+                      ref={(el) => {
+                        cellRefs.current[i] = el;
+                      }}
                       prizeKey={prizeKey}
                       index={i}
                       revealed={revealedCells[i]}
@@ -875,10 +890,7 @@ const ScratchCardPage = () => {
                 </div>
 
                 {gameState === "scratching" && !gameFinished && (
-                  <NearMissIndicator
-                    grid={grid}
-                    revealedCells={revealedCells}
-                  />
+                  <NearMissIndicator grid={grid} revealedCells={revealedCells} />
                 )}
               </>
             ) : (
@@ -889,16 +901,10 @@ const ScratchCardPage = () => {
                   transition={{ duration: 2, repeat: Infinity }}
                 >
                   <span className="text-6xl block mb-2">🎰</span>
-                  <p
-                    className="text-sm font-medium"
-                    style={{ color: "hsl(var(--muted-foreground))" }}
-                  >
+                  <p className="text-sm font-medium" style={{ color: "hsl(var(--muted-foreground))" }}>
                     Compre uma raspadinha!
                   </p>
-                  <p
-                    className="text-xs mt-1"
-                    style={{ color: "hsl(var(--muted-foreground) / 0.6)" }}
-                  >
+                  <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground) / 0.6)" }}>
                     Custo: {cost} 💎
                   </p>
                 </motion.div>
@@ -917,14 +923,8 @@ const ScratchCardPage = () => {
                     background: wonPrizeKey
                       ? `radial-gradient(circle at center, ${PRIZE_DATA[wonPrizeKey]?.glow || "transparent"}, hsl(45 30% 5%))`
                       : "hsl(var(--muted) / 0.2)",
-                    border: `1px solid ${
-                      wonPrizeKey
-                        ? `${PRIZE_DATA[wonPrizeKey]?.color}50`
-                        : "hsl(var(--border))"
-                    }`,
-                    boxShadow: wonPrizeKey
-                      ? `0 0 30px ${PRIZE_DATA[wonPrizeKey]?.glow}`
-                      : "none",
+                    border: `1px solid ${wonPrizeKey ? `${PRIZE_DATA[wonPrizeKey]?.color}50` : "hsl(var(--border))"}`,
+                    boxShadow: wonPrizeKey ? `0 0 30px ${PRIZE_DATA[wonPrizeKey]?.glow}` : "none",
                   }}
                 >
                   {wonPrizeKey ? (
@@ -953,18 +953,12 @@ const ScratchCardPage = () => {
                       >
                         3 IGUAIS! {PRIZE_DATA[wonPrizeKey]?.emoji}
                       </motion.p>
-                      <p
-                        className="text-base font-bold mt-1"
-                        style={{ color: "hsl(145 70% 55%)" }}
-                      >
+                      <p className="text-base font-bold mt-1" style={{ color: "hsl(145 70% 55%)" }}>
                         {backendResult.reward_type === "balance"
                           ? `💰 +R$ ${Number(backendResult.balance_won).toFixed(2)}`
                           : `💎 +${backendResult.credits_won} créditos`}
                       </p>
-                      <p
-                        className="text-xs mt-1"
-                        style={{ color: "hsl(var(--muted-foreground))" }}
-                      >
+                      <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
                         {backendResult.reward_type === "balance"
                           ? "Adicionado ao seu saldo real!"
                           : "Créditos adicionados!"}
@@ -973,16 +967,10 @@ const ScratchCardPage = () => {
                   ) : (
                     <>
                       <p className="text-4xl mb-2">😢</p>
-                      <p
-                        className="font-bold text-base"
-                        style={{ color: "hsl(var(--muted-foreground))" }}
-                      >
+                      <p className="font-bold text-base" style={{ color: "hsl(var(--muted-foreground))" }}>
                         Não foi dessa vez...
                       </p>
-                      <p
-                        className="text-xs mt-1"
-                        style={{ color: "hsl(var(--muted-foreground) / 0.7)" }}
-                      >
+                      <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground) / 0.7)" }}>
                         Continue tentando! A sorte pode mudar! 🍀
                       </p>
                     </>
@@ -1004,9 +992,7 @@ const ScratchCardPage = () => {
                 setGameFinished(false);
                 buyMutation.mutate();
               }}
-              disabled={
-                !canBuy || buyMutation.isPending || gameState === "scratching"
-              }
+              disabled={!canBuy || buyMutation.isPending || gameState === "scratching"}
               className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background:
@@ -1035,10 +1021,7 @@ const ScratchCardPage = () => {
             </motion.button>
 
             {!canBuy && gameState !== "scratching" && (
-              <p
-                className="mt-2 text-center text-xs"
-                style={{ color: "hsl(var(--destructive))" }}
-              >
+              <p className="mt-2 text-center text-xs" style={{ color: "hsl(var(--destructive))" }}>
                 Créditos insuficientes. Mínimo: {cost} 💎
               </p>
             )}
@@ -1052,15 +1035,11 @@ const ScratchCardPage = () => {
             animate={{ opacity: 1 }}
             className="mt-3 rounded-xl p-3 text-center"
             style={{
-              background:
-                "linear-gradient(135deg, hsl(30 50% 10%), hsl(15 50% 8%))",
+              background: "linear-gradient(135deg, hsl(30 50% 10%), hsl(15 50% 8%))",
               border: "1px solid hsl(30 50% 25% / 0.3)",
             }}
           >
-            <p
-              className="text-xs font-bold"
-              style={{ color: "hsl(30 100% 55%)" }}
-            >
+            <p className="text-xs font-bold" style={{ color: "hsl(30 100% 55%)" }}>
               🔥 {streakData?.streak} dia(s) seguidos jogando!
               {(streakData?.streak || 0) >= 7 && " 🎁 Bônus de streak!"}
             </p>
@@ -1070,18 +1049,12 @@ const ScratchCardPage = () => {
         {/* Security badge */}
         <div className="mt-3 flex items-center justify-center gap-1.5">
           <Shield size={10} style={{ color: "hsl(var(--muted-foreground) / 0.5)" }} />
-          <p
-            className="text-[9px]"
-            style={{ color: "hsl(var(--muted-foreground) / 0.5)" }}
-          >
+          <p className="text-[9px]" style={{ color: "hsl(var(--muted-foreground) / 0.5)" }}>
             Resultado gerado no servidor • Antifraude ativo
           </p>
         </div>
 
-        <p
-          className="mt-1 mb-4 text-center text-[9px]"
-          style={{ color: "hsl(var(--muted-foreground) / 0.4)" }}
-        >
+        <p className="mt-1 mb-4 text-center text-[9px]" style={{ color: "hsl(var(--muted-foreground) / 0.4)" }}>
           ⚠️ Créditos são moeda interna promocional. Não é investimento.
         </p>
       </div>
@@ -1089,17 +1062,12 @@ const ScratchCardPage = () => {
       {/* ── Recent Results ── */}
       {recentResults.length > 0 && (
         <div className="mx-auto mt-4 max-w-md">
-          <h2
-            className="mb-3 text-sm font-bold uppercase tracking-wider"
-            style={{ color: "hsl(var(--foreground))" }}
-          >
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider" style={{ color: "hsl(var(--foreground))" }}>
             Últimas Raspadinhas
           </h2>
           <div className="space-y-1.5">
             {recentResults.slice(0, 8).map((r: any) => {
-              const isBalanceWin =
-                r.metadata?.reward_type === "balance" &&
-                r.metadata?.balance_won > 0;
+              const isBalanceWin = r.metadata?.reward_type === "balance" && r.metadata?.balance_won > 0;
               const isCreditWin = r.credits_won > 0;
               const pKey = r.metadata?.prize_key;
               const pData = pKey ? PRIZE_DATA[pKey] : null;
@@ -1113,14 +1081,9 @@ const ScratchCardPage = () => {
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-base">
-                      {pData?.emoji || (isBalanceWin || isCreditWin ? "🏆" : "🎫")}
-                    </span>
+                    <span className="text-base">{pData?.emoji || (isBalanceWin || isCreditWin ? "🏆" : "🎫")}</span>
                     <div>
-                      <p
-                        className="text-xs font-medium"
-                        style={{ color: "hsl(var(--foreground))" }}
-                      >
+                      <p className="text-xs font-medium" style={{ color: "hsl(var(--foreground))" }}>
                         {pData?.label || "Raspadinha"}
                       </p>
                       <p
@@ -1143,24 +1106,17 @@ const ScratchCardPage = () => {
                       -{r.credits_spent} 💎
                     </p>
                     {isBalanceWin ? (
-                      <p
-                        className="text-sm font-bold"
-                        style={{ color: "hsl(145 70% 55%)" }}
-                      >
+                      <p className="text-sm font-bold" style={{ color: "hsl(145 70% 55%)" }}>
                         +R$ {Number(r.metadata.balance_won).toFixed(2)} 💰
                       </p>
                     ) : (
                       <p
                         className="text-xs font-bold"
                         style={{
-                          color: isCreditWin
-                            ? "hsl(210 100% 65%)"
-                            : "hsl(var(--muted-foreground))",
+                          color: isCreditWin ? "hsl(210 100% 65%)" : "hsl(var(--muted-foreground))",
                         }}
                       >
-                        {isCreditWin
-                          ? `+${r.credits_won} 💎`
-                          : "Sem prêmio"}
+                        {isCreditWin ? `+${r.credits_won} 💎` : "Sem prêmio"}
                       </p>
                     )}
                   </div>

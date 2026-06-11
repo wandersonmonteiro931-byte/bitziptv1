@@ -13,21 +13,21 @@ import { sfx, setMuted as setSfxMuted, isMuted } from "@/lib/sounds";
 // PRIZE VISUAL DATA
 // ═══════════════════════════════════════════════
 const PRIZE_VISUALS: Record<string, { emoji: string; label: string; color: string }> = {
-  nada:  { emoji: "❌", label: "Nada",       color: "#888" },
-  r1:    { emoji: "🪙", label: "R$ 1",       color: "#4ade80" },
-  r2:    { emoji: "🪙", label: "R$ 2",       color: "#4ade80" },
-  r5:    { emoji: "💵", label: "R$ 5",       color: "#22c55e" },
-  r10:   { emoji: "💵", label: "R$ 10",      color: "#16a34a" },
-  r30:   { emoji: "💰", label: "R$ 30",      color: "#f59e0b" },
-  r50:   { emoji: "🤑", label: "R$ 50",      color: "#f97316" },
-  r100:  { emoji: "🏆", label: "R$ 100",     color: "#eab308" },
-  r500:  { emoji: "👑", label: "R$ 500",     color: "#a855f7" },
-  r1000: { emoji: "🌟", label: "R$ 1.000",   color: "#ec4899" },
-  c1:    { emoji: "💎", label: "1 💎",       color: "#60a5fa" },
-  c3:    { emoji: "💎", label: "3 💎",       color: "#3b82f6" },
-  c5:    { emoji: "💎", label: "5 💎",       color: "#2563eb" },
-  c10:   { emoji: "💎", label: "10 💎",      color: "#1d4ed8" },
-  ticket:{ emoji: "🎟️", label: "Ticket",     color: "#f59e0b" },
+  nada: { emoji: "❌", label: "Nada", color: "#888" },
+  r1: { emoji: "🪙", label: "R$ 1", color: "#4ade80" },
+  r2: { emoji: "🪙", label: "R$ 2", color: "#4ade80" },
+  r5: { emoji: "💵", label: "R$ 5", color: "#22c55e" },
+  r10: { emoji: "💵", label: "R$ 10", color: "#16a34a" },
+  r30: { emoji: "💰", label: "R$ 30", color: "#f59e0b" },
+  r50: { emoji: "🤑", label: "R$ 50", color: "#f97316" },
+  r100: { emoji: "🏆", label: "R$ 100", color: "#eab308" },
+  r500: { emoji: "👑", label: "R$ 500", color: "#a855f7" },
+  r1000: { emoji: "🌟", label: "R$ 1.000", color: "#ec4899" },
+  c1: { emoji: "💎", label: "1 💎", color: "#60a5fa" },
+  c3: { emoji: "💎", label: "3 💎", color: "#3b82f6" },
+  c5: { emoji: "💎", label: "5 💎", color: "#2563eb" },
+  c10: { emoji: "💎", label: "10 💎", color: "#1d4ed8" },
+  ticket: { emoji: "🎟️", label: "Ticket", color: "#f59e0b" },
   multi: { emoji: "🔥", label: "Multiplier", color: "#ef4444" },
 };
 
@@ -40,16 +40,19 @@ function getPrizeVisual(key: string) {
 // ═══════════════════════════════════════════════
 function ConfettiEffect({ active }: { active: boolean }) {
   const particles = useMemo(
-    () => Array.from({ length: 60 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      delay: Math.random() * 0.5,
-      duration: 1.5 + Math.random() * 2,
-      color: ["#FFD700", "#FF6B35", "#00D4FF", "#FF2D95", "#39FF14", "#FFE100", "#a855f7"][Math.floor(Math.random() * 7)],
-      size: 4 + Math.random() * 8,
-      rotation: Math.random() * 360,
-    })),
-    []
+    () =>
+      Array.from({ length: 60 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        delay: Math.random() * 0.5,
+        duration: 1.5 + Math.random() * 2,
+        color: ["#FFD700", "#FF6B35", "#00D4FF", "#FF2D95", "#39FF14", "#FFE100", "#a855f7"][
+          Math.floor(Math.random() * 7)
+        ],
+        size: 4 + Math.random() * 8,
+        rotation: Math.random() * 360,
+      })),
+    [],
   );
   if (!active) return null;
   return (
@@ -72,22 +75,28 @@ function ConfettiEffect({ active }: { active: boolean }) {
 // PARTICLE BURST ON BOX OPEN
 // ═══════════════════════════════════════════════
 function ParticleBurst({ color }: { color: string }) {
-  const parts = useMemo(() => Array.from({ length: 20 }, (_, i) => ({
-    id: i,
-    angle: (i / 20) * Math.PI * 2,
-    dist: 60 + Math.random() * 80,
-    size: 3 + Math.random() * 5,
-    delay: Math.random() * 0.15,
-  })), []);
+  const parts = useMemo(
+    () =>
+      Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        angle: (i / 20) * Math.PI * 2,
+        dist: 60 + Math.random() * 80,
+        size: 3 + Math.random() * 5,
+        delay: Math.random() * 0.15,
+      })),
+    [],
+  );
   return (
     <div className="absolute inset-0 pointer-events-none">
-      {parts.map(p => (
+      {parts.map((p) => (
         <motion.div
           key={p.id}
           className="absolute rounded-full"
           style={{
-            left: "50%", top: "50%",
-            width: p.size, height: p.size,
+            left: "50%",
+            top: "50%",
+            width: p.size,
+            height: p.size,
             backgroundColor: color,
           }}
           initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
@@ -128,9 +137,10 @@ function MysteryBox({
 }) {
   const prize = prizeKey ? getPrizeVisual(prizeKey) : null;
   const isWin = prizeKey && prizeKey !== "nada";
-  const boxColor = index === 0
-    ? { bg: "from-blue-600/80 to-blue-900/80", border: "hsl(210 100% 55% / 0.5)", glow: "hsl(210 100% 55% / 0.3)" }
-    : { bg: "from-purple-600/80 to-purple-900/80", border: "hsl(270 80% 60% / 0.5)", glow: "hsl(270 80% 60% / 0.3)" };
+  const boxColor =
+    index === 0
+      ? { bg: "from-blue-600/80 to-blue-900/80", border: "hsl(210 100% 55% / 0.5)", glow: "hsl(210 100% 55% / 0.3)" }
+      : { bg: "from-red-600/80 to-red-900/80", border: "hsl(0 85% 58% / 0.5)", glow: "hsl(0 85% 58% / 0.3)" };
 
   return (
     <motion.button
@@ -154,10 +164,7 @@ function MysteryBox({
             }}
           >
             {/* Shimmer */}
-            <motion.div
-              className="absolute inset-0 rounded-2xl overflow-hidden"
-              initial={false}
-            >
+            <motion.div className="absolute inset-0 rounded-2xl overflow-hidden" initial={false}>
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
                 animate={{ x: ["-100%", "200%"] }}
@@ -167,10 +174,7 @@ function MysteryBox({
             {/* Ribbon */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-14 h-5 rounded-b-lg bg-gradient-to-b from-yellow-400 to-yellow-600 shadow-lg" />
             <div className="absolute top-4 left-1/2 -translate-x-1/2">
-              <motion.div
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
+              <motion.div animate={{ y: [0, -3, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
                 <span className="text-5xl sm:text-6xl select-none">🎁</span>
               </motion.div>
             </div>
@@ -178,9 +182,7 @@ function MysteryBox({
               Caixa {index + 1}
             </span>
             {/* Touch glow on hover */}
-            <motion.div
-              className="absolute inset-0 rounded-2xl bg-white/0 group-hover:bg-white/5 transition-colors duration-300"
-            />
+            <motion.div className="absolute inset-0 rounded-2xl bg-white/0 group-hover:bg-white/5 transition-colors duration-300" />
           </motion.div>
         )}
 
@@ -223,12 +225,9 @@ function MysteryBox({
             transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
             className="relative flex h-36 w-36 sm:h-44 sm:w-44 flex-col items-center justify-center rounded-2xl border-2"
             style={{
-              background: isWin && isChosen
-                ? `radial-gradient(circle, ${prize.color}20, hsl(220 20% 8%))`
-                : "hsl(220 18% 10%)",
-              borderColor: isChosen
-                ? isWin ? `${prize.color}80` : "hsl(0 80% 55% / 0.5)"
-                : `${prize.color}40`,
+              background:
+                isWin && isChosen ? `radial-gradient(circle, ${prize.color}20, hsl(220 20% 8%))` : "hsl(220 18% 10%)",
+              borderColor: isChosen ? (isWin ? `${prize.color}80` : "hsl(0 80% 55% / 0.5)") : `${prize.color}40`,
               boxShadow: isWin && isChosen ? `0 0 40px ${prize.color}40` : "none",
             }}
           >
@@ -314,7 +313,10 @@ const PrizeBoxPage = () => {
   const [chosenBox, setChosenBox] = useState<number | null>(null);
   const [resultData, setResultData] = useState<any>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [boxStates, setBoxStates] = useState<["closed" | "opening" | "open", "closed" | "opening" | "open"]>(["closed", "closed"]);
+  const [boxStates, setBoxStates] = useState<["closed" | "opening" | "open", "closed" | "opening" | "open"]>([
+    "closed",
+    "closed",
+  ]);
   const [cooldown, setCooldown] = useState(false);
   const [muted, setMuted] = useState(false);
 
@@ -410,7 +412,7 @@ const PrizeBoxPage = () => {
       sfx.click();
 
       // Open chosen box first
-      setBoxStates(prev => {
+      setBoxStates((prev) => {
         const next = [...prev] as typeof prev;
         next[boxIdx] = "opening";
         return next;
@@ -418,7 +420,7 @@ const PrizeBoxPage = () => {
 
       setTimeout(() => {
         sfx.boxOpen();
-        setBoxStates(prev => {
+        setBoxStates((prev) => {
           const next = [...prev] as typeof prev;
           next[boxIdx] = "open";
           return next;
@@ -430,13 +432,13 @@ const PrizeBoxPage = () => {
 
         // Reveal other box after a delay
         setTimeout(() => {
-          setBoxStates(prev => {
+          setBoxStates((prev) => {
             const next = [...prev] as typeof prev;
             next[otherIdx] = "opening";
             return next;
           });
           setTimeout(() => {
-            setBoxStates(prev => {
+            setBoxStates((prev) => {
               const next = [...prev] as typeof prev;
               next[otherIdx] = "open";
               return next;
@@ -467,12 +469,15 @@ const PrizeBoxPage = () => {
     },
   });
 
-  const handleChoose = useCallback((boxIndex: number) => {
-    if (gameState !== "idle" || cooldown || playMutation.isPending) return;
-    sfx.start();
-    setChosenBox(boxIndex);
-    playMutation.mutate(boxIndex);
-  }, [gameState, cooldown, playMutation]);
+  const handleChoose = useCallback(
+    (boxIndex: number) => {
+      if (gameState !== "idle" || cooldown || playMutation.isPending) return;
+      sfx.start();
+      setChosenBox(boxIndex);
+      playMutation.mutate(boxIndex);
+    },
+    [gameState, cooldown, playMutation],
+  );
 
   const handleNewGame = useCallback(() => {
     setCooldown(true);
@@ -514,7 +519,13 @@ const PrizeBoxPage = () => {
             Escolha uma das 2 caixas e descubra seu prêmio! 🎁
           </p>
         </div>
-        <button onClick={() => { setMuted(!muted); setSfxMuted(!muted); }} className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          onClick={() => {
+            setMuted(!muted);
+            setSfxMuted(!muted);
+          }}
+          className="rounded-full bg-muted/50 p-2 text-muted-foreground hover:text-foreground transition-colors"
+        >
           {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
@@ -525,7 +536,12 @@ const PrizeBoxPage = () => {
           { icon: Diamond, label: "Créditos", value: `${userCredits}`, color: "hsl(var(--primary))" },
           { icon: Flame, label: "Streak", value: `${streakData?.streak || 0}🔥`, color: "hsl(30 100% 55%)" },
           { icon: Trophy, label: "Ganhos💎", value: `${stats?.totalWon || 0}`, color: "hsl(145 70% 45%)" },
-          { icon: TrendingUp, label: "Ganhos💰", value: `R$${(stats?.totalBalanceWon || 0).toFixed(0)}`, color: "hsl(45 100% 50%)" },
+          {
+            icon: TrendingUp,
+            label: "Ganhos💰",
+            value: `R$${(stats?.totalBalanceWon || 0).toFixed(0)}`,
+            color: "hsl(45 100% 50%)",
+          },
         ].map((s) => (
           <div key={s.label} className="stat-card rounded-xl p-2.5 text-center">
             <s.icon size={14} style={{ color: s.color }} className="mx-auto" />
@@ -546,20 +562,12 @@ const PrizeBoxPage = () => {
         <div className="glass-card rounded-2xl p-6 sm:p-8">
           {/* Cost info */}
           {gameState === "idle" && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center mb-6"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center mb-6">
               <p className="text-sm text-muted-foreground">
                 Custo: <span className="font-bold text-primary">{cost} 💎</span>
               </p>
-              {!canBuy && (
-                <p className="text-xs text-destructive mt-1">Créditos insuficientes</p>
-              )}
-              {cooldown && (
-                <p className="text-xs text-yellow-400 mt-1">Aguarde...</p>
-              )}
+              {!canBuy && <p className="text-xs text-destructive mt-1">Créditos insuficientes</p>}
+              {cooldown && <p className="text-xs text-yellow-400 mt-1">Aguarde...</p>}
             </motion.div>
           )}
 
@@ -570,13 +578,13 @@ const PrizeBoxPage = () => {
               state={boxStates[0]}
               prizeKey={
                 boxStates[0] === "open"
-                  ? chosenBox === 0 ? resultData?.prize_key : resultData?.other_box?.prize_key
+                  ? chosenBox === 0
+                    ? resultData?.prize_key
+                    : resultData?.other_box?.prize_key
                   : null
               }
               label={
-                boxStates[0] === "open"
-                  ? chosenBox === 0 ? resultData?.label : resultData?.other_box?.label
-                  : null
+                boxStates[0] === "open" ? (chosenBox === 0 ? resultData?.label : resultData?.other_box?.label) : null
               }
               onChoose={() => handleChoose(0)}
               disabled={!canBuy || cooldown || gameState !== "idle" || playMutation.isPending}
@@ -597,13 +605,13 @@ const PrizeBoxPage = () => {
               state={boxStates[1]}
               prizeKey={
                 boxStates[1] === "open"
-                  ? chosenBox === 1 ? resultData?.prize_key : resultData?.other_box?.prize_key
+                  ? chosenBox === 1
+                    ? resultData?.prize_key
+                    : resultData?.other_box?.prize_key
                   : null
               }
               label={
-                boxStates[1] === "open"
-                  ? chosenBox === 1 ? resultData?.label : resultData?.other_box?.label
-                  : null
+                boxStates[1] === "open" ? (chosenBox === 1 ? resultData?.label : resultData?.other_box?.label) : null
               }
               onChoose={() => handleChoose(1)}
               disabled={!canBuy || cooldown || gameState !== "idle" || playMutation.isPending}
@@ -630,16 +638,17 @@ const PrizeBoxPage = () => {
                     >
                       🎉 Parabéns! Você ganhou!
                     </motion.p>
-                    <p className="text-2xl font-bold mt-1" style={{ color: getPrizeVisual(resultData.prize_key).color }}>
+                    <p
+                      className="text-2xl font-bold mt-1"
+                      style={{ color: getPrizeVisual(resultData.prize_key).color }}
+                    >
                       {resultData.reward_type === "balance"
                         ? `+R$ ${Number(resultData.balance_won).toFixed(2)} 💰`
                         : `+${resultData.credits_won} 💎`}
                     </p>
                   </>
                 ) : (
-                  <p className="text-lg font-bold text-muted-foreground">
-                    😔 Não foi dessa vez...
-                  </p>
+                  <p className="text-lg font-bold text-muted-foreground">😔 Não foi dessa vez...</p>
                 )}
 
                 {/* Near miss effect */}
@@ -706,9 +715,13 @@ const PrizeBoxPage = () => {
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">-{a.credits_spent} 💎</p>
                   {a.metadata?.reward_type === "balance" && a.metadata?.balance_won > 0 ? (
-                    <p className="text-sm font-bold text-green-400">+R$ {Number(a.metadata.balance_won).toFixed(2)} 💰</p>
+                    <p className="text-sm font-bold text-green-400">
+                      +R$ {Number(a.metadata.balance_won).toFixed(2)} 💰
+                    </p>
                   ) : (
-                    <p className={`text-sm font-bold ${a.credits_won > 0 ? "text-green-400" : "text-muted-foreground"}`}>
+                    <p
+                      className={`text-sm font-bold ${a.credits_won > 0 ? "text-green-400" : "text-muted-foreground"}`}
+                    >
                       {a.credits_won > 0 ? `+${a.credits_won} 💎` : a.result_label}
                     </p>
                   )}

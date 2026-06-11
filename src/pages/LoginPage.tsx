@@ -113,7 +113,7 @@ const LoginPage = () => {
   }, [user, isAdmin, navigate]);
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0a0a1a] p-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black p-4">
       {/* Ambient glow */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />

@@ -66,14 +66,14 @@ function getMinutesUntil(program: Program, now: Date): number {
 }
 
 const categoryColors: Record<string, string> = {
-  "Jornal": "bg-blue-500/20 text-blue-400",
-  "Novela": "bg-pink-500/20 text-pink-400",
-  "Filme": "bg-purple-500/20 text-purple-400",
-  "Esporte": "bg-green-500/20 text-green-400",
-  "Série": "bg-orange-500/20 text-orange-400",
-  "Infantil": "bg-yellow-500/20 text-yellow-400",
-  "Variedades": "bg-cyan-500/20 text-cyan-400",
-  "Religioso": "bg-amber-500/20 text-amber-400",
+  Jornal: "bg-blue-500/20 text-blue-400",
+  Novela: "bg-pink-500/20 text-pink-400",
+  Filme: "bg-red-500/20 text-red-400",
+  Esporte: "bg-green-500/20 text-green-400",
+  Série: "bg-orange-500/20 text-orange-400",
+  Infantil: "bg-yellow-500/20 text-yellow-400",
+  Variedades: "bg-cyan-500/20 text-cyan-400",
+  Religioso: "bg-amber-500/20 text-amber-400",
 };
 
 const TvGuidePage = () => {
@@ -97,11 +97,14 @@ const TvGuidePage = () => {
 
   // Realtime
   useEffect(() => {
-    const ch = supabase.channel("tv-realtime")
+    const ch = supabase
+      .channel("tv-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "tv_programs" }, () => loadPrograms())
       .on("postgres_changes", { event: "*", schema: "public", table: "tv_channels" }, () => loadChannels())
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, []);
 
   const loadChannels = async () => {
@@ -111,7 +114,12 @@ const TvGuidePage = () => {
 
   const loadPrograms = async () => {
     setLoading(true);
-    const { data } = await supabase.from("tv_programs").select("*").eq("program_date", todayStr).eq("is_active", true).order("start_time");
+    const { data } = await supabase
+      .from("tv_programs")
+      .select("*")
+      .eq("program_date", todayStr)
+      .eq("is_active", true)
+      .order("start_time");
     setPrograms((data as any[]) || []);
     setLoading(false);
   };
@@ -120,12 +128,12 @@ const TvGuidePage = () => {
 
   const filteredPrograms = useMemo(() => {
     if (selectedChannel === "all") return programs;
-    return programs.filter(p => p.channel_id === selectedChannel);
+    return programs.filter((p) => p.channel_id === selectedChannel);
   }, [programs, selectedChannel]);
 
   const groupedByChannel = useMemo(() => {
     const map = new Map<string, Program[]>();
-    filteredPrograms.forEach(p => {
+    filteredPrograms.forEach((p) => {
       if (!map.has(p.channel_id)) map.set(p.channel_id, []);
       map.get(p.channel_id)!.push(p);
     });
@@ -171,7 +179,7 @@ const TvGuidePage = () => {
         >
           Todos
         </button>
-        {channels.map(ch => (
+        {channels.map((ch) => (
           <button
             key={ch.id}
             onClick={() => setSelectedChannel(ch.id)}
@@ -205,7 +213,7 @@ const TvGuidePage = () => {
       ) : (
         <div className="space-y-6">
           {Array.from(groupedByChannel.entries()).map(([channelId, channelPrograms]) => {
-            const channel = channels.find(c => c.id === channelId);
+            const channel = channels.find((c) => c.id === channelId);
             if (!channel) return null;
             const nextProgramId = findNextProgram(channelPrograms);
 
@@ -219,7 +227,11 @@ const TvGuidePage = () => {
                 {/* Channel header */}
                 <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-3">
                   {channel.logo_url ? (
-                    <img src={channel.logo_url} alt={channel.name} className="h-10 w-10 rounded-xl object-cover shadow-md" />
+                    <img
+                      src={channel.logo_url}
+                      alt={channel.name}
+                      className="h-10 w-10 rounded-xl object-cover shadow-md"
+                    />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary">
                       <Tv size={20} />
@@ -233,7 +245,7 @@ const TvGuidePage = () => {
 
                 {/* Programs list */}
                 <div className="divide-y divide-border/30">
-                  {channelPrograms.map(program => {
+                  {channelPrograms.map((program) => {
                     const status = getProgramStatus(program, now);
                     const isLive = status === "live";
                     const isNext = program.id === nextProgramId;
@@ -247,10 +259,10 @@ const TvGuidePage = () => {
                           isLive
                             ? "bg-destructive/5 border-l-2 border-l-destructive"
                             : isNext
-                            ? "bg-primary/5 border-l-2 border-l-primary"
-                            : status === "ended"
-                            ? "opacity-50"
-                            : ""
+                              ? "bg-primary/5 border-l-2 border-l-primary"
+                              : status === "ended"
+                                ? "opacity-50"
+                                : ""
                         }`}
                       >
                         {/* Live glow */}
@@ -261,7 +273,9 @@ const TvGuidePage = () => {
                         <div className="relative flex items-start gap-3">
                           {/* Time column */}
                           <div className="flex flex-col items-center gap-0.5 pt-0.5">
-                            <span className={`text-xs font-bold ${isLive ? "text-destructive" : isNext ? "text-primary" : "text-muted-foreground"}`}>
+                            <span
+                              className={`text-xs font-bold ${isLive ? "text-destructive" : isNext ? "text-primary" : "text-muted-foreground"}`}
+                            >
                               {program.start_time.slice(0, 5)}
                             </span>
                             <span className="text-[10px] text-muted-foreground">{program.end_time.slice(0, 5)}</span>
@@ -291,13 +305,17 @@ const TvGuidePage = () => {
                                   <CheckCircle2 size={8} /> ENCERRADO
                                 </span>
                               )}
-                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${categoryColors[program.category] || "bg-muted text-muted-foreground"}`}>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${categoryColors[program.category] || "bg-muted text-muted-foreground"}`}
+                              >
                                 {program.category}
                               </span>
                             </div>
 
                             {program.description && (
-                              <p className="mt-1 text-[11px] leading-tight text-muted-foreground line-clamp-2">{program.description}</p>
+                              <p className="mt-1 text-[11px] leading-tight text-muted-foreground line-clamp-2">
+                                {program.description}
+                              </p>
                             )}
 
                             {/* Progress bar for live */}
