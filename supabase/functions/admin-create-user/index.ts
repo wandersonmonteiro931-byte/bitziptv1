@@ -69,7 +69,6 @@ Deno.serve(async (req) => {
       iptv_connections,
       iptv_monthly_value,
       iptv_status,
-      referral_code,
       referred_by_code,
       admin_notes,
     } = body;
@@ -145,7 +144,6 @@ Deno.serve(async (req) => {
       iptv_connections: iptv_connections || 1,
       iptv_monthly_value: iptv_monthly_value || 0,
       iptv_status: iptv_status || "active",
-      referral_code: referral_code || username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
       referred_by: referredById,
       admin_notes: admin_notes || "",
     });
@@ -184,9 +182,22 @@ Deno.serve(async (req) => {
       details: { name, username, role: userRole, referred_by_code: cleanReferredCode || null },
     });
 
-    return new Response(JSON.stringify({ success: true, user_id: userId }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const { data: createdProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("referral_code")
+      .eq("id", userId)
+      .maybeSingle();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        user_id: userId,
+        referral_code: createdProfile?.referral_code || null,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,

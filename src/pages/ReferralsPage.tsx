@@ -58,7 +58,7 @@ const ReferralsPage = () => {
           <Users className="text-red-500" /> Indicações
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Indique clientes e ganhe 1 mês grátis no primeiro pagamento do indicado.
+          Indique clientes com seu código único sequencial e ganhe 1 mês grátis no primeiro pagamento do indicado.
         </p>
       </div>
 
@@ -71,7 +71,8 @@ const ReferralsPage = () => {
         <h2 className="mb-1 font-display text-sm tracking-wider text-muted-foreground">
           SEU CÓDIGO ÚNICO DE INDICAÇÃO
         </h2>
-        <p className="mb-4 font-display text-3xl font-bold text-red-500">{user?.referral_code}</p>
+        <p className="mb-2 font-display text-3xl font-bold text-red-500">{user?.referral_code}</p>
+        <p className="mb-4 text-[11px] text-muted-foreground">Formato sequencial: WMC001A, WMC002A, WMC003A...</p>
         <button
           onClick={copyCode}
           className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-red-500 active:scale-[0.98]"

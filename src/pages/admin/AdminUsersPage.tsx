@@ -199,11 +199,7 @@ const AdminUsersPage = () => {
     }
     setCreating(true);
     const res = await supabase.functions.invoke("admin-create-user", {
-      body: {
-        ...form,
-        referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined,
-        referral_code: form.username.toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase(),
-      },
+      body: { ...form, referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined },
     });
     setCreating(false);
     if (res.error || res.data?.error) {
@@ -478,7 +474,11 @@ const AdminUsersPage = () => {
                   { key: "iptv_server", label: "Servidor IPTV", type: "text" },
                   { key: "iptv_app", label: "App IPTV", type: "text" },
                   { key: "iptv_expiry", label: "Vencimento IPTV", type: "date" },
-                  { key: "referred_by_code", label: "Código de indicação recebido (opcional)", type: "text" },
+                  {
+                    key: "referred_by_code",
+                    label: "Código de indicação recebido (opcional) — Ex: WMC001A",
+                    type: "text",
+                  },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="mb-1 block text-xs text-muted-foreground">{f.label}</label>
@@ -659,11 +659,12 @@ const AdminUsersPage = () => {
                           type="text"
                           value={autoReferredByCode}
                           onChange={(e) => setAutoReferredByCode(e.target.value.toUpperCase())}
-                          placeholder="Ex: ALEX1234"
+                          placeholder="Ex: WMC001A"
                           className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm uppercase text-foreground focus:border-primary focus:outline-none"
                         />
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           Quando esse cliente fizer o 1º pagamento, o dono do código ganha 1 mês grátis automaticamente.
+                          O código do cliente novo será gerado em ordem: WMC001A, WMC002A...
                         </p>
                       </div>
                       <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
