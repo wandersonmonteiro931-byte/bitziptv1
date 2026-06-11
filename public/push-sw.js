@@ -9,7 +9,14 @@ var APP_BRANDING_CACHE = {
 };
 
 self.addEventListener("message", function (event) {
-  if (!event.data || event.data.type !== "APP_BRANDING_UPDATED") return;
+  if (!event.data) return;
+
+  if (event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+
+  if (event.data.type !== "APP_BRANDING_UPDATED") return;
   APP_BRANDING_CACHE = Object.assign({}, APP_BRANDING_CACHE, event.data.branding || {});
 });
 

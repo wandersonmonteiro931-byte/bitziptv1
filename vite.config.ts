@@ -53,9 +53,10 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       strategies: "generateSW",
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["logo-bitz.jpg", "favicon.ico"],
       workbox: {
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
         globIgnores: ["**/push-sw.js", "**/service-worker.js"],
