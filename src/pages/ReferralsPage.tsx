@@ -105,7 +105,12 @@ const ReferralsPage = () => {
       <div className="glass-card rounded-xl p-5">
         <h2 className="mb-4 font-display text-sm font-semibold tracking-wide text-foreground">SUAS INDICAÇÕES</h2>
         <div className="space-y-3">
-          {referrals.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma indicação ainda.</p>}
+          {referrals.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma indicação aguardando pagamento ainda. Quando um cliente for cadastrado usando seu código, ele
+              aparecerá aqui como aguardando o 1º pagamento.
+            </p>
+          )}
           {referrals.map((ref) => {
             const approvedRef = ref.status === "approved";
             const rejectedRef = ref.status === "rejected";

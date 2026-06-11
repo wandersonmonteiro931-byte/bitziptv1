@@ -162,15 +162,35 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from("user_roles").insert({ user_id: userId, role: userRole });
 
     if (referredById) {
-      await supabaseAdmin.from("referrals").insert({
-        referrer_id: referredById,
-        referred_id: userId,
-        reward_amount: 0,
-        status: "pending",
-        reward_type: "free_month",
-        reward_months: 1,
-        notes: "Aguardando o primeiro pagamento do indicado",
-      });
+      const { data: existingReferral } = await supabaseAdmin
+        .from("referrals")
+        .select("id")
+        .eq("referred_id", userId)
+        .neq("status", "rejected")
+        .maybeSingle();
+
+      if (!existingReferral) {
+        const { error: referralInsertError } = await supabaseAdmin.from("referrals").insert({
+          referrer_id: referredById,
+          referred_id: userId,
+          reward_amount: 0,
+          status: "pending",
+          reward_type: "free_month",
+          reward_months: 1,
+          notes: "Aguardando o primeiro pagamento do indicado",
+        });
+
+        if (referralInsertError) {
+          await supabaseAdmin.auth.admin.deleteUser(userId);
+          return new Response(
+            JSON.stringify({ error: `Erro ao registrar indicação: ${referralInsertError.message}` }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
     }
 
     // Log action
@@ -193,6 +213,7 @@ Deno.serve(async (req) => {
         success: true,
         user_id: userId,
         referral_code: createdProfile?.referral_code || null,
+        referral_registered: !!referredById,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
