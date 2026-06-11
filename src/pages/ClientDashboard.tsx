@@ -1251,10 +1251,18 @@ const ClientDashboard = () => {
   const discount6m = value6m * 0.1;
   const final6m = value6m - discount6m;
 
-  const shouldAnticipateRenewal = !isOverdue && !isDueToday && daysUntilDue > 0 && daysUntilDue < 5;
-  const mainRenewalLabel = shouldAnticipateRenewal ? "Antecipar renovação" : "Renovar Plano";
-  const renewal3mLabel = shouldAnticipateRenewal ? "Antecipar 3 meses" : "Renovar 3 meses";
-  const renewal6mLabel = shouldAnticipateRenewal ? "Antecipar 6 meses" : "Renovar 6 meses";
+  const isNearDueNotice = !isOverdue && !isDueToday && daysUntilDue >= 1 && daysUntilDue <= 4;
+  const isRenewPlanWindow = isOverdue || isDueToday || (daysUntilDue >= 1 && daysUntilDue <= 5);
+  const planSubtitle = isOverdue
+    ? "Você está em atraso!"
+    : isDueToday
+      ? "Vence hoje!"
+      : isNearDueNotice
+        ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
+        : "Você está em dias!";
+  const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
+  const renewal3mLabel = isRenewPlanWindow ? "Renovar 3 meses" : "Antecipar 3 meses";
+  const renewal6mLabel = isRenewPlanWindow ? "Renovar 6 meses" : "Antecipar 6 meses";
   const renewalButtonMotion = {
     initial: { scale: 1 },
     animate: {
@@ -1281,7 +1289,13 @@ const ClientDashboard = () => {
         >
           <div>
             <h1 className="text-xl font-bold text-foreground">Olá, {user?.name?.split(" ")[0]}</h1>
-            <p className="mt-0.5 text-xs text-muted-foreground">Cliente Premium</p>
+            <p
+              className={`mt-0.5 text-xs font-medium ${
+                isOverdue ? "text-red-400" : isDueToday || isNearDueNotice ? "text-amber-400" : "text-emerald-400"
+              }`}
+            >
+              {planSubtitle}
+            </p>
           </div>
           <div className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 rounded-full ${status.dotColor} ${status.pulse ? "animate-pulse" : ""}`} />
