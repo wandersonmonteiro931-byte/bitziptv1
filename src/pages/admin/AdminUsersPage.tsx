@@ -181,7 +181,7 @@ const AdminUsersPage = () => {
     if (res.error || res.data?.error) {
       toast({ title: "Erro", description: res.data?.error || res.error?.message, variant: "destructive" });
     } else {
-      toast({ title: "✅ Cliente cadastrado com sucesso!" });
+      toast({ title: "✅ Cliente cadastrado com sucesso!", description: `Login: ${iptvUser} · Senha: ${iptvPass}` });
       setShowAutoRegister(false);
       setPastedText("");
       setParsedData(null);
@@ -193,8 +193,8 @@ const AdminUsersPage = () => {
   };
 
   const createUser = async () => {
-    if (!form.name || !form.username || !form.email || !form.password) {
-      toast({ title: "Erro", description: "Preencha todos os campos obrigatórios", variant: "destructive" });
+    if (!form.name || !form.username || !form.password) {
+      toast({ title: "Erro", description: "Preencha nome, usuário e senha", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -205,7 +205,10 @@ const AdminUsersPage = () => {
     if (res.error || res.data?.error) {
       toast({ title: "Erro", description: res.data?.error || res.error?.message, variant: "destructive" });
     } else {
-      toast({ title: "Usuário criado com sucesso!" });
+      toast({
+        title: "Usuário criado com sucesso!",
+        description: "Login liberado pelo Usuário IPTV/Username e senha informada.",
+      });
       setShowCreate(false);
       setForm({
         name: "",
@@ -287,10 +290,10 @@ const AdminUsersPage = () => {
     }
 
     setEditSaving(true);
-    const res = (await (supabase.rpc as any)("admin_set_referrer_by_code", {
+    const res = await supabase.rpc("admin_set_referrer_by_code", {
       p_user_id: editUser.id,
       p_referral_code: code,
-    })) as { data: any; error: any };
+    });
     setEditSaving(false);
 
     if (res.error || res.data?.error) {
@@ -522,7 +525,7 @@ const AdminUsersPage = () => {
                 {[
                   { key: "name", label: "Nome completo", type: "text" },
                   { key: "username", label: "Username IPTV", type: "text" },
-                  { key: "email", label: "E-mail", type: "email" },
+                  { key: "email", label: "E-mail do cliente (opcional, não usar para login)", type: "email" },
                   { key: "password", label: "Senha", type: "password" },
                   { key: "iptv_user", label: "Usuário IPTV", type: "text" },
                   { key: "iptv_server", label: "Servidor IPTV", type: "text" },
@@ -542,6 +545,11 @@ const AdminUsersPage = () => {
                       onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
                       className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     />
+                    {f.key === "email" && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Login do cliente será pelo Usuário IPTV/Username, não por esse e-mail.
+                      </p>
+                    )}
                   </div>
                 ))}
                 <div>

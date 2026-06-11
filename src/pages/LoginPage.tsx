@@ -61,13 +61,33 @@ const LoginPage = () => {
       setSubmitting(true);
 
       try {
-        // Try login with @iptv.bitz first, then fallback to @bitziptv.local for legacy users
-        const emailValue = username.includes("@") ? username : `${username}@iptv.bitz`;
-        let err = await login(emailValue, password);
+        const cleanUser = username.trim();
+        const candidates = new Set<string>();
 
-        // Fallback for legacy accounts
-        if (err && !username.includes("@")) {
-          err = await login(`${username}@bitziptv.local`, password);
+        if (cleanUser.includes("@")) {
+          candidates.add(cleanUser);
+        } else {
+          // Padrão principal dos clientes criados pelo painel.
+          candidates.add(`${cleanUser}@iptv.bitz`);
+          // Compatibilidade com contas antigas.
+          candidates.add(`${cleanUser}@bitziptv.local`);
+
+          // Resolve login por Usuário IPTV, Username ou Código Cliente.
+          const { data: resolvedLogin } = await (supabase as any).rpc("resolve_login_identifier", {
+            p_identifier: cleanUser,
+          });
+
+          if (Array.isArray(resolvedLogin)) {
+            resolvedLogin.forEach((item: any) => {
+              if (item?.login_email) candidates.add(String(item.login_email));
+            });
+          }
+        }
+
+        let err: string | null = "Usuário ou senha inválidos.";
+        for (const emailCandidate of candidates) {
+          err = await login(emailCandidate, password);
+          if (!err) break;
         }
 
         if (err) {
@@ -166,7 +186,10 @@ const LoginPage = () => {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (!isLockedOut) setError("");
+                }}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white placeholder:text-white/25 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                 placeholder="Digite seu usuário"
                 required
@@ -184,7 +207,10 @@ const LoginPage = () => {
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (!isLockedOut) setError("");
+                  }}
                   className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3.5 pr-12 text-sm text-white placeholder:text-white/25 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all"
                   placeholder="Digite sua senha"
                   required

@@ -80,10 +80,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use provided email or generate one from username
-    const userEmail = email || `${username}@iptv.bitz`;
-    // Use provided password or iptv_password or username as fallback
-    const userPassword = password || iptv_password || username;
+    const cleanUsername = String(username || "").trim();
+    const cleanIptvUser = String(iptv_user || cleanUsername).trim();
+    const loginIdentifier = cleanIptvUser || cleanUsername;
+
+    // Login do cliente deve ser previsível:
+    // Usuário IPTV/Username + senha. O e-mail informado no cadastro não é usado como login Auth.
+    const userEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
+
+    // Use provided password or iptv_password or loginIdentifier as fallback.
+    const userPassword = String(password || iptv_password || loginIdentifier);
 
     // Create auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -135,8 +141,8 @@ Deno.serve(async (req) => {
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
       name,
-      username,
-      iptv_user: iptv_user || username,
+      username: cleanUsername,
+      iptv_user: cleanIptvUser,
       iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
@@ -213,6 +219,7 @@ Deno.serve(async (req) => {
         success: true,
         user_id: userId,
         referral_code: createdProfile?.referral_code || null,
+        login_email: userEmail,
         referral_registered: !!referredById,
       }),
       {
