@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 import fs from "fs";
 
+const BUILD_TIMESTAMP = Date.now();
+
 /**
  * Custom Vite plugin that prepends push notification handler code
  * to the generated sw.js AFTER the build completes.
@@ -36,10 +38,37 @@ function prependPushToSW(): Plugin {
   };
 }
 
+function writeVersionFile(): Plugin {
+  return {
+    name: "write-version-file",
+    apply: "build",
+    closeBundle() {
+      const distPath = path.resolve(__dirname, "dist");
+      if (!fs.existsSync(distPath)) fs.mkdirSync(distPath, { recursive: true });
+
+      fs.writeFileSync(
+        path.resolve(distPath, "version.json"),
+        JSON.stringify(
+          {
+            buildTimestamp: BUILD_TIMESTAMP,
+            buildId: String(BUILD_TIMESTAMP),
+            version: String(BUILD_TIMESTAMP),
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      console.log("[write-version-file] version.json criado para atualização obrigatória");
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   define: {
-    __BUILD_TIMESTAMP__: JSON.stringify(Date.now()),
+    __BUILD_TIMESTAMP__: JSON.stringify(BUILD_TIMESTAMP),
   },
   server: {
     host: "::",
@@ -57,9 +86,18 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ["logo-bitz.jpg", "favicon.ico"],
       workbox: {
         cleanupOutdatedCaches: true,
-        navigateFallbackDenylist: [/^\/~oauth/],
+        navigateFallbackDenylist: [/^\/~oauth/, /^\/version\.json/],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,woff2}"],
         globIgnores: ["**/push-sw.js", "**/service-worker.js"],
+        runtimeCaching: [
+          {
+            urlPattern: /\/version\.json/,
+            handler: "NetworkOnly",
+            options: {
+              cacheName: "version-check",
+            },
+          },
+        ],
         skipWaiting: true,
         clientsClaim: true,
       },
@@ -95,6 +133,7 @@ export default defineConfig(({ mode }) => ({
         ],
       },
     }),
+    writeVersionFile(),
     prependPushToSW(),
   ].filter(Boolean),
   resolve: {
