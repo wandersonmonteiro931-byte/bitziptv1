@@ -987,8 +987,6 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState<number>(5);
-  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState<number>(10);
   const [notifPopup, setNotifPopup] = useState<{
     title: string;
     body: string;
@@ -1312,6 +1310,20 @@ const ClientDashboard = () => {
     whileTap: { scale: 0.98, y: 0 },
   };
 
+  const renewalOptionMotion = {
+    animate: {
+      y: [0, -2, 0],
+      boxShadow: ["0 0 0 rgba(239,68,68,0)", "0 10px 28px rgba(239,68,68,0.14)", "0 0 0 rgba(239,68,68,0)"],
+    },
+    transition: {
+      duration: 3,
+      repeat: Infinity,
+      ease: "easeInOut" as const,
+    },
+    whileHover: { scale: 1.012, x: 3 },
+    whileTap: { scale: 0.985 },
+  };
+
   return (
     <AppLayout>
       <div className="space-y-5 pb-4">
@@ -1506,47 +1518,83 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* RENEWAL OPTIONS (3m, 6m) — discrete */}
+        {/* RENEWAL OPTIONS (3m, 6m) — destaque animado */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
-          className="rounded-2xl border border-border/30 bg-card/40 px-5 py-1"
+          className="grid gap-3 sm:grid-cols-2"
         >
           <motion.button
             type="button"
-            whileHover={{ x: 4, scale: 1.01 }}
-            whileTap={{ scale: 0.985 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            {...renewalOptionMotion}
             onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
-            className="flex w-full items-center justify-between rounded-xl px-2 py-3.5 text-left transition-colors hover:bg-red-500/5"
+            className="group relative overflow-hidden rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/12 via-card to-black/40 p-4 text-left shadow-lg shadow-red-500/5 transition-colors hover:border-red-500/45 hover:bg-red-500/10"
           >
-            <div>
-              <p className="text-sm text-foreground">{renewal3mLabel}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
-              </p>
-            </div>
-            <span className="text-sm text-muted-foreground">R$ {final3m.toFixed(2)}</span>
-          </motion.button>
+            <motion.span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/14 to-transparent"
+              animate={{ x: ["0%", "360%"] }}
+              transition={{ duration: 3.1, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
+            />
+            <motion.span
+              aria-hidden="true"
+              className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_14px_rgba(248,113,113,0.95)]"
+              animate={{ opacity: [0.35, 1, 0.35], scale: [0.85, 1.18, 0.85] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            />
 
-          <div className="border-t border-border/20" />
+            <div className="relative z-10 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-foreground">{renewal3mLabel}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-red-300">
+                  {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
+                </p>
+                <p className="mt-2 text-[10px] text-muted-foreground">Economia: R$ {discount3m.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl bg-red-500/10 px-3 py-2 text-right">
+                <p className="text-[10px] text-muted-foreground">Total</p>
+                <span className="text-sm font-bold text-white">R$ {final3m.toFixed(2)}</span>
+              </div>
+            </div>
+          </motion.button>
 
           <motion.button
             type="button"
-            whileHover={{ x: 4, scale: 1.01 }}
-            whileTap={{ scale: 0.985 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            {...renewalOptionMotion}
+            transition={{ ...renewalOptionMotion.transition, delay: 0.35 }}
             onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
-            className="flex w-full items-center justify-between rounded-xl px-2 py-3.5 text-left transition-colors hover:bg-red-500/5"
+            className="group relative overflow-hidden rounded-2xl border border-red-500/25 bg-gradient-to-br from-red-600/16 via-card to-black/40 p-4 text-left shadow-lg shadow-red-500/10 transition-colors hover:border-red-500/55 hover:bg-red-500/10"
           >
-            <div>
-              <p className="text-sm text-foreground">{renewal6mLabel}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
-              </p>
+            <motion.span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/16 to-transparent"
+              animate={{ x: ["0%", "360%"] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
+            />
+            <motion.span
+              aria-hidden="true"
+              className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_16px_rgba(248,113,113,1)]"
+              animate={{ opacity: [0.35, 1, 0.35], scale: [0.85, 1.22, 0.85] }}
+              transition={{ duration: 1.65, repeat: Infinity, ease: "easeInOut" }}
+            />
+
+            <div className="relative z-10 flex items-center justify-between gap-3">
+              <div>
+                <div className="mb-1 inline-flex rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-300">
+                  Melhor desconto
+                </div>
+                <p className="text-sm font-bold text-foreground">{renewal6mLabel}</p>
+                <p className="mt-0.5 text-[11px] font-semibold text-red-300">
+                  {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
+                </p>
+                <p className="mt-2 text-[10px] text-muted-foreground">Economia: R$ {discount6m.toFixed(2)}</p>
+              </div>
+              <div className="rounded-xl bg-red-500/10 px-3 py-2 text-right">
+                <p className="text-[10px] text-muted-foreground">Total</p>
+                <span className="text-sm font-bold text-white">R$ {final6m.toFixed(2)}</span>
+              </div>
             </div>
-            <span className="text-sm text-muted-foreground">R$ {final6m.toFixed(2)}</span>
           </motion.button>
         </motion.div>
 
