@@ -987,6 +987,8 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState<number>(5);
+  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState<number>(10);
   const [notifPopup, setNotifPopup] = useState<{
     title: string;
     body: string;
