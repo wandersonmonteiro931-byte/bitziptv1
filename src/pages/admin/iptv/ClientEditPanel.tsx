@@ -1,10 +1,36 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Save, Eye, EyeOff, ShieldAlert, Lock, Unlock, RotateCcw, LogOut, Tv, Wallet, History, Settings, User, CreditCard, CalendarCheck, Trash2, RotateCw, TrendingUp, Plus, Pencil, CheckSquare, Square, RefreshCw } from "lucide-react";
+import {
+  X,
+  Save,
+  Eye,
+  EyeOff,
+  ShieldAlert,
+  Lock,
+  Unlock,
+  RotateCcw,
+  LogOut,
+  Tv,
+  Wallet,
+  History,
+  Settings,
+  User,
+  CreditCard,
+  CalendarCheck,
+  Trash2,
+  RotateCw,
+  TrendingUp,
+  Plus,
+  Pencil,
+  CheckSquare,
+  Square,
+  RefreshCw,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { IPTV_STATUSES, getStatusInfo } from "./types";
 import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
+import { useAppBranding } from "@/hooks/useAppBranding";
 
 const TABS = [
   { key: "overview", label: "Visão Geral", icon: User },
@@ -24,6 +50,7 @@ interface Props {
 
 export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Props) {
   const { toast } = useToast();
+  const { appName, logoUrl } = useAppBranding();
   const [tab, setTab] = useState("overview");
   const [saving, setSaving] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -33,7 +60,13 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [showConfirmPayment, setShowConfirmPayment] = useState(false);
   const [showManualPayment, setShowManualPayment] = useState(false);
-  const [manualPaymentForm, setManualPaymentForm] = useState({ amount: "", payment_date: "", period_start: "", period_end: "", notes: "" });
+  const [manualPaymentForm, setManualPaymentForm] = useState({
+    amount: "",
+    payment_date: "",
+    period_start: "",
+    period_end: "",
+    notes: "",
+  });
   const [paymentForm, setPaymentForm] = useState({ months: 1, amount: "", notes: "" });
   const [invoiceFilter, setInvoiceFilter] = useState<"all" | "past" | "future">("all");
   const [scheduledRates, setScheduledRates] = useState<any[]>([]);
@@ -48,7 +81,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     iptv_server: user.iptv_server || "",
     iptv_status: user.iptv_status || "active",
     iptv_monthly_value: user.iptv_monthly_value || 0,
-    
+
     iptv_connections: user.iptv_connections || 1,
     iptv_tv_app: user.iptv_tv_app || "",
     iptv_client_code: user.iptv_client_code || "",
@@ -63,6 +96,20 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const totalValue = Number(form.iptv_monthly_value) * Number(form.iptv_connections);
   const statusInfo = getStatusInfo(form.iptv_status);
+  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const tvAppOptions = useMemo(() => {
+    const normalizedTitle = appTitle.toLowerCase();
+    const existingApps = Array.isArray(tvApps) ? tvApps : [];
+    const filteredApps = existingApps.filter((app) => {
+      const name = String(app?.name || "")
+        .trim()
+        .toLowerCase();
+      return name !== "wmcflix" && name !== normalizedTitle;
+    });
+
+    return [{ id: "wmcflix-oficial", name: appTitle, icon: "", logoUrl, isOfficialWmcflix: true }, ...filteredApps];
+  }, [tvApps, appTitle, logoUrl]);
+  const selectedTvApp = tvAppOptions.find((app) => app.name === form.iptv_tv_app);
 
   const loadLogs = async () => {
     if (logsLoaded) return;
@@ -155,7 +202,12 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   };
 
   const registerManualPayment = async () => {
-    if (!manualPaymentForm.amount || !manualPaymentForm.payment_date || !manualPaymentForm.period_start || !manualPaymentForm.period_end) {
+    if (
+      !manualPaymentForm.amount ||
+      !manualPaymentForm.payment_date ||
+      !manualPaymentForm.period_start ||
+      !manualPaymentForm.period_end
+    ) {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
       return;
     }
@@ -202,7 +254,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   };
 
   const toggleInvoiceSelection = (id: string) => {
-    setSelectedInvoices((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);
+    setSelectedInvoices((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
   const bulkDeleteInvoices = async () => {
@@ -250,13 +302,17 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     onSaved();
   };
 
-  const inputCls = "w-full rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all";
+  const inputCls =
+    "w-full rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all";
   const labelCls = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
   const isExpired = form.iptv_expiry && new Date(form.iptv_expiry) < new Date();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-background/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-stretch justify-end bg-background/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <motion.div
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
@@ -273,10 +329,15 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
             </div>
             <div>
               <h2 className="text-base font-bold text-foreground">{user.name}</h2>
-              <p className="text-xs text-muted-foreground">@{user.username} · {user.iptv_client_code || "Sem código"}</p>
+              <p className="text-xs text-muted-foreground">
+                @{user.username} · {user.iptv_client_code || "Sem código"}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
             <X size={18} />
           </button>
         </div>
@@ -287,7 +348,10 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
             <ShieldAlert size={14} className="text-destructive shrink-0" />
             <p className="text-xs font-medium text-destructive">Plano vencido em {form.iptv_expiry}</p>
             <button
-              onClick={() => { setTab("financial"); setShowConfirmPayment(true); }}
+              onClick={() => {
+                setTab("financial");
+                setShowConfirmPayment(true);
+              }}
               className="ml-auto rounded-lg bg-primary/15 px-3 py-1 text-[10px] font-semibold text-primary hover:bg-primary/25 transition-colors"
             >
               Renovar
@@ -297,21 +361,38 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
         {/* Status badge + quick actions */}
         <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-          <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${statusInfo.color}`}>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${statusInfo.color}`}
+          >
             <span className={`h-2 w-2 rounded-full ${statusInfo.dot} animate-pulse`} />
             {statusInfo.label}
           </span>
           <div className="ml-auto flex gap-1.5">
             {form.iptv_status !== "blocked" ? (
-              <button onClick={() => quickAction("block")} disabled={saving} className="rounded-lg bg-red-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors" title="Bloquear">
+              <button
+                onClick={() => quickAction("block")}
+                disabled={saving}
+                className="rounded-lg bg-red-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors"
+                title="Bloquear"
+              >
                 <Lock size={12} />
               </button>
             ) : (
-              <button onClick={() => quickAction("activate")} disabled={saving} className="rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors" title="Ativar">
+              <button
+                onClick={() => quickAction("activate")}
+                disabled={saving}
+                className="rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                title="Ativar"
+              >
                 <Unlock size={12} />
               </button>
             )}
-            <button onClick={() => quickAction("reset_password")} disabled={saving} className="rounded-lg bg-yellow-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-yellow-400 hover:bg-yellow-500/20 transition-colors" title="Resetar senha">
+            <button
+              onClick={() => quickAction("reset_password")}
+              disabled={saving}
+              className="rounded-lg bg-yellow-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+              title="Resetar senha"
+            >
               <RotateCcw size={12} />
             </button>
           </div>
@@ -324,7 +405,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-3 text-xs font-medium transition-all border-b-2 ${
-                tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                tab === t.key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               <t.icon size={13} />
@@ -336,47 +419,91 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <AnimatePresence mode="wait">
-            <motion.div key={tab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
               {/* ===== OVERVIEW ===== */}
               {tab === "overview" && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                     <div>
                       <label className={labelCls}>Nome Completo</label>
-                      <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
+                      <input
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className={inputCls}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>Código do Cliente</label>
-                        <input value={form.iptv_client_code} onChange={(e) => setForm({ ...form, iptv_client_code: e.target.value })} placeholder="BTZ-XXXXX" className={inputCls} />
+                        <input
+                          value={form.iptv_client_code}
+                          onChange={(e) => setForm({ ...form, iptv_client_code: e.target.value })}
+                          placeholder="BTZ-XXXXX"
+                          className={inputCls}
+                        />
                       </div>
                       <div>
                         <label className={labelCls}>Conexões</label>
-                        <input type="number" min="1" value={form.iptv_connections} onChange={(e) => setForm({ ...form, iptv_connections: Number(e.target.value) })} className={inputCls} />
+                        <input
+                          type="number"
+                          min="1"
+                          value={form.iptv_connections}
+                          onChange={(e) => setForm({ ...form, iptv_connections: Number(e.target.value) })}
+                          className={inputCls}
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>Servidor</label>
-                        <select value={form.iptv_server} onChange={(e) => setForm({ ...form, iptv_server: e.target.value })} className={inputCls}>
+                        <select
+                          value={form.iptv_server}
+                          onChange={(e) => setForm({ ...form, iptv_server: e.target.value })}
+                          className={inputCls}
+                        >
                           <option value="">Selecione...</option>
-                          {servers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                          {servers.map((s) => (
+                            <option key={s.id} value={s.name}>
+                              {s.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
                         <label className={labelCls}>App TV</label>
-                        <select value={form.iptv_tv_app} onChange={(e) => setForm({ ...form, iptv_tv_app: e.target.value })} className={inputCls}>
+                        <select
+                          value={form.iptv_tv_app}
+                          onChange={(e) => setForm({ ...form, iptv_tv_app: e.target.value })}
+                          className={inputCls}
+                        >
                           <option value="">Nenhum</option>
-                          {tvApps.map((a) => <option key={a.id} value={a.name}>{a.icon} {a.name}</option>)}
+                          {tvAppOptions.map((a) => (
+                            <option key={a.id} value={a.name}>
+                              {a.isOfficialWmcflix ? "▣" : a.icon} {a.name}
+                            </option>
+                          ))}
                         </select>
+                        {selectedTvApp?.isOfficialWmcflix && (
+                          <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+                            <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain" />
+                            <span className="text-xs font-medium text-red-300">App oficial {appTitle}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Admin Notes */}
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📎 Observações</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      📎 Observações
+                    </p>
                     <textarea
                       value={form.admin_notes}
                       onChange={(e) => setForm({ ...form, admin_notes: e.target.value.slice(0, 5000) })}
@@ -386,7 +513,12 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     />
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={form.admin_notes_urgent} onChange={(e) => setForm({ ...form, admin_notes_urgent: e.target.checked })} className="h-4 w-4 rounded accent-destructive" />
+                        <input
+                          type="checkbox"
+                          checked={form.admin_notes_urgent}
+                          onChange={(e) => setForm({ ...form, admin_notes_urgent: e.target.checked })}
+                          className="h-4 w-4 rounded accent-destructive"
+                        />
                         <span className="text-xs text-foreground">⚠️ Urgente</span>
                       </label>
                       <span className="text-[10px] text-muted-foreground">{(form.admin_notes || "").length}/5000</span>
@@ -399,14 +531,24 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
               {tab === "financial" && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">💰 Mensalidade</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      💰 Mensalidade
+                    </p>
                     <div>
                       <label className={labelCls}>Valor Base (R$)</label>
-                      <input type="number" step="0.01" value={form.iptv_monthly_value} onChange={(e) => setForm({ ...form, iptv_monthly_value: Number(e.target.value) })} className={inputCls} />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={form.iptv_monthly_value}
+                        onChange={(e) => setForm({ ...form, iptv_monthly_value: Number(e.target.value) })}
+                        className={inputCls}
+                      />
                     </div>
                     <div className="rounded-lg bg-primary/10 p-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Valor Total ({form.iptv_connections} conexão{Number(form.iptv_connections) > 1 ? "ões" : ""})</span>
+                        <span className="text-xs text-muted-foreground">
+                          Valor Total ({form.iptv_connections} conexão{Number(form.iptv_connections) > 1 ? "ões" : ""})
+                        </span>
                         <span className="text-lg font-bold text-primary">R$ {totalValue.toFixed(2)}</span>
                       </div>
                     </div>
@@ -417,7 +559,12 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📅 Validade</p>
                     <div>
                       <label className={labelCls}>Data de Expiração</label>
-                      <input type="date" value={form.iptv_expiry || ""} onChange={(e) => setForm({ ...form, iptv_expiry: e.target.value })} className={inputCls} />
+                      <input
+                        type="date"
+                        value={form.iptv_expiry || ""}
+                        onChange={(e) => setForm({ ...form, iptv_expiry: e.target.value })}
+                        className={inputCls}
+                      />
                     </div>
                     {isExpired && (
                       <div className="rounded-lg bg-destructive/10 p-2 text-center">
@@ -429,7 +576,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                   {/* Scheduled Rate Changes */}
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📈 Reajustes Programados</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        📈 Reajustes Programados
+                      </p>
                       <button
                         onClick={() => setShowRateForm(!showRateForm)}
                         className="rounded-lg bg-primary/10 p-1.5 text-primary hover:bg-primary/20 transition-colors"
@@ -440,27 +589,42 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
                     <AnimatePresence>
                       {showRateForm && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                          className="space-y-2 overflow-hidden">
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-2 overflow-hidden"
+                        >
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className={labelCls}>Novo Valor Base (R$)</label>
-                              <input type="number" step="0.01" value={rateForm.new_monthly_value}
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={rateForm.new_monthly_value}
                                 onChange={(e) => setRateForm({ ...rateForm, new_monthly_value: e.target.value })}
-                                placeholder="20.00" className={inputCls} />
+                                placeholder="20.00"
+                                className={inputCls}
+                              />
                             </div>
                             <div>
                               <label className={labelCls}>A partir de</label>
-                              <input type="date" value={rateForm.effective_date}
+                              <input
+                                type="date"
+                                value={rateForm.effective_date}
                                 onChange={(e) => setRateForm({ ...rateForm, effective_date: e.target.value })}
-                                className={inputCls} />
+                                className={inputCls}
+                              />
                             </div>
                           </div>
                           <div>
                             <label className={labelCls}>Observação</label>
-                            <input value={rateForm.notes}
+                            <input
+                              value={rateForm.notes}
                               onChange={(e) => setRateForm({ ...rateForm, notes: e.target.value })}
-                              placeholder="Reajuste anual, etc." className={inputCls} />
+                              placeholder="Reajuste anual, etc."
+                              className={inputCls}
+                            />
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -481,8 +645,10 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             >
                               Salvar
                             </button>
-                            <button onClick={() => setShowRateForm(false)}
-                              className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                            <button
+                              onClick={() => setShowRateForm(false)}
+                              className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                            >
                               Cancelar
                             </button>
                           </div>
@@ -501,26 +667,42 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
                           if (isEditing) {
                             return (
-                              <div key={r.id} className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                              <div
+                                key={r.id}
+                                className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2"
+                              >
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <label className={labelCls}>Valor (R$)</label>
-                                    <input type="number" step="0.01" value={editRateForm.new_monthly_value}
-                                      onChange={(e) => setEditRateForm({ ...editRateForm, new_monthly_value: e.target.value })}
-                                      className={inputCls} />
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editRateForm.new_monthly_value}
+                                      onChange={(e) =>
+                                        setEditRateForm({ ...editRateForm, new_monthly_value: e.target.value })
+                                      }
+                                      className={inputCls}
+                                    />
                                   </div>
                                   <div>
                                     <label className={labelCls}>A partir de</label>
-                                    <input type="date" value={editRateForm.effective_date}
-                                      onChange={(e) => setEditRateForm({ ...editRateForm, effective_date: e.target.value })}
-                                      className={inputCls} />
+                                    <input
+                                      type="date"
+                                      value={editRateForm.effective_date}
+                                      onChange={(e) =>
+                                        setEditRateForm({ ...editRateForm, effective_date: e.target.value })
+                                      }
+                                      className={inputCls}
+                                    />
                                   </div>
                                 </div>
                                 <div>
                                   <label className={labelCls}>Observação</label>
-                                  <input value={editRateForm.notes}
+                                  <input
+                                    value={editRateForm.notes}
                                     onChange={(e) => setEditRateForm({ ...editRateForm, notes: e.target.value })}
-                                    className={inputCls} />
+                                    className={inputCls}
+                                  />
                                 </div>
                                 <div className="flex gap-2">
                                   <button
@@ -548,8 +730,10 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                   >
                                     Salvar
                                   </button>
-                                  <button onClick={() => setEditingRateId(null)}
-                                    className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                                  <button
+                                    onClick={() => setEditingRateId(null)}
+                                    className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                                  >
                                     Cancelar
                                   </button>
                                 </div>
@@ -558,49 +742,66 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           }
 
                           return (
-                            <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${r.applied ? "bg-muted/20 border-border/30" : "bg-primary/5 border-primary/20"}`}>
+                            <div
+                              key={r.id}
+                              className={`flex items-center justify-between rounded-lg border px-3 py-2 ${r.applied ? "bg-muted/20 border-border/30" : "bg-primary/5 border-primary/20"}`}
+                            >
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <TrendingUp size={11} className={r.applied ? "text-muted-foreground" : "text-primary"} />
-                                  <span className={`text-xs font-semibold ${r.applied ? "text-muted-foreground" : "text-foreground"}`}>
+                                  <TrendingUp
+                                    size={11}
+                                    className={r.applied ? "text-muted-foreground" : "text-primary"}
+                                  />
+                                  <span
+                                    className={`text-xs font-semibold ${r.applied ? "text-muted-foreground" : "text-foreground"}`}
+                                  >
                                     R$ {Number(r.new_monthly_value).toFixed(2)}/tela
                                   </span>
                                   {r.applied && (
-                                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">Aplicado</span>
+                                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">
+                                      Aplicado
+                                    </span>
                                   )}
                                 </div>
-                                <p className="text-[10px] text-muted-foreground">A partir de {formatted}{r.notes ? ` · ${r.notes}` : ""}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  A partir de {formatted}
+                                  {r.notes ? ` · ${r.notes}` : ""}
+                                </p>
                               </div>
                               <div className="flex gap-1">
-                                  <button
-                                    onClick={() => {
-                                      setEditingRateId(r.id);
-                                      setEditRateForm({
-                                        new_monthly_value: String(r.new_monthly_value),
-                                        effective_date: r.effective_date,
-                                        notes: r.notes || "",
-                                      });
-                                    }}
-                                    className="rounded-lg p-1.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                                  >
-                                    <Pencil size={11} />
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      setSaving(true);
-                                      await supabase.functions.invoke("admin-manage-user", {
-                                        body: { action: "delete_scheduled_rate", user_id: user.id, data: { rate_id: r.id } },
-                                      });
-                                      toast({ title: "🗑️ Reajuste removido" });
-                                      await loadScheduledRates();
-                                      setSaving(false);
-                                    }}
-                                    disabled={saving}
-                                    className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                                  >
-                                    <Trash2 size={11} />
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => {
+                                    setEditingRateId(r.id);
+                                    setEditRateForm({
+                                      new_monthly_value: String(r.new_monthly_value),
+                                      effective_date: r.effective_date,
+                                      notes: r.notes || "",
+                                    });
+                                  }}
+                                  className="rounded-lg p-1.5 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                                >
+                                  <Pencil size={11} />
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    setSaving(true);
+                                    await supabase.functions.invoke("admin-manage-user", {
+                                      body: {
+                                        action: "delete_scheduled_rate",
+                                        user_id: user.id,
+                                        data: { rate_id: r.id },
+                                      },
+                                    });
+                                    toast({ title: "🗑️ Reajuste removido" });
+                                    await loadScheduledRates();
+                                    setSaving(false);
+                                  }}
+                                  disabled={saving}
+                                  className="rounded-lg p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -627,13 +828,21 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                   {/* Confirm Payment Modal */}
                   <AnimatePresence>
                     {showConfirmPayment && (
-                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3"
+                      >
                         <p className="text-xs font-semibold text-emerald-400">💳 Confirmar Pagamento</p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className={labelCls}>Meses</label>
-                            <select value={paymentForm.months} onChange={(e) => setPaymentForm({ ...paymentForm, months: Number(e.target.value) })} className={inputCls}>
+                            <select
+                              value={paymentForm.months}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, months: Number(e.target.value) })}
+                              className={inputCls}
+                            >
                               <option value={1}>1 mês</option>
                               <option value={2}>2 meses</option>
                               <option value={3}>3 meses</option>
@@ -643,20 +852,37 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           </div>
                           <div>
                             <label className={labelCls}>Valor (R$)</label>
-                            <input type="number" step="0.01" value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder={`${(totalValue * Number(paymentForm.months)).toFixed(2)}`} className={inputCls} />
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={paymentForm.amount}
+                              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                              placeholder={`${(totalValue * Number(paymentForm.months)).toFixed(2)}`}
+                              className={inputCls}
+                            />
                           </div>
                         </div>
                         <div>
                           <label className={labelCls}>Observação</label>
-                          <input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} placeholder="PIX confirmado, etc." className={inputCls} />
+                          <input
+                            value={paymentForm.notes}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                            placeholder="PIX confirmado, etc."
+                            className={inputCls}
+                          />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={confirmPayment} disabled={saving}
-                            className="flex-1 rounded-xl bg-emerald-500/20 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition-all">
+                          <button
+                            onClick={confirmPayment}
+                            disabled={saving}
+                            className="flex-1 rounded-xl bg-emerald-500/20 px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition-all"
+                          >
                             {saving ? "Processando..." : "✅ Confirmar"}
                           </button>
-                          <button onClick={() => setShowConfirmPayment(false)}
-                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+                          <button
+                            onClick={() => setShowConfirmPayment(false)}
+                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground"
+                          >
                             Cancelar
                           </button>
                         </div>
@@ -667,41 +893,91 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                   {/* Manual Payment Registration Modal */}
                   <AnimatePresence>
                     {showManualPayment && (
-                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                        className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3"
+                      >
                         <p className="text-xs font-semibold text-primary">📝 Registrar Pagamento Manual</p>
-                        <p className="text-[10px] text-muted-foreground">Apenas para registro histórico. Não altera datas de validade nem status do cliente.</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Apenas para registro histórico. Não altera datas de validade nem status do cliente.
+                        </p>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className={labelCls}>Data do Pagamento *</label>
-                            <input type="date" value={manualPaymentForm.payment_date} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, payment_date: e.target.value })} className={inputCls} />
+                            <input
+                              type="date"
+                              value={manualPaymentForm.payment_date}
+                              onChange={(e) =>
+                                setManualPaymentForm({ ...manualPaymentForm, payment_date: e.target.value })
+                              }
+                              className={inputCls}
+                            />
                           </div>
                           <div>
                             <label className={labelCls}>Valor (R$) *</label>
-                            <input type="number" step="0.01" value={manualPaymentForm.amount} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, amount: e.target.value })} placeholder={totalValue.toFixed(2)} className={inputCls} />
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={manualPaymentForm.amount}
+                              onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, amount: e.target.value })}
+                              placeholder={totalValue.toFixed(2)}
+                              className={inputCls}
+                            />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className={labelCls}>Período Início *</label>
-                            <input type="date" value={manualPaymentForm.period_start} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, period_start: e.target.value })} className={inputCls} />
+                            <input
+                              type="date"
+                              value={manualPaymentForm.period_start}
+                              onChange={(e) =>
+                                setManualPaymentForm({ ...manualPaymentForm, period_start: e.target.value })
+                              }
+                              className={inputCls}
+                            />
                           </div>
                           <div>
                             <label className={labelCls}>Período Fim *</label>
-                            <input type="date" value={manualPaymentForm.period_end} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, period_end: e.target.value })} className={inputCls} />
+                            <input
+                              type="date"
+                              value={manualPaymentForm.period_end}
+                              onChange={(e) =>
+                                setManualPaymentForm({ ...manualPaymentForm, period_end: e.target.value })
+                              }
+                              className={inputCls}
+                            />
                           </div>
                         </div>
                         <div>
                           <label className={labelCls}>Observação</label>
-                          <input value={manualPaymentForm.notes} onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, notes: e.target.value })} placeholder="PIX, dinheiro, transferência..." className={inputCls} />
+                          <input
+                            value={manualPaymentForm.notes}
+                            onChange={(e) => setManualPaymentForm({ ...manualPaymentForm, notes: e.target.value })}
+                            placeholder="PIX, dinheiro, transferência..."
+                            className={inputCls}
+                          />
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={registerManualPayment} disabled={saving || !manualPaymentForm.amount || !manualPaymentForm.payment_date || !manualPaymentForm.period_start || !manualPaymentForm.period_end}
-                            className="flex-1 rounded-xl bg-primary/20 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/30 disabled:opacity-50 transition-all">
+                          <button
+                            onClick={registerManualPayment}
+                            disabled={
+                              saving ||
+                              !manualPaymentForm.amount ||
+                              !manualPaymentForm.payment_date ||
+                              !manualPaymentForm.period_start ||
+                              !manualPaymentForm.period_end
+                            }
+                            className="flex-1 rounded-xl bg-primary/20 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/30 disabled:opacity-50 transition-all"
+                          >
                             {saving ? "Registrando..." : "📝 Registrar"}
                           </button>
-                          <button onClick={() => setShowManualPayment(false)}
-                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground">
+                          <button
+                            onClick={() => setShowManualPayment(false)}
+                            className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground"
+                          >
                             Cancelar
                           </button>
                         </div>
@@ -715,8 +991,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Faturas</p>
                       <div className="flex gap-1">
                         {(["all", "past", "future"] as const).map((f) => (
-                          <button key={f} onClick={() => setInvoiceFilter(f)}
-                            className={`rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors ${invoiceFilter === f ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}>
+                          <button
+                            key={f}
+                            onClick={() => setInvoiceFilter(f)}
+                            className={`rounded-lg px-2.5 py-1 text-[10px] font-medium transition-colors ${invoiceFilter === f ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"}`}
+                          >
                             {f === "all" ? "Todas" : f === "past" ? "Anteriores" : "Próximas"}
                           </button>
                         ))}
@@ -754,46 +1033,71 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                     {/* Bulk actions bar */}
                     {selectedInvoices.length > 0 && (
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
-                        <p className="text-[11px] font-semibold text-primary">{selectedInvoices.length} fatura(s) selecionada(s)</p>
+                        <p className="text-[11px] font-semibold text-primary">
+                          {selectedInvoices.length} fatura(s) selecionada(s)
+                        </p>
                         {bulkEditMode ? (
                           <div className="space-y-2">
                             <div className="grid grid-cols-2 gap-2">
                               <div>
                                 <label className={labelCls}>Novo Valor (R$)</label>
-                                <input type="number" step="0.01" value={bulkEditForm.amount}
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={bulkEditForm.amount}
                                   onChange={(e) => setBulkEditForm({ ...bulkEditForm, amount: e.target.value })}
-                                  placeholder="Manter atual" className={inputCls} />
+                                  placeholder="Manter atual"
+                                  className={inputCls}
+                                />
                               </div>
                               <div>
                                 <label className={labelCls}>Observação</label>
-                                <input value={bulkEditForm.notes}
+                                <input
+                                  value={bulkEditForm.notes}
                                   onChange={(e) => setBulkEditForm({ ...bulkEditForm, notes: e.target.value })}
-                                  placeholder="Manter atual" className={inputCls} />
+                                  placeholder="Manter atual"
+                                  className={inputCls}
+                                />
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <button onClick={bulkUpdateInvoices} disabled={saving}
-                                className="flex-1 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors">
+                              <button
+                                onClick={bulkUpdateInvoices}
+                                disabled={saving}
+                                className="flex-1 rounded-lg bg-primary/15 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors"
+                              >
                                 ✅ Aplicar
                               </button>
-                              <button onClick={() => { setBulkEditMode(false); setBulkEditForm({ amount: "", notes: "" }); }}
-                                className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                              <button
+                                onClick={() => {
+                                  setBulkEditMode(false);
+                                  setBulkEditForm({ amount: "", notes: "" });
+                                }}
+                                className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                              >
                                 Cancelar
                               </button>
                             </div>
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            <button onClick={() => setBulkEditMode(true)}
-                              className="flex-1 rounded-lg bg-primary/15 px-3 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 transition-colors">
+                            <button
+                              onClick={() => setBulkEditMode(true)}
+                              className="flex-1 rounded-lg bg-primary/15 px-3 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/25 transition-colors"
+                            >
                               <Pencil size={11} className="inline mr-1" /> Editar em Massa
                             </button>
-                            <button onClick={bulkDeleteInvoices} disabled={saving}
-                              className="flex-1 rounded-lg bg-destructive/15 px-3 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/25 transition-colors">
+                            <button
+                              onClick={bulkDeleteInvoices}
+                              disabled={saving}
+                              className="flex-1 rounded-lg bg-destructive/15 px-3 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/25 transition-colors"
+                            >
                               <Trash2 size={11} className="inline mr-1" /> Excluir Selecionadas
                             </button>
-                            <button onClick={() => setSelectedInvoices([])}
-                              className="rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                            <button
+                              onClick={() => setSelectedInvoices([])}
+                              className="rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground"
+                            >
                               Limpar
                             </button>
                           </div>
@@ -812,12 +1116,15 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         .sort((a: any, b: any) => a.period_start.localeCompare(b.period_start));
 
                       if (filtered.length === 0) {
-                        return <p className="text-center text-xs text-muted-foreground py-4">Nenhuma fatura encontrada.</p>;
+                        return (
+                          <p className="text-center text-xs text-muted-foreground py-4">Nenhuma fatura encontrada.</p>
+                        );
                       }
 
                       // Select all pending visible
                       const pendingVisible = filtered.filter((p: any) => p.status === "pending");
-                      const allPendingSelected = pendingVisible.length > 0 && pendingVisible.every((p: any) => selectedInvoices.includes(p.id));
+                      const allPendingSelected =
+                        pendingVisible.length > 0 && pendingVisible.every((p: any) => selectedInvoices.includes(p.id));
 
                       return (
                         <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -839,9 +1146,13 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           {filtered.map((p: any) => {
                             // Parse payment_date avoiding UTC shift
                             const dateParts = p.payment_date?.split("T")[0]?.split("-");
-                            const formatted = dateParts ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : new Date(p.payment_date).toLocaleDateString("pt-BR");
+                            const formatted = dateParts
+                              ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`
+                              : new Date(p.payment_date).toLocaleDateString("pt-BR");
                             const startParts = p.period_start?.split("-");
-                            const startFormatted = startParts ? `${startParts[2]}/${startParts[1]}/${startParts[0]}` : "";
+                            const startFormatted = startParts
+                              ? `${startParts[2]}/${startParts[1]}/${startParts[0]}`
+                              : "";
                             const endParts = p.period_end?.split("-");
                             const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
                             const isReversed = p.status === "reversed";
@@ -851,23 +1162,41 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             const isFuture = p.period_start > today;
                             const isSelected = selectedInvoices.includes(p.id);
 
-                            const statusColor = isReversed || isRemoved
-                              ? "bg-destructive/10 text-destructive"
-                              : isPending
-                              ? "bg-yellow-500/10 text-yellow-400"
-                              : "bg-emerald-500/10 text-emerald-400";
-                            const statusLabel = isRemoved ? "Removido" : isReversed ? "Revertido" : isPending ? "Pendente" : "Pago";
-                            const borderColor = isReversed || isRemoved
-                              ? "bg-destructive/5 border-destructive/20"
-                              : isPending
-                              ? "bg-yellow-500/5 border-yellow-500/20"
-                              : "bg-muted/30 border-border/20";
+                            const statusColor =
+                              isReversed || isRemoved
+                                ? "bg-destructive/10 text-destructive"
+                                : isPending
+                                  ? "bg-yellow-500/10 text-yellow-400"
+                                  : "bg-emerald-500/10 text-emerald-400";
+                            const statusLabel = isRemoved
+                              ? "Removido"
+                              : isReversed
+                                ? "Revertido"
+                                : isPending
+                                  ? "Pendente"
+                                  : "Pago";
+                            const borderColor =
+                              isReversed || isRemoved
+                                ? "bg-destructive/5 border-destructive/20"
+                                : isPending
+                                  ? "bg-yellow-500/5 border-yellow-500/20"
+                                  : "bg-muted/30 border-border/20";
 
                             return (
-                              <div key={p.id} className={`flex items-center gap-2 rounded-lg px-3 py-2.5 border ${borderColor} ${isSelected ? "ring-1 ring-primary/40" : ""}`}>
+                              <div
+                                key={p.id}
+                                className={`flex items-center gap-2 rounded-lg px-3 py-2.5 border ${borderColor} ${isSelected ? "ring-1 ring-primary/40" : ""}`}
+                              >
                                 {isPending && (
-                                  <button onClick={() => toggleInvoiceSelection(p.id)} className="shrink-0 text-primary">
-                                    {isSelected ? <CheckSquare size={14} /> : <Square size={14} className="text-muted-foreground" />}
+                                  <button
+                                    onClick={() => toggleInvoiceSelection(p.id)}
+                                    className="shrink-0 text-primary"
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare size={14} />
+                                    ) : (
+                                      <Square size={14} className="text-muted-foreground" />
+                                    )}
                                   </button>
                                 )}
                                 <div className="flex-1 min-w-0">
@@ -876,16 +1205,28 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                       {isPending && isFuture ? `Vence ${startFormatted}` : formatted}
                                     </p>
                                     {isFuture && isPending && (
-                                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">Futura</span>
+                                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                                        Futura
+                                      </span>
                                     )}
                                   </div>
-                                  <p className="text-[10px] text-muted-foreground">{p.months} mês(es) · {startFormatted} → {endFormatted}</p>
-                                  {p.notes && <p className="text-[10px] text-muted-foreground/70 italic truncate">{p.notes}</p>}
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {p.months} mês(es) · {startFormatted} → {endFormatted}
+                                  </p>
+                                  {p.notes && (
+                                    <p className="text-[10px] text-muted-foreground/70 italic truncate">{p.notes}</p>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   <div className="text-right">
-                                    <span className={`text-sm font-semibold ${isReversed || isRemoved ? "text-muted-foreground line-through" : "text-foreground"}`}>R$ {Number(p.amount).toFixed(2)}</span>
-                                    <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}>
+                                    <span
+                                      className={`text-sm font-semibold ${isReversed || isRemoved ? "text-muted-foreground line-through" : "text-foreground"}`}
+                                    >
+                                      R$ {Number(p.amount).toFixed(2)}
+                                    </span>
+                                    <span
+                                      className={`ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor}`}
+                                    >
                                       {statusLabel}
                                     </span>
                                   </div>
@@ -894,7 +1235,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                       onClick={async () => {
                                         setSaving(true);
                                         await supabase.functions.invoke("admin-manage-user", {
-                                          body: { action: "mark_invoice_paid", user_id: user.id, data: { payment_id: p.id } },
+                                          body: {
+                                            action: "mark_invoice_paid",
+                                            user_id: user.id,
+                                            data: { payment_id: p.id },
+                                          },
                                         });
                                         toast({ title: "✅ Fatura marcada como paga" });
                                         setPaymentsLoaded(false);
@@ -913,7 +1258,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                       onClick={async () => {
                                         setSaving(true);
                                         await supabase.functions.invoke("admin-manage-user", {
-                                          body: { action: "remove_payment", user_id: user.id, data: { payment_id: p.id } },
+                                          body: {
+                                            action: "remove_payment",
+                                            user_id: user.id,
+                                            data: { payment_id: p.id },
+                                          },
                                         });
                                         toast({ title: "✅ Pagamento restaurado" });
                                         setPaymentsLoaded(false);
@@ -933,7 +1282,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                         onClick={async () => {
                                           setSaving(true);
                                           await supabase.functions.invoke("admin-manage-user", {
-                                            body: { action: "remove_payment", user_id: user.id, data: { payment_id: p.id } },
+                                            body: {
+                                              action: "remove_payment",
+                                              user_id: user.id,
+                                              data: { payment_id: p.id },
+                                            },
                                           });
                                           toast({ title: "🗑️ Pagamento removido" });
                                           setPaymentsLoaded(false);
@@ -951,9 +1304,15 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                                         onClick={async () => {
                                           setSaving(true);
                                           await supabase.functions.invoke("admin-manage-user", {
-                                            body: { action: "reverse_payment", user_id: user.id, data: { payment_id: p.id } },
+                                            body: {
+                                              action: "reverse_payment",
+                                              user_id: user.id,
+                                              data: { payment_id: p.id },
+                                            },
                                           });
-                                          toast({ title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido" });
+                                          toast({
+                                            title: isReversed ? "✅ Pagamento re-confirmado" : "↩️ Pagamento revertido",
+                                          });
                                           setPaymentsLoaded(false);
                                           await loadPayments();
                                           setSaving(false);
@@ -989,7 +1348,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Total Ganho</p>
-                        <p className="text-lg font-bold text-emerald-400">R$ {Number(user.total_earned || 0).toFixed(2)}</p>
+                        <p className="text-lg font-bold text-emerald-400">
+                          R$ {Number(user.total_earned || 0).toFixed(2)}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1000,10 +1361,16 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
               {tab === "access" && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">🔐 Dados IPTV</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      🔐 Dados IPTV
+                    </p>
                     <div>
                       <label className={labelCls}>Usuário IPTV</label>
-                      <input value={form.iptv_user} onChange={(e) => setForm({ ...form, iptv_user: e.target.value })} className={inputCls} />
+                      <input
+                        value={form.iptv_user}
+                        onChange={(e) => setForm({ ...form, iptv_user: e.target.value })}
+                        className={inputCls}
+                      />
                     </div>
                     <div>
                       <label className={labelCls}>Senha IPTV</label>
@@ -1014,14 +1381,22 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           onChange={(e) => setForm({ ...form, iptv_password: e.target.value })}
                           className={inputCls}
                         />
-                        <button onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <button
+                          onClick={() => setShowPass(!showPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
                           {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
                         </button>
                       </div>
                     </div>
                     <div>
                       <label className={labelCls}>Aplicativo</label>
-                      <input value={form.iptv_app} onChange={(e) => setForm({ ...form, iptv_app: e.target.value })} placeholder="Ex: SmartOne, XCIPTV..." className={inputCls} />
+                      <input
+                        value={form.iptv_app}
+                        onChange={(e) => setForm({ ...form, iptv_app: e.target.value })}
+                        placeholder="Ex: SmartOne, XCIPTV..."
+                        className={inputCls}
+                      />
                     </div>
                   </div>
 
@@ -1045,26 +1420,58 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
               {tab === "system" && (
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📡 Servidor & Status</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      📡 Servidor & Status
+                    </p>
                     <div>
                       <label className={labelCls}>Servidor Contratado</label>
-                      <select value={form.iptv_server} onChange={(e) => setForm({ ...form, iptv_server: e.target.value })} className={inputCls}>
+                      <select
+                        value={form.iptv_server}
+                        onChange={(e) => setForm({ ...form, iptv_server: e.target.value })}
+                        className={inputCls}
+                      >
                         <option value="">Selecione...</option>
-                        {servers.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        {servers.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>Status do Sistema</label>
-                      <select value={form.iptv_status} onChange={(e) => setForm({ ...form, iptv_status: e.target.value })} className={inputCls}>
-                        {IPTV_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      <select
+                        value={form.iptv_status}
+                        onChange={(e) => setForm({ ...form, iptv_status: e.target.value })}
+                        className={inputCls}
+                      >
+                        {IPTV_STATUSES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>App para TV</label>
-                      <select value={form.iptv_tv_app} onChange={(e) => setForm({ ...form, iptv_tv_app: e.target.value })} className={inputCls}>
+                      <select
+                        value={form.iptv_tv_app}
+                        onChange={(e) => setForm({ ...form, iptv_tv_app: e.target.value })}
+                        className={inputCls}
+                      >
                         <option value="">Nenhum</option>
-                        {tvApps.map((a) => <option key={a.id} value={a.name}>{a.icon} {a.name}</option>)}
+                        {tvAppOptions.map((a) => (
+                          <option key={a.id} value={a.name}>
+                            {a.isOfficialWmcflix ? "▣" : a.icon} {a.name}
+                          </option>
+                        ))}
                       </select>
+                      {selectedTvApp?.isOfficialWmcflix && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+                          <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain" />
+                          <span className="text-xs font-medium text-red-300">App oficial {appTitle}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1073,7 +1480,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
               {/* ===== HISTORY ===== */}
               {tab === "history" && (
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📋 Últimas Atividades</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    📋 Últimas Atividades
+                  </p>
                   {logs.length === 0 ? (
                     <p className="text-center text-sm text-muted-foreground py-8">Nenhum registro encontrado</p>
                   ) : (
@@ -1083,7 +1492,13 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-foreground">{log.action}</span>
                             <span className="text-[10px] text-muted-foreground">
-                              {formatDateBRT(log.created_at, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              {formatDateBRT(log.created_at, {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </span>
                           </div>
                           {log.details && Object.keys(log.details).length > 0 && (

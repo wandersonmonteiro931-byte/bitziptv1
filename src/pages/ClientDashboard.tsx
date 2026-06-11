@@ -513,6 +513,21 @@ function PaymentHistory() {
 
 // --- TV App Mini Icons ---
 function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const normalizedUserApp = String(userApp || "")
+    .trim()
+    .toLowerCase();
+  const visibleTvApps = [
+    { id: "wmcflix-oficial", name: appTitle, logoUrl, isOfficialWmcflix: true },
+    ...(Array.isArray(tvApps) ? tvApps : []).filter((app) => {
+      const name = String(app?.name || "")
+        .trim()
+        .toLowerCase();
+      return name !== "wmcflix" && name !== appTitle.toLowerCase();
+    }),
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -522,29 +537,35 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
     >
       <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
       <div className="flex flex-wrap gap-2">
-        {tvApps.map((app) => {
-          const isActive = userApp === app.name;
-          const logo = getAppLogoSrc(app.name);
+        {visibleTvApps.map((app) => {
+          const appNameValue = String(app.name || "");
+          const normalizedAppName = appNameValue.trim().toLowerCase();
+          const isOfficial = !!app.isOfficialWmcflix;
+          const isActive = normalizedUserApp === normalizedAppName || (isOfficial && normalizedUserApp === "wmcflix");
+          const logo = isOfficial ? logoUrl : getAppLogoSrc(appNameValue);
+
           return (
             <div
               key={app.id}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${
-                isActive ? "bg-primary/10 text-primary font-medium" : "bg-muted/15 text-muted-foreground/40"
+                isActive
+                  ? "bg-red-500/10 text-red-300 font-medium ring-1 ring-red-500/20"
+                  : "bg-muted/15 text-muted-foreground/40"
               }`}
             >
               {logo ? (
-                <img src={logo} alt={app.name} className="h-4 w-4 rounded-full object-contain" />
+                <img src={logo} alt={appNameValue} className="h-4 w-4 rounded-full object-contain" />
               ) : (
                 <Tv size={12} />
               )}
-              <span>{app.name}</span>
+              <span>{appNameValue}</span>
             </div>
           );
         })}
-        {tvApps.length === 0 && userApp && (
-          <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary font-medium">
+        {visibleTvApps.length === 0 && userApp && (
+          <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs text-red-300 font-medium">
             {(() => {
-              const logo = getAppLogoSrc(userApp);
+              const logo = normalizedUserApp === "wmcflix" ? logoUrl : getAppLogoSrc(userApp);
               return logo ? (
                 <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain" />
               ) : (
@@ -987,8 +1008,6 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState<number>(5);
-  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState<number>(10);
   const [notifPopup, setNotifPopup] = useState<{
     title: string;
     body: string;
