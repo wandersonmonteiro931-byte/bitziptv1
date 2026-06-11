@@ -1190,6 +1190,8 @@ export type Database = {
           min_withdrawal: number
           monthly_limit: number
           referral_value: number
+          renewal_discount_3m_percent: number
+          renewal_discount_6m_percent: number
           updated_at: string
         }
         Insert: {
@@ -1202,6 +1204,8 @@ export type Database = {
           min_withdrawal?: number
           monthly_limit?: number
           referral_value?: number
+          renewal_discount_3m_percent?: number
+          renewal_discount_6m_percent?: number
           updated_at?: string
         }
         Update: {
@@ -1214,6 +1218,8 @@ export type Database = {
           min_withdrawal?: number
           monthly_limit?: number
           referral_value?: number
+          renewal_discount_3m_percent?: number
+          renewal_discount_6m_percent?: number
           updated_at?: string
         }
         Relationships: []
