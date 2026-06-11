@@ -287,19 +287,16 @@ const AdminUsersPage = () => {
     }
 
     setEditSaving(true);
-    const res = await supabase.functions.invoke("admin-manage-user", {
-      body: {
-        action: "set_referrer_by_code",
-        user_id: editUser.id,
-        data: { referred_by_code: code },
-      },
+    const res = await supabase.rpc("admin_set_referrer_by_code", {
+      p_user_id: editUser.id,
+      p_referral_code: code,
     });
     setEditSaving(false);
 
     if (res.error || res.data?.error) {
       toast({
         title: "Erro ao vincular indicação",
-        description: res.data?.error || res.error?.message,
+        description: res.data?.error || res.error?.message || "Verifique se a migration RPC foi aplicada no Supabase.",
         variant: "destructive",
       });
       return;
