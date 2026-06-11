@@ -1,5 +1,23 @@
 import { useState, useEffect, useRef } from "react";
-import { Download, Smartphone, Share2, Shield, Zap, Bell, Gift, Monitor, Star, CheckCircle2, Lock, ChevronRight, Settings, ArrowDown, Plus, ExternalLink, AlertTriangle } from "lucide-react";
+import {
+  Download,
+  Smartphone,
+  Share2,
+  Shield,
+  Zap,
+  Bell,
+  Gift,
+  Monitor,
+  Star,
+  CheckCircle2,
+  Lock,
+  ChevronRight,
+  Settings,
+  ArrowDown,
+  Plus,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logoBitz from "@/assets/logo-bitz.jpg";
 
@@ -16,12 +34,29 @@ const BENEFITS = [
   { icon: Shield, label: "Segurança reforçada" },
 ];
 
+const isComputerBrowser = () => {
+  if (typeof navigator === "undefined") return false;
+
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+
+  // iPadOS can masquerade as Mac in Safari desktop mode.
+  // It must continue being treated as mobile/tablet, not as PC.
+  const isIpadOSDesktopMode = /Macintosh/i.test(ua) && maxTouchPoints > 1;
+  const isMobileOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua);
+  const isDesktopPlatform = /Win32|Win64|Windows|MacIntel|MacPPC|Mac68K|Linux x86_64|Linux i686/i.test(platform);
+  const isDesktopUserAgent = /Windows NT|Macintosh|X11|CrOS|Linux x86_64|Linux i686/i.test(ua);
+
+  return !isIpadOSDesktopMode && !isMobileOrTablet && (isDesktopPlatform || isDesktopUserAgent);
+};
+
 export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showContinueMessage, setShowContinueMessage] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => isComputerBrowser());
   const [isIOS, setIsIOS] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
   const [installing, setInstalling] = useState(false);
@@ -36,13 +71,11 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     if (params.get("bypass") === "admin") setAdminBypass(true);
 
     const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
+      window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
     setIsStandalone(standalone);
 
     const ua = navigator.userAgent;
-    const mobile = /Android|iPhone|iPad|iPod/i.test(ua);
-    setIsDesktop(!mobile);
+    setIsDesktop(isComputerBrowser());
     const ios = /iPhone|iPad|iPod/i.test(ua);
     setIsIOS(ios);
     // Platform auto-detected via isIOS state
@@ -58,7 +91,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (isStandalone || adminBypass) {
+  if (isStandalone || adminBypass || isDesktop) {
     return <>{children}</>;
   }
 
@@ -105,39 +138,66 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
 
       <div className="relative flex flex-1 flex-col items-center px-5 pb-32 pt-8">
         {/* === LOGO === */}
-        <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="mb-3">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="mb-3"
+        >
           <div className="relative">
             <div className="absolute -inset-3 animate-pulse rounded-3xl bg-primary/20 blur-xl" />
-            <div className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30" style={{ width: 88, height: 88 }}>
+            <div
+              className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
+              style={{ width: 88, height: 88 }}
+            >
               <img src={logoBitz} alt="Bitz IPTV" className="h-full w-full object-cover" />
             </div>
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-1 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-1 text-center"
+        >
           <h1 className="font-display text-xl font-bold tracking-wider text-foreground">BITZ IPTV</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Programa Oficial de Fidelidade</p>
         </motion.div>
 
         {/* Badge */}
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.25 }}
-          className="mb-4 flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.25 }}
+          className="mb-4 flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-3 py-1"
+        >
           <CheckCircle2 size={12} className="text-success" />
           <span className="text-[11px] font-semibold text-success">Aplicativo Oficial Verificado</span>
         </motion.div>
 
         {/* Security notice */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="mb-5 w-full max-w-sm rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-5 w-full max-w-sm rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-center"
+        >
           <div className="flex items-center justify-center gap-2 text-sm font-medium text-primary">
             <Lock size={14} /> Acesso exclusivo via aplicativo
           </div>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">Para segurança e desempenho, instale o app oficial.</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Para segurança e desempenho, instale o app oficial.
+          </p>
         </motion.div>
 
         {/* Stats row */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="mb-5 flex w-full max-w-sm items-center justify-center gap-5">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="mb-5 flex w-full max-w-sm items-center justify-center gap-5"
+        >
           <div className="text-center">
             <p className="font-display text-base font-bold text-foreground">3.000+</p>
             <p className="text-[9px] text-muted-foreground">Clientes ativos</p>
@@ -145,8 +205,12 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
           <div className="h-7 w-px bg-border" />
           <div className="text-center">
             <div className="flex items-center justify-center gap-0.5">
-              {[1, 2, 3, 4, 5].map(s => (
-                <Star key={s} size={11} className={s <= 4 ? "fill-secondary text-secondary" : "fill-secondary/50 text-secondary/50"} />
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  size={11}
+                  className={s <= 4 ? "fill-secondary text-secondary" : "fill-secondary/50 text-secondary/50"}
+                />
               ))}
             </div>
             <p className="text-[9px] text-muted-foreground">4.9 / 5.0</p>
@@ -159,36 +223,57 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
         </motion.div>
 
         {/* Progress bar */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-          className="mb-6 w-full max-w-sm">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mb-6 w-full max-w-sm"
+        >
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
             <span>Instalação rápida</span>
             <span className="text-primary font-semibold">Menos de 1 minuto</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/30">
-            <motion.div initial={{ width: 0 }} animate={{ width: "100%" }} transition={{ delay: 0.5, duration: 2, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-primary to-accent" />
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: "100%" }}
+              transition={{ delay: 0.5, duration: 2, ease: "easeOut" }}
+              className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
+            />
           </div>
         </motion.div>
 
         {/* === HOW TO INSTALL SECTION === */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-          className="w-full max-w-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="w-full max-w-sm"
+        >
           <h2 className="mb-3 text-center text-sm font-bold text-foreground">📱 Como Instalar</h2>
 
-        {/* Platform label */}
+          {/* Platform label */}
           <div className="mb-4 flex items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2">
             {isIOS ? (
-              <>🍎 <span className="text-xs font-semibold text-foreground">Instruções para iPhone</span></>
+              <>
+                🍎 <span className="text-xs font-semibold text-foreground">Instruções para iPhone</span>
+              </>
             ) : (
-              <><Smartphone size={14} className="text-primary" /> <span className="text-xs font-semibold text-foreground">Instruções para Android</span></>
+              <>
+                <Smartphone size={14} className="text-primary" />{" "}
+                <span className="text-xs font-semibold text-foreground">Instruções para Android</span>
+              </>
             )}
           </div>
 
           {/* Tutorial content - show only the user's platform */}
           {!isIOS ? (
-            <motion.div key="android" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="space-y-3">
+            <motion.div
+              key="android"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-3"
+            >
               <TutorialStep step={1} delay={0}>
                 <div className="flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
@@ -233,8 +318,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               </TutorialStep>
             </motion.div>
           ) : (
-            <motion.div key="ios" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="space-y-3">
+            <motion.div key="ios" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
               <TutorialStep step={1} delay={0}>
                 <div className="flex items-center gap-2">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
@@ -242,7 +326,9 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Toque em Compartilhar</p>
-                    <p className="text-[10px] text-muted-foreground">Ícone <span className="font-bold text-primary">↑</span> na barra do Safari</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Ícone <span className="font-bold text-primary">↑</span> na barra do Safari
+                    </p>
                   </div>
                   <AnimatedArrow />
                 </div>
@@ -282,11 +368,18 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
         </motion.div>
 
         {/* Benefits compact */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
-          className="mt-6 w-full max-w-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="mt-6 w-full max-w-sm"
+        >
           <div className="grid grid-cols-2 gap-2">
             {BENEFITS.map((b, i) => (
-              <div key={b.label} className="flex items-center gap-2 rounded-xl border border-border/40 bg-card/50 px-3 py-2">
+              <div
+                key={b.label}
+                className="flex items-center gap-2 rounded-xl border border-border/40 bg-card/50 px-3 py-2"
+              >
                 <b.icon size={14} className="shrink-0 text-primary" />
                 <span className="text-[11px] font-medium text-foreground">{b.label}</span>
               </div>
@@ -295,8 +388,12 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
         </motion.div>
 
         {/* Footer */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-          className="mt-8 space-y-1.5 text-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="mt-8 space-y-1.5 text-center"
+        >
           <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/40">
             <Shield size={9} /> Conexão segura · Dados criptografados
           </div>
@@ -305,14 +402,18 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* === FIXED CTA BUTTON === */}
-      <div className="fixed bottom-0 left-0 right-0 z-[10000] border-t border-primary/20 bg-background/95 backdrop-blur-lg"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
+      <div
+        className="fixed bottom-0 left-0 right-0 z-[10000] border-t border-primary/20 bg-background/95 backdrop-blur-lg"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}
+      >
         <div className="px-4 pb-2 pt-3">
           {showContinueMessage ? (
             <div className="flex w-full flex-col items-center gap-2 rounded-2xl border border-success/30 bg-success/10 px-6 py-4">
               <CheckCircle2 size={24} className="text-success" />
               <p className="text-sm font-bold text-success">App instalado com sucesso!</p>
-              <p className="text-xs text-muted-foreground text-center">Feche o navegador e continue pelo aplicativo na sua tela inicial.</p>
+              <p className="text-xs text-muted-foreground text-center">
+                Feche o navegador e continue pelo aplicativo na sua tela inicial.
+              </p>
               <div className="mt-1 flex items-center gap-2">
                 <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                   <div className="h-8 w-8 overflow-hidden rounded-xl border border-primary/30">
@@ -332,44 +433,72 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               {isIOS ? (
                 <ol className="list-none space-y-3 text-sm text-foreground w-full">
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                    <span>Toque no ícone <strong className="text-primary">Compartilhar</strong> (↑) na barra do Safari</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      1
+                    </span>
+                    <span>
+                      Toque no ícone <strong className="text-primary">Compartilhar</strong> (↑) na barra do Safari
+                    </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                    <span>Role e toque em <strong className="text-primary">"Adicionar à Tela de Início"</strong></span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      2
+                    </span>
+                    <span>
+                      Role e toque em <strong className="text-primary">"Adicionar à Tela de Início"</strong>
+                    </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
-                    <span>Toque em <strong className="text-primary">"Adicionar"</strong> e abra o app</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      3
+                    </span>
+                    <span>
+                      Toque em <strong className="text-primary">"Adicionar"</strong> e abra o app
+                    </span>
                   </li>
                 </ol>
               ) : (
                 <ol className="list-none space-y-3 text-sm text-foreground w-full">
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                    <span>Toque no menu <strong className="text-primary">⋮</strong> (3 pontos) no canto superior do navegador</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      1
+                    </span>
+                    <span>
+                      Toque no menu <strong className="text-primary">⋮</strong> (3 pontos) no canto superior do
+                      navegador
+                    </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                    <span>Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou <strong className="text-primary">"Adicionar à tela inicial"</strong></span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      2
+                    </span>
+                    <span>
+                      Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou{" "}
+                      <strong className="text-primary">"Adicionar à tela inicial"</strong>
+                    </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      3
+                    </span>
                     <span>Confirme e abra o app pela tela inicial</span>
                   </li>
                 </ol>
               )}
               <button
                 onClick={() => setShowManualSteps(false)}
-                className="mt-1 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                className="mt-1 rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-semibold text-primary"
+              >
                 ← Tentar instalar novamente
               </button>
             </div>
           ) : (
             <>
-              <button onClick={handleInstallClick} disabled={installing}
-                className="relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-accent px-6 py-4 font-display text-sm font-bold tracking-wide text-primary-foreground shadow-[0_-4px_30px_hsl(210_100%_55%/0.3)] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60">
+              <button
+                onClick={handleInstallClick}
+                disabled={installing}
+                className="relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-accent px-6 py-4 font-display text-sm font-bold tracking-wide text-primary-foreground shadow-[0_-4px_30px_hsl(210_100%_55%/0.3)] transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+              >
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <Download size={20} />
                 {installing ? "INSTALANDO..." : "INSTALAR APLICATIVO OFICIAL"}
@@ -389,8 +518,12 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
 
 function TutorialStep({ step, delay, children }: { step: number; delay: number; children: React.ReactNode }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 + delay }}
-      className="rounded-xl border border-border/50 bg-card/60 p-3">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.55 + delay }}
+      className="rounded-xl border border-border/50 bg-card/60 p-3"
+    >
       <div className="flex items-start gap-3">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
           {step}
@@ -403,8 +536,7 @@ function TutorialStep({ step, delay, children }: { step: number; delay: number; 
 
 function AnimatedFinger() {
   return (
-    <motion.div animate={{ y: [0, 3, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}
-      className="text-lg">
+    <motion.div animate={{ y: [0, 3, 0] }} transition={{ repeat: Infinity, duration: 1.5 }} className="text-lg">
       👆
     </motion.div>
   );
