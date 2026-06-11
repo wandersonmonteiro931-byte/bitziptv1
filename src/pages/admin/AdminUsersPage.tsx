@@ -193,13 +193,19 @@ const AdminUsersPage = () => {
   };
 
   const createUser = async () => {
-    if (!form.name || !form.username || !form.password) {
-      toast({ title: "Erro", description: "Preencha nome, usuário e senha", variant: "destructive" });
+    const loginUser = String(form.iptv_user || form.username || "").trim();
+    if (!form.name || !loginUser || !form.password) {
+      toast({ title: "Erro", description: "Preencha nome, usuário IPTV e senha", variant: "destructive" });
       return;
     }
     setCreating(true);
     const res = await supabase.functions.invoke("admin-create-user", {
-      body: { ...form, referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined },
+      body: {
+        ...form,
+        username: loginUser,
+        iptv_user: loginUser,
+        referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined,
+      },
     });
     setCreating(false);
     if (res.error || res.data?.error) {
@@ -230,8 +236,8 @@ const AdminUsersPage = () => {
     setEditUser(u);
     setEditForm({
       name: u.name || "",
-      username: u.username || "",
-      iptv_user: u.iptv_user || "",
+      username: u.iptv_user || u.username || "",
+      iptv_user: u.iptv_user || u.username || "",
       iptv_password: u.iptv_password || "",
       iptv_server: u.iptv_server || "",
       iptv_app: u.iptv_app || "",
@@ -256,7 +262,8 @@ const AdminUsersPage = () => {
 
     // Update profile fields
     const profileData = { ...editForm };
-    delete profileData.username; // username handled separately
+    profileData.username = String(editForm.iptv_user || editForm.username || "").trim();
+    profileData.iptv_user = String(editForm.iptv_user || editForm.username || "").trim();
     delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
     delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
     delete profileData.referred_by_code_input; // campo auxiliar da tela
@@ -290,18 +297,10 @@ const AdminUsersPage = () => {
     }
 
     setEditSaving(true);
-    type AdminSetReferrerResult = {
-      error?: string;
-      already_linked?: boolean;
-      referrer_id?: string;
-    };
-    const res = (await (supabase.rpc as unknown as (
-      fn: "admin_set_referrer_by_code",
-      args: { p_user_id: string; p_referral_code: string },
-    ) => Promise<{ data: AdminSetReferrerResult | null; error: { message?: string } | null }>)("admin_set_referrer_by_code", {
+    const res = await supabase.rpc("admin_set_referrer_by_code", {
       p_user_id: editUser.id,
       p_referral_code: code,
-    })) as { data: AdminSetReferrerResult | null; error: { message?: string } | null };
+    });
     setEditSaving(false);
 
     if (res.error || res.data?.error) {
@@ -532,10 +531,8 @@ const AdminUsersPage = () => {
               <div className="space-y-3">
                 {[
                   { key: "name", label: "Nome completo", type: "text" },
-                  { key: "username", label: "Username IPTV", type: "text" },
-                  { key: "email", label: "E-mail do cliente (opcional, não usar para login)", type: "email" },
-                  { key: "password", label: "Senha", type: "password" },
-                  { key: "iptv_user", label: "Usuário IPTV", type: "text" },
+                  { key: "username", label: "Usuário IPTV / Login obrigatório", type: "text" },
+                  { key: "password", label: "Senha IPTV / Senha de login", type: "password" },
                   { key: "iptv_server", label: "Servidor IPTV", type: "text" },
                   { key: "iptv_app", label: "App IPTV", type: "text" },
                   { key: "iptv_expiry", label: "Vencimento IPTV", type: "date" },
@@ -550,12 +547,18 @@ const AdminUsersPage = () => {
                     <input
                       type={f.type}
                       value={(form as any)[f.key]}
-                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          [f.key]: e.target.value,
+                          ...(f.key === "username" ? { iptv_user: e.target.value } : {}),
+                        })
+                      }
                       className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     />
-                    {f.key === "email" && (
+                    {f.key === "username" && (
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        Login do cliente será pelo Usuário IPTV/Username, não por esse e-mail.
+                        Esse será o login do cliente. O Username sempre será igual ao Usuário IPTV.
                       </p>
                     )}
                   </div>
@@ -997,12 +1000,13 @@ const AdminUsersPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Username</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">Username/Login</label>
                       <input
-                        value={editForm.username}
+                        value={editForm.iptv_user || editForm.username}
                         disabled
                         className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
                       />
+                      <p className="mt-1 text-[10px] text-muted-foreground">Sempre igual ao Usuário IPTV.</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -1093,7 +1097,9 @@ const AdminUsersPage = () => {
                       <label className="mb-1 block text-xs text-muted-foreground">Usuário IPTV</label>
                       <input
                         value={editForm.iptv_user}
-                        onChange={(e) => setEditForm({ ...editForm, iptv_user: e.target.value })}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, iptv_user: e.target.value, username: e.target.value })
+                        }
                         className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>

@@ -80,15 +80,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const cleanUsername = String(username || "").trim();
-    const cleanIptvUser = String(iptv_user || cleanUsername).trim();
-    const loginIdentifier = cleanIptvUser || cleanUsername;
+    const cleanIptvUser = String(iptv_user || username || "").trim();
+    const loginIdentifier = cleanIptvUser;
 
-    // Login do cliente deve ser previsível:
-    // Usuário IPTV/Username + senha. O e-mail informado no cadastro não é usado como login Auth.
+    if (!loginIdentifier) {
+      return new Response(JSON.stringify({ error: "Usuário IPTV/Login é obrigatório" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Login do cliente deve ser sempre Usuário IPTV + senha.
+    // O campo "email" não é usado como login.
     const userEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
-
-    // Use provided password or iptv_password or loginIdentifier as fallback.
     const userPassword = String(password || iptv_password || loginIdentifier);
 
     // Create auth user
@@ -141,8 +145,8 @@ Deno.serve(async (req) => {
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
       name,
-      username: cleanUsername,
-      iptv_user: cleanIptvUser,
+      username: loginIdentifier,
+      iptv_user: loginIdentifier,
       iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
@@ -205,7 +209,7 @@ Deno.serve(async (req) => {
       action: "create_user",
       target_table: "profiles",
       target_id: userId,
-      details: { name, username, role: userRole, referred_by_code: cleanReferredCode || null },
+      details: { name, username: loginIdentifier, role: userRole, referred_by_code: cleanReferredCode || null },
     });
 
     const { data: createdProfile } = await supabaseAdmin

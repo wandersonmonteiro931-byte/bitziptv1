@@ -191,12 +191,30 @@ Deno.serve(async (req) => {
         // Fetch current profile to detect actual status changes
         const { data: currentProfile } = await supabaseAdmin
           .from("profiles")
-          .select("iptv_status")
+          .select("iptv_status, iptv_user, username")
           .eq("id", user_id)
           .single();
         const previousStatus = currentProfile?.iptv_status;
 
-        const { error } = await supabaseAdmin.from("profiles").update(data).eq("id", user_id);
+        const updateData = { ...(data || {}) };
+
+        // REGRA FIXA: username/login sempre igual ao Usuário IPTV.
+        if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
+          const loginIdentifier = updateData.iptv_user.trim();
+          updateData.username = loginIdentifier;
+
+          const loginEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
+          const { error: authEmailError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+            email: loginEmail,
+            email_confirm: true,
+          } as any);
+
+          if (authEmailError) {
+            throw new Error(`Erro ao atualizar login do cliente: ${authEmailError.message}`);
+          }
+        }
+
+        const { error } = await supabaseAdmin.from("profiles").update(updateData).eq("id", user_id);
         if (error) throw new Error(error.message);
 
         // When admin activates a user (sets status to active), also confirm pending activation payments
