@@ -987,8 +987,6 @@ const ClientDashboard = () => {
   const [cancelPending, setCancelPending] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
-  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState<number>(5);
-  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState<number>(10);
   const [notifPopup, setNotifPopup] = useState<{
     title: string;
     body: string;
@@ -1313,17 +1311,23 @@ const ClientDashboard = () => {
   };
 
   const renewalOptionMotion = {
+    initial: { opacity: 0.96, y: 2 },
     animate: {
-      y: [0, -2, 0],
-      boxShadow: ["0 0 0 rgba(239,68,68,0)", "0 10px 28px rgba(239,68,68,0.14)", "0 0 0 rgba(239,68,68,0)"],
+      opacity: 1,
+      y: 0,
+      boxShadow: ["0 8px 24px rgba(0,0,0,0.22)", "0 10px 30px rgba(239,68,68,0.08)", "0 8px 24px rgba(0,0,0,0.22)"],
     },
     transition: {
-      duration: 3,
+      duration: 4.8,
       repeat: Infinity,
       ease: "easeInOut" as const,
     },
-    whileHover: { scale: 1.012, x: 3 },
-    whileTap: { scale: 0.985 },
+    whileHover: {
+      y: -1,
+      borderColor: "rgba(239,68,68,0.45)",
+      boxShadow: "0 12px 34px rgba(239,68,68,0.12)",
+    },
+    whileTap: { scale: 0.992, y: 0 },
   };
 
   return (
@@ -1520,43 +1524,38 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* RENEWAL OPTIONS (3m, 6m) — destaque animado */}
+        {/* RENEWAL OPTIONS (3m, 6m) — profissional e suave */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
+          transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
           className="grid gap-3 sm:grid-cols-2"
         >
           <motion.button
             type="button"
             {...renewalOptionMotion}
             onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
-            className="group relative overflow-hidden rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/12 via-card to-black/40 p-4 text-left shadow-lg shadow-red-500/5 transition-colors hover:border-red-500/45 hover:bg-red-500/10"
+            className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-4 text-left transition-colors hover:bg-card"
           >
             <motion.span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/14 to-transparent"
-              animate={{ x: ["0%", "360%"] }}
-              transition={{ duration: 3.1, repeat: Infinity, ease: "easeInOut", repeatDelay: 1 }}
-            />
-            <motion.span
-              aria-hidden="true"
-              className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_14px_rgba(248,113,113,0.95)]"
-              animate={{ opacity: [0.35, 1, 0.35], scale: [0.85, 1.18, 0.85] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-red-500/45 to-transparent"
+              animate={{ opacity: [0.35, 0.75, 0.35] }}
+              transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
             />
 
             <div className="relative z-10 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-foreground">{renewal3mLabel}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-red-300">
+                <p className="text-sm font-semibold text-foreground">{renewal3mLabel}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
                   {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
                 </p>
-                <p className="mt-2 text-[10px] text-muted-foreground">Economia: R$ {discount3m.toFixed(2)}</p>
+                <p className="mt-2 text-[10px] text-red-300/90">Economia de R$ {discount3m.toFixed(2)}</p>
               </div>
-              <div className="rounded-xl bg-red-500/10 px-3 py-2 text-right">
+
+              <div className="rounded-xl border border-border/50 bg-background/40 px-3 py-2 text-right">
                 <p className="text-[10px] text-muted-foreground">Total</p>
-                <span className="text-sm font-bold text-white">R$ {final3m.toFixed(2)}</span>
+                <span className="text-sm font-semibold text-foreground">R$ {final3m.toFixed(2)}</span>
               </div>
             </div>
           </motion.button>
@@ -1564,37 +1563,32 @@ const ClientDashboard = () => {
           <motion.button
             type="button"
             {...renewalOptionMotion}
-            transition={{ ...renewalOptionMotion.transition, delay: 0.35 }}
+            transition={{ ...renewalOptionMotion.transition, delay: 0.4 }}
             onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
-            className="group relative overflow-hidden rounded-2xl border border-red-500/25 bg-gradient-to-br from-red-600/16 via-card to-black/40 p-4 text-left shadow-lg shadow-red-500/10 transition-colors hover:border-red-500/55 hover:bg-red-500/10"
+            className="group relative overflow-hidden rounded-2xl border border-red-500/25 bg-card/75 p-4 text-left transition-colors hover:bg-card"
           >
             <motion.span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/16 to-transparent"
-              animate={{ x: ["0%", "360%"] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
-            />
-            <motion.span
-              aria-hidden="true"
-              className="absolute right-3 top-3 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_16px_rgba(248,113,113,1)]"
-              animate={{ opacity: [0.35, 1, 0.35], scale: [0.85, 1.22, 0.85] }}
-              transition={{ duration: 1.65, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-red-500/55 to-transparent"
+              animate={{ opacity: [0.4, 0.85, 0.4] }}
+              transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
             />
 
             <div className="relative z-10 flex items-center justify-between gap-3">
               <div>
-                <div className="mb-1 inline-flex rounded-full bg-red-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-300">
-                  Melhor desconto
+                <div className="mb-2 inline-flex rounded-full border border-red-500/20 bg-red-500/8 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-red-300">
+                  Maior economia
                 </div>
-                <p className="text-sm font-bold text-foreground">{renewal6mLabel}</p>
-                <p className="mt-0.5 text-[11px] font-semibold text-red-300">
+                <p className="text-sm font-semibold text-foreground">{renewal6mLabel}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
                   {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
                 </p>
-                <p className="mt-2 text-[10px] text-muted-foreground">Economia: R$ {discount6m.toFixed(2)}</p>
+                <p className="mt-2 text-[10px] text-red-300/90">Economia de R$ {discount6m.toFixed(2)}</p>
               </div>
-              <div className="rounded-xl bg-red-500/10 px-3 py-2 text-right">
+
+              <div className="rounded-xl border border-red-500/20 bg-background/40 px-3 py-2 text-right">
                 <p className="text-[10px] text-muted-foreground">Total</p>
-                <span className="text-sm font-bold text-white">R$ {final6m.toFixed(2)}</span>
+                <span className="text-sm font-semibold text-foreground">R$ {final6m.toFixed(2)}</span>
               </div>
             </div>
           </motion.button>
