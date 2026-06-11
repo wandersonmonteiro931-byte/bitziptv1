@@ -1013,6 +1013,8 @@ const ClientDashboard = () => {
     bannerUrl?: string;
     imageOnly?: boolean;
   } | null>(null);
+  const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
+  const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
