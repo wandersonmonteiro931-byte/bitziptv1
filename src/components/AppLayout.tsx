@@ -190,6 +190,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <ul className="space-y-1">
                 {clientPrimaryLinks.map((link) => {
                   const isActive = location.pathname === link.to;
+                  const isReferral = link.to === "/referrals";
                   return (
                     <li key={link.to}>
                       <NavLink
@@ -199,10 +200,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
                           isActive
                             ? "bg-red-500/15 text-red-500 border border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.12)]"
                             : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          isReferral && "relative overflow-hidden py-3 text-[15px] font-bold",
                         )}
                       >
-                        <link.icon size={18} />
-                        {link.label}
+                        {isReferral ? (
+                          <div className="flex h-10 w-10 animate-pulse items-center justify-center rounded-full bg-red-500/12 text-red-400 shadow-[0_0_18px_rgba(239,68,68,0.16)]">
+                            <link.icon size={22} />
+                          </div>
+                        ) : (
+                          <link.icon size={18} />
+                        )}
+                        <span className={cn(isReferral && "tracking-wide")}>{link.label}</span>
                       </NavLink>
                     </li>
                   );
@@ -268,6 +276,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               const isActive =
                 location.pathname === link.to ||
                 (link.to === "/challenges" && clientGameLinks.some((g) => g.to === location.pathname));
+              const isReferral = link.to === "/referrals";
               return (
                 <NavLink
                   key={link.to}
@@ -275,9 +284,16 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   className={cn(
                     "flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[9px] font-semibold leading-tight transition-colors",
                     isActive ? "text-red-500" : "text-muted-foreground",
+                    isReferral && "relative -mt-1 text-[10px] font-bold",
                   )}
                 >
-                  <link.icon size={20} />
+                  {isReferral ? (
+                    <div className="flex h-9 w-9 animate-pulse items-center justify-center rounded-full bg-red-500/12 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.14)]">
+                      <link.icon size={22} />
+                    </div>
+                  ) : (
+                    <link.icon size={20} />
+                  )}
                   <span className="max-w-full truncate">{link.label}</span>
                 </NavLink>
               );
@@ -333,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <p className="text-xs text-muted-foreground">@{user?.username}</p>
             </div>
             <ul className="space-y-1">
-              {adminLinks.slice(4).map((link) => {
+              {(isAdmin ? adminLinks.slice(4) : clientMenuLinks).map((link) => {
                 const isActive = location.pathname === link.to;
                 return (
                   <li key={link.to}>
