@@ -138,7 +138,7 @@ export default defineConfig(({ mode }) => ({
         clientsClaim: true,
       },
       manifest: {
-        id: "/",
+        id: "/wmcflix-pwa",
         name: "WMCFLIX",
         short_name: "WMCFLIX",
         description: "WMCFLIX - Programa Oficial de Fidelidade",

@@ -58,9 +58,9 @@ const AdminSettingsPage = () => {
     if (!brandingLoaded) return;
 
     previewAppBranding({
-      appName: appName.trim() || "Bitz IPTV",
-      appShortName: appShortName.trim() || appName.trim() || "Bitz IPTV",
-      appDescription: appDescription.trim() || `${appName.trim() || "Bitz IPTV"} - Programa de Fidelidade`,
+      appName: appName.trim() || "WMCFLIX",
+      appShortName: appShortName.trim() || appName.trim() || "WMCFLIX",
+      appDescription: appDescription.trim() || `${appName.trim() || "WMCFLIX"} - Programa de Fidelidade`,
       logoUrl: appLogoUrl.trim(),
       faviconUrl: appFaviconUrl.trim() || appLogoUrl.trim(),
     });
@@ -98,7 +98,9 @@ const AdminSettingsPage = () => {
     try {
       const safeName = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
       const path = `branding/${type}-${Date.now()}-${safeName}`;
-      const { error } = await supabase.storage.from("banners").upload(path, file, { upsert: true });
+      const { error } = await supabase.storage
+        .from("banners")
+        .upload(path, file, { upsert: true, cacheControl: "31536000", contentType: file.type });
       if (error) throw error;
 
       const { data } = supabase.storage.from("banners").getPublicUrl(path);
@@ -376,7 +378,7 @@ const AdminSettingsPage = () => {
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Prévia</p>
             <div className="mx-auto h-24 w-24 overflow-hidden rounded-3xl border border-primary/30 bg-muted shadow-lg shadow-primary/10">
               {appLogoUrl ? (
-                <img src={appLogoUrl} alt={appName || "Logo"} className="h-full w-full object-contain" />
+                <img src={appLogoUrl} alt={appName || "Logo"} className="h-full w-full object-contain bg-black" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">Logo</div>
               )}
@@ -386,7 +388,7 @@ const AdminSettingsPage = () => {
             <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2">
               <div className="h-7 w-7 overflow-hidden rounded-lg bg-muted">
                 {appFaviconUrl ? (
-                  <img src={appFaviconUrl} alt="Favicon" className="h-full w-full object-contain" />
+                  <img src={appFaviconUrl} alt="Favicon" className="h-full w-full object-contain bg-black" />
                 ) : null}
               </div>
               <span className="text-xs text-muted-foreground">Ícone de instalação</span>

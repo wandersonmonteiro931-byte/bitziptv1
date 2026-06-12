@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import defaultLogo from "@/assets/logo-bitz.jpg";
 
 export type AppBranding = {
   appName: string;
@@ -10,20 +9,28 @@ export type AppBranding = {
   faviconUrl: string;
 };
 
-export const APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
+export const APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
+const LEGACY_APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
 export const APP_BRANDING_EVENT = "app-branding-updated";
 
+const DEFAULT_LOGO = "/pwa-512.png";
+
 const DEFAULT_BRANDING: AppBranding = {
-  appName: "Bitz IPTV",
-  appShortName: "Bitz IPTV",
-  appDescription: "Bitz IPTV - Programa de Fidelidade",
-  logoUrl: defaultLogo,
-  faviconUrl: defaultLogo,
+  appName: "WMCFLIX",
+  appShortName: "WMCFLIX",
+  appDescription: "WMCFLIX - Programa Oficial de Fidelidade",
+  logoUrl: DEFAULT_LOGO,
+  faviconUrl: DEFAULT_LOGO,
 };
 
 const textOrDefault = (value: unknown, fallback: string) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || fallback;
+};
+
+const isLegacyBitzBranding = (branding: AppBranding) => {
+  const name = `${branding.appName || ""} ${branding.appShortName || ""}`.toLowerCase();
+  return name.includes("bitz iptv") || name === "bitz";
 };
 
 export const getDefaultAppBranding = (): AppBranding => ({ ...DEFAULT_BRANDING });
@@ -33,25 +40,47 @@ export const normalizeAppBranding = (row?: any): AppBranding => {
   const appShortName = textOrDefault(row?.app_short_name ?? row?.appShortName, appName);
   const appDescription = textOrDefault(
     row?.app_description ?? row?.appDescription,
-    `${appName} - Programa de Fidelidade`,
+    `${appName} - Programa Oficial de Fidelidade`,
   );
+
   const logoUrl = textOrDefault(row?.app_logo_url ?? row?.logoUrl, DEFAULT_BRANDING.logoUrl);
-  const faviconUrl = textOrDefault(row?.app_favicon_url ?? row?.faviconUrl, logoUrl);
+  const faviconUrl = textOrDefault(row?.app_favicon_url ?? row?.faviconUrl, logoUrl || DEFAULT_BRANDING.faviconUrl);
 
   return { appName, appShortName, appDescription, logoUrl, faviconUrl };
+};
+
+const safeParseBranding = (value: string | null): AppBranding | null => {
+  if (!value) return null;
+
+  try {
+    const branding = normalizeAppBranding(JSON.parse(value));
+    if (isLegacyBitzBranding(branding)) return null;
+    return branding;
+  } catch {
+    return null;
+  }
 };
 
 export const readStoredAppBranding = (): AppBranding => {
   if (typeof window === "undefined") return getDefaultAppBranding();
 
   try {
-    const stored = localStorage.getItem(APP_BRANDING_STORAGE_KEY);
-    if (stored) return normalizeAppBranding(JSON.parse(stored));
+    const stored = safeParseBranding(localStorage.getItem(APP_BRANDING_STORAGE_KEY));
+    if (stored) return stored;
+
+    // Remove cache antigo do Bitz para não contaminar novas instalações PWA.
+    const legacy = safeParseBranding(localStorage.getItem(LEGACY_APP_BRANDING_STORAGE_KEY));
+    localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
+    if (legacy) return legacy;
 
     const bootBranding = (window as any).__APP_BRANDING_BOOT__;
-    if (bootBranding) return normalizeAppBranding(bootBranding);
+    if (bootBranding) {
+      const normalized = normalizeAppBranding(bootBranding);
+      if (!isLegacyBitzBranding(normalized)) return normalized;
+    }
   } catch {
     localStorage.removeItem(APP_BRANDING_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
   }
 
   return getDefaultAppBranding();
@@ -63,7 +92,8 @@ const getImageMime = (url: string) => {
   if (clean.endsWith(".webp")) return "image/webp";
   if (clean.endsWith(".svg")) return "image/svg+xml";
   if (clean.endsWith(".ico")) return "image/x-icon";
-  return "image/jpeg";
+  if (clean.endsWith(".jpg") || clean.endsWith(".jpeg")) return "image/jpeg";
+  return "image/png";
 };
 
 const setMeta = (selector: string, attr: "content" | "href", value: string) => {
@@ -95,11 +125,31 @@ const setIconType = (selector: string, iconUrl: string) => {
   if (element) element.type = getImageMime(iconUrl);
 };
 
-export const buildDynamicManifest = (branding: AppBranding) => {
+const isUsableIconUrl = (url?: string | null) => {
+  const value = String(url || "").trim();
+  if (!value) return false;
+  if (value.startsWith("data:")) return true;
+  if (value.startsWith("/")) return true;
+  if (/^https?:\/\//i.test(value)) return true;
+  return false;
+};
+
+const manifestIcon = (url: string, size: string, purpose: "any" | "maskable" = "any") => ({
+  src: url,
+  sizes: size,
+  type: getImageMime(url),
+  purpose,
+});
+
+export const buildDynamicManifest = (brandingInput: AppBranding) => {
+  const branding = normalizeAppBranding(brandingInput);
+  const iconUrl = isUsableIconUrl(branding.faviconUrl) ? branding.faviconUrl : DEFAULT_LOGO;
+  const mainLogo = isUsableIconUrl(branding.logoUrl) ? branding.logoUrl : iconUrl;
+
   return {
-    id: "/",
+    id: "/wmcflix-pwa",
     name: branding.appName || "WMCFLIX",
-    short_name: branding.appShortName || "WMCFLIX",
+    short_name: branding.appShortName || branding.appName || "WMCFLIX",
     description: branding.appDescription || "WMCFLIX - Programa Oficial de Fidelidade",
     theme_color: "#000000",
     background_color: "#000000",
@@ -108,32 +158,66 @@ export const buildDynamicManifest = (branding: AppBranding) => {
     orientation: "portrait",
     start_url: "/?source=pwa",
     scope: "/",
+    categories: ["entertainment", "utilities"],
     icons: [
-      { src: "/pwa-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/pwa-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/pwa-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      manifestIcon(iconUrl, "192x192", "any"),
+      manifestIcon(iconUrl, "512x512", "any"),
+      manifestIcon(mainLogo, "512x512", "maskable"),
+    ],
+    shortcuts: [
+      {
+        name: "Início",
+        short_name: "Início",
+        description: "Abrir início do app",
+        url: "/dashboard",
+        icons: [manifestIcon(iconUrl, "192x192", "any")],
+      },
+      {
+        name: "AO VIVO",
+        short_name: "AO VIVO",
+        description: "Abrir TV ao vivo",
+        url: "/tv-guide",
+        icons: [manifestIcon(iconUrl, "192x192", "any")],
+      },
     ],
   };
 };
 
-const updateManifest = (_branding: AppBranding) => {
+let dynamicManifestUrl: string | null = null;
+
+export const updateManifest = (brandingInput: AppBranding) => {
   if (typeof document === "undefined") return;
 
-  // Mantém o manifest real do PWA em arquivo estático.
-  // Manifest em Blob ou com ícone remoto/JPG pode fazer o navegador criar apenas atalho.
-  document.querySelectorAll('link[rel="manifest"][data-dynamic-branding="true"]').forEach((link) => link.remove());
+  const branding = normalizeAppBranding(brandingInput);
+
+  // O PWA precisa receber o nome/ícone atuais do admin antes de instalar.
+  // Por isso usamos manifest dinâmico, mas sempre completo e instalável.
+  document
+    .querySelectorAll('link[rel="manifest"]:not([data-dynamic-branding="true"])')
+    .forEach((link) => link.remove());
+
+  if (dynamicManifestUrl) {
+    URL.revokeObjectURL(dynamicManifestUrl);
+    dynamicManifestUrl = null;
+  }
+
+  const manifestJson = JSON.stringify(buildDynamicManifest(branding));
+  const blob = new Blob([manifestJson], { type: "application/manifest+json" });
+  dynamicManifestUrl = URL.createObjectURL(blob);
 
   let manifestLink = document.querySelector(
-    'link[rel="manifest"]:not([data-dynamic-branding="true"])',
+    'link[rel="manifest"][data-dynamic-branding="true"]',
   ) as HTMLLinkElement | null;
 
   if (!manifestLink) {
     manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";
+    manifestLink.setAttribute("data-dynamic-branding", "true");
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.href = "/manifest.webmanifest";
+  manifestLink.href = dynamicManifestUrl;
+  manifestLink.dataset.appName = branding.appName;
 };
 
 const notifyServiceWorker = (branding: AppBranding) => {
@@ -151,7 +235,7 @@ export const applyAppBranding = (brandingInput: AppBranding) => {
   if (typeof document === "undefined") return;
 
   const branding = normalizeAppBranding(brandingInput);
-  const iconUrl = branding.faviconUrl || branding.logoUrl;
+  const iconUrl = branding.faviconUrl || branding.logoUrl || DEFAULT_LOGO;
 
   document.title = branding.appName;
   document.documentElement.setAttribute("data-app-name", branding.appName);
@@ -162,10 +246,10 @@ export const applyAppBranding = (brandingInput: AppBranding) => {
   setMeta('meta[name="apple-mobile-web-app-title"]', "content", branding.appShortName);
   setMeta('meta[property="og:title"]', "content", branding.appName);
   setMeta('meta[property="og:description"]', "content", branding.appDescription);
-  setMeta('meta[property="og:image"]', "content", branding.logoUrl);
+  setMeta('meta[property="og:image"]', "content", branding.logoUrl || DEFAULT_LOGO);
   setMeta('meta[name="twitter:title"]', "content", branding.appName);
   setMeta('meta[name="twitter:description"]', "content", branding.appDescription);
-  setMeta('meta[name="twitter:image"]', "content", branding.logoUrl);
+  setMeta('meta[name="twitter:image"]', "content", branding.logoUrl || DEFAULT_LOGO);
 
   setMeta('link[rel="icon"]', "href", iconUrl);
   setMeta('link[rel="shortcut icon"]', "href", iconUrl);
@@ -195,6 +279,7 @@ export const saveStoredAppBranding = (brandingInput: AppBranding) => {
 
   const branding = normalizeAppBranding(brandingInput);
   localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(branding));
+  localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
   applyAppBranding(branding);
   window.dispatchEvent(new CustomEvent(APP_BRANDING_EVENT, { detail: branding }));
 };
@@ -208,10 +293,24 @@ export const loadRemoteAppBranding = async (): Promise<AppBranding | null> => {
       .maybeSingle();
 
     if (error || !data) return null;
-    return normalizeAppBranding(data);
+    const branding = normalizeAppBranding(data);
+    return isLegacyBitzBranding(branding) ? getDefaultAppBranding() : branding;
   } catch {
     return null;
   }
+};
+
+export const prepareBrandingForPwaInstall = async (): Promise<AppBranding> => {
+  const remoteBranding = await loadRemoteAppBranding();
+  const branding = remoteBranding || readStoredAppBranding();
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(branding));
+    localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
+  }
+
+  applyAppBranding(branding);
+  return branding;
 };
 
 export const useAppBranding = () => {
@@ -225,7 +324,10 @@ export const useAppBranding = () => {
 
       const normalized = normalizeAppBranding(nextBranding);
       setBranding(normalized);
-      if (persist) localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(normalized));
+      if (persist) {
+        localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(normalized));
+        localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
+      }
       applyAppBranding(normalized);
     };
 

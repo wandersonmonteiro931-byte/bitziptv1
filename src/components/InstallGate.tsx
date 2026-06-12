@@ -19,7 +19,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAppBranding } from "@/hooks/useAppBranding";
+import { prepareBrandingForPwaInstall, useAppBranding } from "@/hooks/useAppBranding";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -39,8 +39,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function ensurePwaAssetsReady() {
   if (typeof window === "undefined") return;
 
+  await prepareBrandingForPwaInstall();
+
   try {
-    await fetch(`/manifest.webmanifest?install_check=${Date.now()}`, {
+    const manifestHref =
+      document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href || "/manifest.webmanifest";
+    await fetch(manifestHref, {
       cache: "no-store",
       headers: { "Cache-Control": "no-cache" },
     });
@@ -91,7 +95,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [adminBypass, setAdminBypass] = useState(false);
   const checkedRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz IPTV";
+  const appTitle = appName || "WMCFLIX";
   const appTitleUpper = appTitle.toUpperCase();
 
   useEffect(() => {
