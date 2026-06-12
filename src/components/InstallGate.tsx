@@ -36,6 +36,36 @@ const BENEFITS = [
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function forceClearAllCaches() {
+  if (typeof window === "undefined") return;
+  try {
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.allSettled(names.map((n) => caches.delete(n)));
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.allSettled(
+        regs.map(async (r) => {
+          // Não desregistra workers de push/mensageria (firebase/onesignal)
+          const scriptURL = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
+          if (/firebase-messaging|onesignal|push-sw/i.test(scriptURL)) {
+            await r.update().catch(() => undefined);
+            return;
+          }
+          await r.update().catch(() => undefined);
+        }),
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function ensurePwaAssetsReady() {
   if (typeof window === "undefined") return;
 
