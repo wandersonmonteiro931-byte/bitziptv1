@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark only" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>WMCFLIX</title>
+    <style>
+      html, body, #root {
+        margin: 0;
+        min-height: 100%;
+        background: #000000 !important;
+        color-scheme: dark only;
+      }
+      body {
+        background-color: #000000 !important;
+      }
+      img[src*="logo"], img[src*="pwa-"], img[src*="banners"], img[src*="banner"] {
+        background-color: #000000 !important;
+      }
+    </style>
+
     <script>
       (function () {
         try {

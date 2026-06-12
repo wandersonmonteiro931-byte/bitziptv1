@@ -191,7 +191,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col overflow-y-auto bg-background">
+    <div className="fixed inset-0 z-[9999] flex flex-col overflow-y-auto bg-black">
       {/* BG glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/10 blur-[120px]" />
@@ -213,7 +213,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               className="relative overflow-hidden rounded-3xl shadow-2xl ring-2 ring-primary/30"
               style={{ width: 88, height: 88 }}
             >
-              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain" />
+              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain bg-black" />
             </div>
           </div>
         </motion.div>
@@ -296,7 +296,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
             <span>Instalação rápida</span>
             <span className="text-primary font-semibold">Menos de 1 minuto</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/30">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/80">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: "100%" }}
@@ -374,7 +374,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-contain bg-black" />
                     </div>
                   </motion.div>
                 </div>
@@ -421,7 +421,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
-                      <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                      <img src={logoUrl} alt="" className="h-full w-full object-contain bg-black" />
                     </div>
                   </motion.div>
                 </div>
@@ -441,7 +441,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
             {BENEFITS.map((b, i) => (
               <div
                 key={b.label}
-                className="flex items-center gap-2 rounded-xl border border-border/40 bg-card/50 px-3 py-2"
+                className="flex items-center gap-2 rounded-xl border border-border/40 bg-black/90 px-3 py-2"
               >
                 <b.icon size={14} className="shrink-0 text-primary" />
                 <span className="text-[11px] font-medium text-foreground">{b.label}</span>
@@ -466,7 +466,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
 
       {/* === FIXED CTA BUTTON === */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-[10000] border-t border-primary/20 bg-background/95 backdrop-blur-lg"
+        className="fixed bottom-0 left-0 right-0 z-[10000] border-t border-primary/20 bg-black/95 backdrop-blur-lg"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}
       >
         <div className="px-4 pb-2 pt-3">
@@ -480,7 +480,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               <div className="mt-1 flex items-center gap-2">
                 <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
                   <div className="h-8 w-8 overflow-hidden rounded-xl border border-primary/30">
-                    <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                    <img src={logoUrl} alt="" className="h-full w-full object-contain bg-black" />
                   </div>
                 </motion.div>
                 <ChevronRight size={14} className="text-muted-foreground" />
@@ -588,7 +588,7 @@ function TutorialStep({ step, delay, children }: { step: number; delay: number; 
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.55 + delay }}
-      className="rounded-xl border border-border/50 bg-card/60 p-3"
+      className="rounded-xl border border-border/50 bg-black/90 p-3"
     >
       <div className="flex items-start gap-3">
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">

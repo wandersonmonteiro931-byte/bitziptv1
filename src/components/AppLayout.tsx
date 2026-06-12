@@ -106,7 +106,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const links = isAdmin ? adminLinks : clientLinks;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-black">
       {/* === TOP HEADER BAR === */}
       <header
         className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border bg-sidebar px-3 md:left-64"
@@ -114,7 +114,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       >
         {/* Mobile: Logo */}
         <div className="flex items-center gap-2 md:hidden">
-          <img src={logoUrl} alt={appTitle} className="h-8 w-8 rounded-lg object-contain" />
+          <img src={logoUrl} alt={appTitle} className="h-8 w-8 rounded-lg object-contain bg-black" />
           <span className="font-display text-xs font-bold tracking-wider text-foreground">{appTitleUpper}</span>
         </div>
         {/* Desktop: greeting */}
@@ -156,7 +156,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* === DESKTOP SIDEBAR === */}
       <aside className="fixed left-0 top-0 z-40 hidden h-full w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-          <img src={logoUrl} alt={appTitle} className="h-10 w-10 rounded-lg object-contain" />
+          <img src={logoUrl} alt={appTitle} className="h-10 w-10 rounded-lg object-contain bg-black" />
           <div>
             <h2 className="font-display text-sm font-bold tracking-wider text-foreground">{appTitleUpper}</h2>
             <p className="text-xs text-muted-foreground">{isAdmin ? "Administração" : "Fidelidade"}</p>
@@ -340,7 +340,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {isAdmin && menuOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden"
             onClick={() => setMenuOpen(false)}
           />
           <div className="fixed bottom-14 left-0 right-0 z-50 rounded-t-2xl border-t border-border bg-sidebar p-4 md:hidden">
@@ -349,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <p className="text-xs text-muted-foreground">@{user?.username}</p>
             </div>
             <ul className="space-y-1">
-              {adminLinks.slice(4).map((link) => {
+              {(isAdmin ? adminLinks.slice(4) : clientMenuLinks).map((link) => {
                 const isActive = location.pathname === link.to;
                 return (
                   <li key={link.to}>

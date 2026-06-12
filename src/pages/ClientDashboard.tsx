@@ -207,7 +207,7 @@ function BannerCarousel() {
   if (!firstReady) {
     return (
       <div className="mx-4 mt-2 mb-4">
-        <div className="w-full h-40 animate-pulse rounded-[20px] bg-muted/30" />
+        <div className="w-full h-40 animate-pulse rounded-[20px] bg-black/80" />
       </div>
     );
   }
@@ -259,7 +259,7 @@ function BannerCarousel() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black/20"
+            className="flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black"
             style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
           >
             {banner.banner_url && isBannerLoaded ? (
@@ -269,12 +269,12 @@ function BannerCarousel() {
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
-                className="block h-auto max-h-[70vh] w-auto max-w-full rounded-[20px] object-contain"
+                className="block h-auto max-h-[70vh] w-auto max-w-full rounded-[20px] object-contain bg-black"
               />
             ) : banner.banner_url && !isBannerLoaded ? (
-              <div className="h-40 w-full animate-pulse rounded-[20px] bg-muted/30" />
+              <div className="h-40 w-full animate-pulse rounded-[20px] bg-black/80" />
             ) : (
-              <div className="flex min-h-40 w-full flex-col items-center justify-center bg-muted/30 p-6">
+              <div className="flex min-h-40 w-full flex-col items-center justify-center bg-black/80 p-6">
                 <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
                 {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
               </div>
@@ -332,7 +332,7 @@ function AccessDataBlock({ user }: { user: any }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-card/50 p-5"
+      className="rounded-2xl border border-border/40 bg-black/90 p-5"
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -376,7 +376,7 @@ function AccessDataBlock({ user }: { user: any }) {
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="rounded-xl bg-muted/30 px-4 py-2.5 text-sm text-muted-foreground"
+              className="rounded-xl bg-black/80 px-4 py-2.5 text-sm text-muted-foreground"
             >
               Cancelar
             </button>
@@ -511,7 +511,7 @@ function PaymentHistory() {
     >
       <button
         onClick={() => setHistoryOpen(!historyOpen)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/50 px-5 py-3.5 text-sm active:opacity-80"
+        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-black/90 px-5 py-3.5 text-sm active:opacity-80"
       >
         <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
         <ChevronDown
@@ -598,7 +598,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-card/50 p-5"
+      className="rounded-2xl border border-border/40 bg-black/90 p-5"
     >
       <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
       <div className="flex flex-wrap gap-2">
@@ -619,7 +619,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
               }`}
             >
               {logo ? (
-                <img src={logo} alt={appNameValue} className="h-4 w-4 rounded-full object-contain" />
+                <img src={logo} alt={appNameValue} className="h-4 w-4 rounded-full object-contain bg-black" />
               ) : (
                 <Tv size={12} />
               )}
@@ -632,7 +632,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
             {(() => {
               const logo = normalizedUserApp === "wmcflix" ? logoUrl : getAppLogoSrc(userApp);
               return logo ? (
-                <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain" />
+                <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain bg-black" />
               ) : (
                 <Tv size={12} />
               );
@@ -938,7 +938,7 @@ function PixModal({
                       className="h-40 w-40 rounded-2xl"
                     />
                   ) : (
-                    <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/10">
+                    <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-black">
                       <div className="text-center">
                         <p className="text-3xl">📱</p>
                         <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
@@ -1488,7 +1488,7 @@ const ClientDashboard = () => {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="rounded-2xl border border-border/50 bg-card/80 p-6"
+          className="rounded-2xl border border-border/50 bg-black/90 p-6"
         >
           <div className="flex items-center justify-between">
             <div>
@@ -1541,7 +1541,7 @@ const ClientDashboard = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="rounded-2xl border border-border/40 bg-card/60 px-5 py-3"
+          className="rounded-2xl border border-border/40 bg-black/90 px-5 py-3"
         >
           {(() => {
             const tvApp = (user?.iptv_tv_app || "").toLowerCase();
@@ -1626,7 +1626,7 @@ const ClientDashboard = () => {
                 <p className="mt-0.5 text-[10px] text-muted-foreground">Aguardando aprovação do suporte.</p>
               </div>
             ) : trustCooldown ? (
-              <div className="rounded-2xl border border-muted/30 bg-muted/10 px-4 py-3 text-center">
+              <div className="rounded-2xl border border-muted/30 bg-black px-4 py-3 text-center">
                 <p className="text-xs text-muted-foreground">
                   Desbloqueio de confiança indisponível (30 dias de espera).
                 </p>
@@ -1778,7 +1778,7 @@ const ClientDashboard = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="rounded-2xl border border-border/40 bg-card/50 p-5"
+            className="rounded-2xl border border-border/40 bg-black/90 p-5"
           >
             <p className="mb-3 text-xs text-muted-foreground">Suporte</p>
             <div className="flex items-center gap-3">
@@ -1900,12 +1900,12 @@ const ClientDashboard = () => {
             >
               {notifPopup.bannerUrl && (
                 <div
-                  className={`flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 ${notifPopup.imageOnly ? "max-h-[85vh]" : "mb-4 max-h-[60vh]"}`}
+                  className={`flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black ${notifPopup.imageOnly ? "max-h-[85vh]" : "mb-4 max-h-[60vh]"}`}
                 >
                   <img
                     src={getFhdImageUrl(notifPopup.bannerUrl)}
                     alt={notifPopup.title || "Imagem"}
-                    className="h-auto max-h-[85vh] w-auto max-w-full rounded-2xl object-contain"
+                    className="h-auto max-h-[85vh] w-auto max-w-full rounded-2xl object-contain bg-black"
                   />
                 </div>
               )}

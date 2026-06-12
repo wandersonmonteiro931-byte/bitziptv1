@@ -2,17 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* WMCFLIX: trava visual para nunca aparecer fundo branco em celulares/navegadores claros */
+:root {
+  color-scheme: dark only;
+  background: #000000;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #000000 !important;
+  color-scheme: dark only;
+}
+
+body {
+  background-color: #000000 !important;
+  overscroll-behavior-y: none;
+}
+
+@media (prefers-color-scheme: light) {
+  html,
+  body,
+  #root {
+    background: #000000 !important;
+    color-scheme: dark only;
+  }
+}
+
+/* Imagens de logos, ícones, banners e mídias do app sempre renderizam sobre preto.
+   Isso evita fundo branco em PNG transparente ou em celulares com tema claro. */
+.app-logo-img,
+.app-banner-img,
+.app-media-img,
+img[data-wmc-image="true"],
+img[src*="logo"],
+img[src*="pwa-"],
+img[src*="banners"],
+img[src*="banner"],
+img[alt*="WMC" i],
+img[alt*="WMCFLIX" i],
+img[alt*="Bitz" i],
+img[alt*="Banner" i],
+img[alt*="Preview" i] {
+  background-color: #000000 !important;
+}
+
+.wmc-black-frame,
+.wmc-banner-frame,
+.wmc-logo-frame,
+.wmc-image-frame {
+  background: #000000 !important;
+}
+
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;500;600;700;800;900&display=swap");
 
 @layer base {
   :root {
-    --background: 0 0% 5%;
+    --background: 0 0% 0%;
     --foreground: 0 0% 96%;
 
-    --card: 0 0% 8%;
+    --card: 0 0% 5%;
     --card-foreground: 0 0% 96%;
 
-    --popover: 0 0% 8%;
+    --popover: 0 0% 5%;
     --popover-foreground: 0 0% 96%;
 
     --primary: 0 84% 52%;
@@ -36,7 +89,7 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 4%;
+    --sidebar-background: 0 0% 0%;
     --sidebar-foreground: 0 0% 84%;
     --sidebar-primary: 0 84% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -72,6 +125,7 @@
 
   body {
     @apply bg-background text-foreground;
+    background: #000000 !important;
     font-family: var(--font-body);
     -webkit-user-select: none;
     -moz-user-select: none;

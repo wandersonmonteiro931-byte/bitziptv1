@@ -187,11 +187,11 @@ export function GlobalAnnouncementPopup() {
           className="w-full max-w-[94vw] rounded-3xl border border-border bg-card p-4 shadow-2xl sm:max-w-md sm:p-6"
         >
           {popup.bannerUrl && (
-            <div className="mb-4 flex max-h-[75vh] w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20">
+            <div className="mb-4 flex max-h-[75vh] w-full items-center justify-center overflow-hidden rounded-2xl bg-black">
               <img
                 src={getFhdImageUrl(popup.bannerUrl)}
                 alt={popup.title || "Aviso"}
-                className="h-auto max-h-[75vh] w-auto max-w-full rounded-2xl object-contain"
+                className="h-auto max-h-[75vh] w-auto max-w-full rounded-2xl object-contain bg-black"
               />
             </div>
           )}

@@ -298,7 +298,7 @@ const AdminBannersPage = () => {
                     <button
                       onClick={() => fileRef.current?.click()}
                       disabled={uploading}
-                      className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
+                      className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-black/80 px-4 py-2 text-xs text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50"
                     >
                       <Upload size={14} /> {uploading ? "Enviando..." : "Upload"}
                     </button>
@@ -313,11 +313,11 @@ const AdminBannersPage = () => {
                     />
                   </div>
                   {preview && (
-                    <div className="mt-2 flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-black/20 p-2">
+                    <div className="mt-2 flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-black p-2">
                       <img
                         src={getFhdImageUrl(preview)}
                         alt="Preview"
-                        className="h-auto max-h-[240px] w-auto max-w-full object-contain"
+                        className="h-auto max-h-[240px] w-auto max-w-full object-contain bg-black"
                         onError={() => setPreview("")}
                       />
                     </div>
@@ -437,12 +437,12 @@ const AdminBannersPage = () => {
           >
             <div className="flex">
               {/* Thumbnail */}
-              <div className="relative flex h-24 w-32 flex-shrink-0 items-center justify-center bg-muted/30 p-1">
+              <div className="relative flex h-24 w-32 flex-shrink-0 items-center justify-center bg-black/80 p-1">
                 {b.banner_url ? (
                   <img
                     src={getFhdImageUrl(b.banner_url)}
                     alt={b.title}
-                    className="h-auto max-h-full w-auto max-w-full object-contain"
+                    className="h-auto max-h-full w-auto max-w-full object-contain bg-black"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground/30">
@@ -506,7 +506,7 @@ const AdminBannersPage = () => {
 
             {/* Schedule info */}
             {(b.starts_at || b.ends_at) && (
-              <div className="flex items-center gap-3 border-t border-border/50 bg-muted/10 px-3 py-1.5 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-3 border-t border-border/50 bg-black px-3 py-1.5 text-[10px] text-muted-foreground">
                 <Calendar size={10} />
                 {b.starts_at && <span>Início: {formatDateBRT(b.starts_at)}</span>}
                 {b.ends_at && <span>Expira: {formatDateBRT(b.ends_at)}</span>}
