@@ -45,7 +45,7 @@ const getTimeGreeting = () => {
 const clientPrimaryLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/tv-guide", label: "AO VIVO", icon: MonitorPlay },
-  { to: "/referrals", label: "Indicar", icon: Users },
+  { to: "/referrals", label: "Indique e ganhe!", icon: Users },
   { to: "/iptv-info", label: "Minha TV", icon: Tv },
 ];
 
@@ -85,7 +85,7 @@ const adminLinks = [
 const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
   { to: "/tv-guide", label: "AO VIVO", icon: MonitorPlay },
-  { to: "/referrals", label: "Indicar", icon: Users },
+  { to: "/referrals", label: "Indique e ganhe!", icon: Users },
   { to: "/iptv-info", label: "Minha TV", icon: Tv },
   { to: "/challenges", label: "Jogos", icon: Gamepad2 },
 ];
@@ -284,7 +284,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   className={cn(
                     "flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[9px] font-semibold leading-tight transition-colors",
                     isActive ? "text-red-500" : "text-muted-foreground",
-                    isReferral && "relative -mt-3 text-[10px] font-bold",
+                    isReferral && "relative -mt-3 text-[8.5px] font-bold leading-none",
                   )}
                 >
                   {isReferral ? (
@@ -349,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <p className="text-xs text-muted-foreground">@{user?.username}</p>
             </div>
             <ul className="space-y-1">
-              {adminLinks.slice(4).map((link) => {
+              {(isAdmin ? adminLinks.slice(4) : clientMenuLinks).map((link) => {
                 const isActive = location.pathname === link.to;
                 return (
                   <li key={link.to}>
