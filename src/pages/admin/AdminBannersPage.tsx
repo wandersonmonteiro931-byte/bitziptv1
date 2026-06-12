@@ -19,6 +19,22 @@ import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDateBRT } from "@/lib/utils";
 
+const BANNER_DESTINATIONS = [
+  { value: "", label: "Nenhuma ação" },
+  { value: "/dashboard", label: "Início" },
+  { value: "/tv-guide", label: "AO VIVO / TV ao vivo" },
+  { value: "/referrals", label: "Indique e ganhe!" },
+  { value: "/dashboard?renew=1", label: "Antecipar renovação" },
+  { value: "/dashboard?renew=3", label: "Antecipar 3 meses" },
+  { value: "/dashboard?renew=6", label: "Antecipar 6 meses" },
+  { value: "/iptv-info", label: "Minha TV" },
+  { value: "/challenges", label: "Jogos" },
+  { value: "/dashboard#suporte", label: "Número do suporte" },
+  { value: "/dashboard#dados-acesso", label: "Dados de acesso" },
+];
+
+const CUSTOM_BANNER_DESTINATION = "__custom__";
+
 interface BannerItem {
   id: string;
   title: string;
@@ -179,6 +195,12 @@ const AdminBannersPage = () => {
 
   const audienceLabel: Record<string, string> = { all: "Todos", server: "Servidor", client: "Cliente" };
 
+  const selectedBannerDestination = BANNER_DESTINATIONS.some((item) => item.value === form.redirect_url)
+    ? form.redirect_url
+    : form.redirect_url
+      ? CUSTOM_BANNER_DESTINATION
+      : "";
+
   return (
     <AppLayout>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -300,16 +322,46 @@ const AdminBannersPage = () => {
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Link (opcional)</label>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Caminho ao clicar no banner (opcional)
+                  </label>
                   <div className="flex items-center gap-2">
                     <Link size={14} className="text-muted-foreground" />
+                    <select
+                      value={selectedBannerDestination}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === CUSTOM_BANNER_DESTINATION) {
+                          const currentIsCustom =
+                            form.redirect_url && !BANNER_DESTINATIONS.some((item) => item.value === form.redirect_url);
+                          setForm({ ...form, redirect_url: currentIsCustom ? form.redirect_url : "" });
+                          return;
+                        }
+                        setForm({ ...form, redirect_url: value });
+                      }}
+                      className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    >
+                      {BANNER_DESTINATIONS.map((item) => (
+                        <option key={item.label} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                      <option value={CUSTOM_BANNER_DESTINATION}>Link personalizado / WhatsApp / telefone</option>
+                    </select>
+                  </div>
+
+                  {selectedBannerDestination === CUSTOM_BANNER_DESTINATION && (
                     <input
                       value={form.redirect_url}
                       onChange={(e) => setForm({ ...form, redirect_url: e.target.value })}
-                      placeholder="https://..."
-                      className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      placeholder="Ex: https://wa.me/5562999999999 ou tel:62999999999"
+                      className="mt-2 w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     />
-                  </div>
+                  )}
+
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    Escolha uma tela do app ou deixe sem ação. Para WhatsApp/telefone, use link personalizado.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

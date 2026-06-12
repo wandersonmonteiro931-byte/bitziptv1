@@ -159,6 +159,7 @@ const optimizeImageUrl = (url: string, width = 1200): string => {
 };
 
 function BannerCarousel() {
+  const navigate = useNavigate();
   const [banners, setBanners] = useState<any[]>([]);
   const [current, setCurrent] = useState(0);
   const [loadedIds, setLoadedIds] = useState<Set<string>>(new Set());
@@ -226,6 +227,29 @@ function BannerCarousel() {
   const banner = banners[current];
   const isBannerLoaded = loadedIds.has(banner.id);
 
+  const openBannerDestination = (raw?: string) => {
+    const destination = String(raw || "").trim();
+    if (!destination) return;
+
+    if (
+      destination.startsWith("http://") ||
+      destination.startsWith("https://") ||
+      destination.startsWith("tel:") ||
+      destination.startsWith("mailto:") ||
+      destination.startsWith("whatsapp://")
+    ) {
+      window.open(destination, destination.startsWith("http") ? "_blank" : "_self", "noopener,noreferrer");
+      return;
+    }
+
+    if (destination.startsWith("#")) {
+      document.getElementById(destination.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    navigate(destination);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -235,11 +259,10 @@ function BannerCarousel() {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <a
-        href={banner.redirect_url || "#"}
-        target={banner.redirect_url ? "_blank" : undefined}
-        rel="noopener noreferrer"
-        className="block w-full"
+      <button
+        type="button"
+        onClick={() => openBannerDestination(banner.redirect_url)}
+        className={`block w-full ${banner.redirect_url ? "cursor-pointer" : "cursor-default"}`}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -270,7 +293,7 @@ function BannerCarousel() {
             )}
           </motion.div>
         </AnimatePresence>
-      </a>
+      </button>
       {banners.length > 1 && (
         <div className="mt-3 flex items-center justify-center gap-1.5">
           {banners.map((_, i) => (
@@ -317,6 +340,7 @@ function AccessDataBlock({ user }: { user: any }) {
 
   return (
     <motion.div
+      id="dados-acesso"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5 }}
@@ -1071,6 +1095,17 @@ const ClientDashboard = () => {
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
   const [appVersion] = useState(() => getCurrentAppVersion());
 
+  useEffect(() => {
+    if (!location.hash) return;
+
+    const id = decodeURIComponent(location.hash.slice(1));
+    const timer = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [location.hash]);
+
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
       const img = new Image();
@@ -1406,6 +1441,25 @@ const ClientDashboard = () => {
     },
     whileTap: { scale: 0.992, y: 0 },
   };
+
+  useEffect(() => {
+    const renew = new URLSearchParams(location.search).get("renew");
+    if (!renew) return;
+
+    const timer = setTimeout(() => {
+      if (renew === "3") {
+        setPixModal({ months: 3, value: final3m, discount: discount3m });
+      } else if (renew === "6") {
+        setPixModal({ months: 6, value: final6m, discount: discount6m });
+      } else {
+        setPixModal({ months: 1, value: totalValue, discount: 0 });
+      }
+
+      window.history.replaceState(null, "", `${location.pathname}${location.hash || ""}`);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [location.search, location.pathname, location.hash, totalValue, final3m, final6m, discount3m, discount6m]);
 
   return (
     <AppLayout>
