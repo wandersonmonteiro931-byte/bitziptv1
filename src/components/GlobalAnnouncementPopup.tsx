@@ -12,11 +12,15 @@ interface AnnouncementData {
   updatedAt?: string;
 }
 
+// Memória viva da aba: não zera ao trocar de seção/rota.
+// Só zera quando o app/site é realmente recarregado.
+const dismissedUntilReload = new Set<string>();
+let firstLoadExecuted = false;
+
 export function GlobalAnnouncementPopup() {
   const { user, isAdmin } = useAuth();
   const [popup, setPopup] = useState<AnnouncementData | null>(null);
   const popupRef = useRef<AnnouncementData | null>(null);
-  const dismissedThisOpenRef = useRef<Set<string>>(new Set());
   const loadingRef = useRef(false);
 
   popupRef.current = popup;
@@ -38,107 +42,92 @@ export function GlobalAnnouncementPopup() {
     });
   }, []);
 
-  const loadAnnouncements = useCallback(
-    async (force = false) => {
-      if (!user?.id || isAdmin) return;
-      if (loadingRef.current) return;
-      if (popupRef.current && !force) return;
+  const loadAnnouncements = useCallback(async () => {
+    if (!user?.id || isAdmin) return;
+    if (loadingRef.current) return;
+    if (popupRef.current) return;
 
-      loadingRef.current = true;
+    loadingRef.current = true;
 
-      try {
-        const now = new Date().toISOString();
+    try {
+      const now = new Date().toISOString();
 
-        const { data: announcements, error } = await supabase
-          .from("announcements")
-          .select(
-            "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency, updated_at, created_at",
-          )
-          .eq("is_active", true)
-          .or(`schedule_at.is.null,schedule_at.lte.${now}`)
-          .or(`expires_at.is.null,expires_at.gt.${now}`)
-          .order("created_at", { ascending: false });
+      const { data: announcements, error } = await supabase
+        .from("announcements")
+        .select(
+          "id, title, body, banner_url, announcement_type, target_type, target_ids, schedule_at, expires_at, display_frequency, updated_at, created_at",
+        )
+        .eq("is_active", true)
+        .or(`schedule_at.is.null,schedule_at.lte.${now}`)
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
+        .order("created_at", { ascending: false });
 
-        if (error || !announcements || announcements.length === 0) {
-          if (force) setPopup(null);
-          return;
-        }
+      if (error || !announcements || announcements.length === 0) return;
 
-        const { data: dismissed } = await supabase
-          .from("announcement_dismissals")
-          .select("announcement_id")
-          .eq("user_id", user.id);
+      const { data: dismissed } = await supabase
+        .from("announcement_dismissals")
+        .select("announcement_id")
+        .eq("user_id", user.id);
 
-        const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
+      const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
 
-        for (const a of announcements as any[]) {
-          const displayFrequency = (a.display_frequency || "once") as "always" | "once";
+      for (const a of announcements as any[]) {
+        const displayFrequency = (a.display_frequency || "once") as "always" | "once";
 
-          // Evita reabrir várias vezes no mesmo carregamento depois que o cliente clicou "Entendi".
-          if (dismissedThisOpenRef.current.has(a.id) && !force) continue;
+        // REGRA:
+        // Depois de clicar "Entendi", não aparece novamente ao trocar de seção.
+        // Só volta a aparecer em recarregamento real do app/site.
+        if (dismissedUntilReload.has(a.id)) continue;
 
-          // "Uma vez": respeita dismissão salva no banco.
-          // "Sempre": ignora dismissão antiga e aparece de novo em cada entrada/reload do app.
-          if (displayFrequency !== "always" && dismissedIds.has(a.id)) continue;
+        // "Uma vez": respeita dismissão salva no banco.
+        // "Sempre": ignora dismissão do banco, mas respeita a memória da aba até recarregar.
+        if (displayFrequency !== "always" && dismissedIds.has(a.id)) continue;
 
-          if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
+        if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
 
-          const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
-          if (bannerUrl) await preloadImage(bannerUrl);
+        const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
+        if (bannerUrl) await preloadImage(bannerUrl);
 
-          setPopup({
-            id: a.id,
-            title: a.title || "",
-            body: a.body || "",
-            bannerUrl,
-            displayFrequency,
-            updatedAt: a.updated_at,
-          });
-          return;
-        }
-
-        if (force) setPopup(null);
-      } finally {
-        loadingRef.current = false;
+        setPopup({
+          id: a.id,
+          title: a.title || "",
+          body: a.body || "",
+          bannerUrl,
+          displayFrequency,
+          updatedAt: a.updated_at,
+        });
+        return;
       }
-    },
-    [user?.id, isAdmin, preloadImage],
-  );
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [user?.id, isAdmin, preloadImage]);
 
   useEffect(() => {
     if (!user?.id || isAdmin) return;
 
-    loadAnnouncements(true);
+    // Só carrega aviso quando o app abre/recarrega pela primeira vez.
+    // Trocar de seção pode remontar layout, mas não deve reabrir aviso.
+    if (!firstLoadExecuted) {
+      firstLoadExecuted = true;
+      loadAnnouncements();
+    }
 
     const channel = supabase
       .channel(`global-announcements-realtime-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => {
-        // Admin criou/editou/ativou aviso: limpa a trava da sessão e mostra imediatamente.
-        dismissedThisOpenRef.current.clear();
-        setPopup(null);
-        setTimeout(() => loadAnnouncements(true), 250);
+        // Não abre automaticamente. Novo aviso aparece somente no próximo reload.
       })
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "announcement_dismissals", filter: `user_id=eq.${user.id}` },
-        () => {
-          setTimeout(() => loadAnnouncements(true), 250);
-        },
-      )
       .subscribe();
 
-    const handleFocus = () => loadAnnouncements(true);
-    window.addEventListener("focus", handleFocus);
-
     return () => {
-      window.removeEventListener("focus", handleFocus);
       supabase.removeChannel(channel);
     };
   }, [loadAnnouncements, user?.id, isAdmin]);
 
   const dismiss = async () => {
     if (popup && user?.id) {
-      dismissedThisOpenRef.current.add(popup.id);
+      dismissedUntilReload.add(popup.id);
 
       if (popup.displayFrequency !== "always") {
         await supabase.from("announcement_dismissals").insert({
@@ -149,7 +138,6 @@ export function GlobalAnnouncementPopup() {
     }
 
     setPopup(null);
-    setTimeout(() => loadAnnouncements(false), 500);
   };
 
   if (isAdmin || !popup) return null;
