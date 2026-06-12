@@ -349,7 +349,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <p className="text-xs text-muted-foreground">@{user?.username}</p>
             </div>
             <ul className="space-y-1">
-              {(isAdmin ? adminLinks.slice(4) : clientMenuLinks).map((link) => {
+              {adminLinks.slice(4).map((link) => {
                 const isActive = location.pathname === link.to;
                 return (
                   <li key={link.to}>
