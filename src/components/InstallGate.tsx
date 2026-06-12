@@ -187,6 +187,9 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   };
 
   const handleInstallClick = async () => {
+    // Força limpar cache do site para garantir versão mais atual do PWA
+    await forceClearAllCaches();
+
     // iOS — always show manual instructions. iOS não possui prompt nativo igual Android.
     if (isIOS) {
       setShowManualSteps(true);
