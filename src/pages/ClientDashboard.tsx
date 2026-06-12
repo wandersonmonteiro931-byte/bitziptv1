@@ -34,7 +34,16 @@ import appSmarters from "@/assets/app-smarters-pro.png";
 
 declare const __BUILD_TIMESTAMP__: number;
 
-const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v1";
+type AppVersionState = {
+  buildId?: string;
+  version?: string;
+};
+
+const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v2";
+const LEGACY_APP_VERSION_STORAGE_KEYS = ["wmcflix_app_version_state_v1", "bitz_app_version_state_v1"];
+const APP_VERSION_INITIAL = "v1.1";
+
+const getLocalBuildId = () => String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : Date.now());
 
 const incrementAppVersion = (version: string) => {
   const clean = String(version || "v1.0").replace(/^v/i, "");
@@ -55,35 +64,92 @@ const incrementAppVersion = (version: string) => {
   return `v${major}.${minor}`;
 };
 
-const getCurrentAppVersion = () => {
-  const fallback = "v1.0";
+const parseVersionState = (raw: string | null): AppVersionState | null => {
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as AppVersionState;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const readAppVersionState = (): AppVersionState | null => {
+  if (typeof window === "undefined") return null;
+
+  const current = parseVersionState(localStorage.getItem(APP_VERSION_STORAGE_KEY));
+  if (current?.version) return current;
+
+  for (const key of LEGACY_APP_VERSION_STORAGE_KEYS) {
+    const legacy = parseVersionState(localStorage.getItem(key));
+    if (legacy?.version) return legacy;
+  }
+
+  return null;
+};
+
+const cleanLegacyVersionKeys = () => {
+  if (typeof window === "undefined") return;
+
+  LEGACY_APP_VERSION_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+};
+
+const calculateAndStoreAppVersion = (buildId: string) => {
+  const fallback = APP_VERSION_INITIAL;
 
   if (typeof window === "undefined") return fallback;
 
-  const currentBuild = String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : Date.now());
-
   try {
-    const storedRaw = localStorage.getItem(APP_VERSION_STORAGE_KEY);
-    const stored = storedRaw ? (JSON.parse(storedRaw) as { buildId?: string; version?: string }) : null;
+    const stored = readAppVersionState();
 
-    if (stored?.buildId === currentBuild && stored?.version) {
+    if (stored?.buildId === buildId && stored?.version) {
+      cleanLegacyVersionKeys();
+      localStorage.setItem(APP_VERSION_STORAGE_KEY, JSON.stringify(stored));
       return stored.version;
     }
 
     const nextVersion = stored?.version ? incrementAppVersion(stored.version) : fallback;
+    const state: AppVersionState = {
+      buildId,
+      version: nextVersion,
+    };
 
-    localStorage.setItem(
-      APP_VERSION_STORAGE_KEY,
-      JSON.stringify({
-        buildId: currentBuild,
-        version: nextVersion,
-      }),
-    );
+    localStorage.setItem(APP_VERSION_STORAGE_KEY, JSON.stringify(state));
+    cleanLegacyVersionKeys();
 
     return nextVersion;
   } catch {
     return fallback;
   }
+};
+
+const getCurrentAppVersion = () => {
+  const stored = readAppVersionState();
+  return stored?.version || APP_VERSION_INITIAL;
+};
+
+const syncCurrentAppVersion = async () => {
+  let buildId = getLocalBuildId();
+
+  try {
+    const response = await fetch(`/version.json?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    if (response.ok) {
+      const remote = (await response.json()) as { buildId?: string; buildTimestamp?: number; version?: string };
+      buildId = String(remote.buildId || remote.buildTimestamp || remote.version || buildId);
+    }
+  } catch {
+    // Sem internet/cache offline: usa o build embutido no pacote atual.
+  }
+
+  return calculateAndStoreAppVersion(buildId);
 };
 
 const APP_LOGO_MAP: Record<string, string> = {
@@ -1081,7 +1147,19 @@ const ClientDashboard = () => {
   } | null>(null);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
-  const [appVersion] = useState(() => getCurrentAppVersion());
+  const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    syncCurrentAppVersion().then((nextVersion) => {
+      if (!cancelled) setAppVersion(nextVersion);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -1812,7 +1890,7 @@ const ClientDashboard = () => {
           <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground/25">
             <Shield size={8} /> Conexão segura · Dados protegidos
           </p>
-          <p className="mt-1 text-[10px] font-medium text-muted-foreground/30">Versão: {appVersion}</p>
+          <p className="mt-1 text-[10px] font-semibold text-red-400/80">Versão: {appVersion}</p>
         </div>
       </div>
 

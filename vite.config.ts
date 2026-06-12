@@ -53,6 +53,8 @@ function writeVersionFile(): Plugin {
             buildTimestamp: BUILD_TIMESTAMP,
             buildId: String(BUILD_TIMESTAMP),
             version: String(BUILD_TIMESTAMP),
+            appName: "WMCFLIX",
+            displayVersionSource: "auto-build",
           },
           null,
           2,
