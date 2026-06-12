@@ -31,6 +31,60 @@ import appBlessedPlayer from "@/assets/app-blessed-player.png";
 import appMaxPlayer from "@/assets/app-max-player.png";
 import appSmarters from "@/assets/app-smarters-pro.png";
 
+declare const __BUILD_TIMESTAMP__: number;
+
+const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v1";
+
+const incrementAppVersion = (version: string) => {
+  const clean = String(version || "v1.0").replace(/^v/i, "");
+  const [majorRaw, minorRaw] = clean.split(".");
+  let major = Number(majorRaw || 1);
+  let minor = Number(minorRaw || 0);
+
+  if (!Number.isFinite(major) || major < 1) major = 1;
+  if (!Number.isFinite(minor) || minor < 0) minor = 0;
+
+  minor += 1;
+
+  if (minor >= 10) {
+    major += 1;
+    minor = 0;
+  }
+
+  return `v${major}.${minor}`;
+};
+
+const getCurrentAppVersion = () => {
+  const fallback = "v1.0";
+
+  if (typeof window === "undefined") return fallback;
+
+  const currentBuild = String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : Date.now());
+
+  try {
+    const storedRaw = localStorage.getItem(APP_VERSION_STORAGE_KEY);
+    const stored = storedRaw ? (JSON.parse(storedRaw) as { buildId?: string; version?: string }) : null;
+
+    if (stored?.buildId === currentBuild && stored?.version) {
+      return stored.version;
+    }
+
+    const nextVersion = stored?.version ? incrementAppVersion(stored.version) : fallback;
+
+    localStorage.setItem(
+      APP_VERSION_STORAGE_KEY,
+      JSON.stringify({
+        buildId: currentBuild,
+        version: nextVersion,
+      }),
+    );
+
+    return nextVersion;
+  } catch {
+    return fallback;
+  }
+};
+
 const APP_LOGO_MAP: Record<string, string> = {
   "assist plus": appAssistPlus,
   "blessed player": appBlessedPlayer,
@@ -1015,6 +1069,7 @@ const ClientDashboard = () => {
   } | null>(null);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
+  const [appVersion] = useState(() => getCurrentAppVersion());
 
   const preloadImage = useCallback((src: string, timeoutMs = 1200) => {
     return new Promise<void>((resolve) => {
@@ -1712,9 +1767,10 @@ const ClientDashboard = () => {
 
         {/* FOOTER */}
         <div className="pb-2 text-center">
-          <p className="text-[10px] text-muted-foreground/25 flex items-center justify-center gap-1">
+          <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground/25">
             <Shield size={8} /> Conexão segura · Dados protegidos
           </p>
+          <p className="mt-1 text-[10px] font-medium text-muted-foreground/30">Versão: {appVersion}</p>
         </div>
       </div>
 
