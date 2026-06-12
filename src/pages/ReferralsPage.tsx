@@ -76,7 +76,6 @@ const ReferralsPage = () => {
           SEU CÓDIGO ÚNICO DE INDICAÇÃO
         </h2>
         <p className="mb-2 font-display text-3xl font-bold text-red-500">{user?.referral_code}</p>
-        <p className="mb-4 text-[11px] text-muted-foreground">Formato sequencial: WMC001A, WMC002A, WMC003A...</p>
         <button
           onClick={copyCode}
           className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-red-500 active:scale-[0.98]"
