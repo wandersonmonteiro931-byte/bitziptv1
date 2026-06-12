@@ -12,10 +12,37 @@ type RemoteVersion = {
   version?: string;
 };
 
-const CHECK_INTERVAL_MS = 2500;
+const CHECK_INTERVAL_MS = 12000;
+const UPDATE_HANDLED_KEY = "wmcflix_pwa_update_handled_build";
+const UPDATE_LOCK_UNTIL_KEY = "wmcflix_pwa_update_lock_until";
+
+let globalPromptVisible = false;
+let globalUpdateRunning = false;
+let globalReloading = false;
 
 function getCurrentBuild(): number {
   return Number(__BUILD_TIMESTAMP__ || 0);
+}
+
+function getUpdateKey(build?: number | null) {
+  return build ? String(build) : "sw-update";
+}
+
+function isUpdateLocked() {
+  const until = Number(sessionStorage.getItem(UPDATE_LOCK_UNTIL_KEY) || 0);
+  return until > Date.now();
+}
+
+function lockUpdatePrompt(minutes = 5) {
+  sessionStorage.setItem(UPDATE_LOCK_UNTIL_KEY, String(Date.now() + minutes * 60 * 1000));
+}
+
+function wasUpdateHandled(build?: number | null) {
+  return sessionStorage.getItem(UPDATE_HANDLED_KEY) === getUpdateKey(build);
+}
+
+function markUpdateHandled(build?: number | null) {
+  sessionStorage.setItem(UPDATE_HANDLED_KEY, getUpdateKey(build));
 }
 
 async function clearPwaCaches() {
@@ -38,17 +65,30 @@ export function PWAUpdatePrompt() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const reloadingRef = useRef(false);
+  const showPromptRef = useRef(false);
+  const updatingRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
   const appTitle = appName || "Bitz IPTV";
 
+  showPromptRef.current = showPrompt;
+  updatingRef.current = updating;
+
   const forcePrompt = useCallback((build?: number | null) => {
-    if (reloadingRef.current) return;
+    if (reloadingRef.current || globalReloading || updatingRef.current || globalUpdateRunning) return;
+    if (isUpdateLocked()) return;
+    if (wasUpdateHandled(build)) return;
+
+    // Evita dois modais ao mesmo tempo, mesmo se o componente montar duas vezes.
+    if (globalPromptVisible || document.getElementById("wmcflix-pwa-update-prompt")) return;
+
     if (typeof build === "number") setRemoteBuild(build);
+    globalPromptVisible = true;
     setShowPrompt(true);
   }, []);
 
   const checkRemoteVersion = useCallback(async () => {
-    if (updating || reloadingRef.current) return;
+    if (updatingRef.current || reloadingRef.current || globalUpdateRunning || globalReloading) return;
+    if (isUpdateLocked()) return;
 
     try {
       const response = await fetch(`/version.json?t=${Date.now()}`, {
@@ -69,14 +109,14 @@ export function PWAUpdatePrompt() {
         forcePrompt(remoteTimestamp);
       }
     } catch {
-      // Se estiver sem internet ou em propagação, tenta novamente no próximo ciclo.
+      // Se estiver sem internet ou em propagação, tenta novamente depois.
     }
-  }, [forcePrompt, updating]);
+  }, [forcePrompt]);
 
   const { updateServiceWorker } = useRegisterSW({
     immediate: true,
     onNeedRefresh() {
-      forcePrompt(null);
+      forcePrompt(remoteBuild);
     },
     onOfflineReady() {
       checkRemoteVersion();
@@ -86,7 +126,8 @@ export function PWAUpdatePrompt() {
       registrationRef.current = registration;
 
       const runChecks = async () => {
-        if (updating || reloadingRef.current) return;
+        if (updatingRef.current || reloadingRef.current || globalUpdateRunning || globalReloading) return;
+        if (isUpdateLocked()) return;
 
         await checkRemoteVersion();
 
@@ -97,19 +138,28 @@ export function PWAUpdatePrompt() {
         }
 
         if (registration.waiting || registration.installing) {
-          forcePrompt(null);
+          forcePrompt(remoteBuild);
         }
       };
 
       runChecks();
+
+      if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(runChecks, CHECK_INTERVAL_MS);
 
-      document.addEventListener("visibilitychange", () => {
+      const onVisible = () => {
         if (document.visibilityState === "visible") runChecks();
-      });
+      };
 
+      document.addEventListener("visibilitychange", onVisible);
       window.addEventListener("focus", runChecks);
       window.addEventListener("online", runChecks);
+
+      return () => {
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("focus", runChecks);
+        window.removeEventListener("online", runChecks);
+      };
     },
     onRegisterError(error) {
       console.error("SW registration error:", error);
@@ -120,8 +170,12 @@ export function PWAUpdatePrompt() {
     checkRemoteVersion();
 
     const handleControllerChange = () => {
-      if (reloadingRef.current) return;
+      if (reloadingRef.current || globalReloading) return;
+
+      globalReloading = true;
       reloadingRef.current = true;
+      lockUpdatePrompt(5);
+      markUpdateHandled(remoteBuild);
       window.location.replace(buildReloadUrl());
     };
 
@@ -130,11 +184,20 @@ export function PWAUpdatePrompt() {
     return () => {
       navigator.serviceWorker?.removeEventListener("controllerchange", handleControllerChange);
       if (intervalRef.current) clearInterval(intervalRef.current);
+
+      if (showPromptRef.current) {
+        globalPromptVisible = false;
+      }
     };
-  }, [checkRemoteVersion]);
+  }, [checkRemoteVersion, remoteBuild]);
 
   const handleUpdate = async () => {
+    if (globalUpdateRunning || updatingRef.current) return;
+
+    globalUpdateRunning = true;
     setUpdating(true);
+    lockUpdatePrompt(5);
+    markUpdateHandled(remoteBuild);
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -157,14 +220,20 @@ export function PWAUpdatePrompt() {
       // Mesmo se falhar, recarrega com cache-buster.
     }
 
-    reloadingRef.current = true;
-    window.location.replace(buildReloadUrl());
+    if (!globalReloading && !reloadingRef.current) {
+      globalReloading = true;
+      reloadingRef.current = true;
+      window.location.replace(buildReloadUrl());
+    }
   };
 
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black p-6">
+    <div
+      id="wmcflix-pwa-update-prompt"
+      className="fixed inset-0 z-[999999] flex items-center justify-center bg-black p-6"
+    >
       <motion.div
         initial={{ scale: 0.9, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
