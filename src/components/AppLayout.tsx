@@ -42,22 +42,25 @@ const getTimeGreeting = () => {
   return "Boa noite";
 };
 
-const clientLinks = [
+const clientPrimaryLinks = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
+  { to: "/tv-guide", label: "AO VIVO", icon: MonitorPlay },
+  { to: "/referrals", label: "Indicar", icon: Users },
+  { to: "/iptv-info", label: "Minha TV", icon: Tv },
+];
+
+const clientGameLinks = [
+  { to: "/challenges", label: "Central de Jogos", icon: Gamepad2 },
   { to: "/missions", label: "Missões", icon: Target },
   { to: "/credits", label: "Créditos", icon: Diamond },
-  { to: "/challenges", label: "Jogos", icon: Gamepad2 },
   { to: "/scratch", label: "Raspadinha", icon: Ticket },
   { to: "/prize-box", label: "Caixa Premiada", icon: Package },
   { to: "/cup-game", label: "Jogo dos Copos", icon: CupSoda },
   { to: "/roulette", label: "Roleta", icon: CircleDot },
   { to: "/memory-game", label: "Memória", icon: Brain },
-  { to: "/referrals", label: "Indicações", icon: Users },
-  { to: "/withdrawals", label: "Saques", icon: Wallet },
-  { to: "/history", label: "Histórico", icon: History },
-  { to: "/tv-guide", label: "Programação TV", icon: MonitorPlay },
-  { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
+
+const clientLinks = [...clientPrimaryLinks, ...clientGameLinks];
 
 const adminLinks = [
   { to: "/admin", label: "Painel", icon: LayoutDashboard },
@@ -78,25 +81,13 @@ const adminLinks = [
   { to: "/admin/settings", label: "Config", icon: Settings },
 ];
 
-// Bottom nav: show first 4 + TV Guide + "Menu" for the rest
+// Mobile: somente as 5 seções principais, sem botão "Menu".
 const clientBottomNav = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
-  { to: "/tv-guide", label: "TV", icon: MonitorPlay },
+  { to: "/tv-guide", label: "AO VIVO", icon: MonitorPlay },
+  { to: "/referrals", label: "Indicar", icon: Users },
+  { to: "/iptv-info", label: "Minha TV", icon: Tv },
   { to: "/challenges", label: "Jogos", icon: Gamepad2 },
-  { to: "/missions", label: "Missões", icon: Target },
-  { to: "/credits", label: "Créditos", icon: Diamond },
-];
-
-const clientMenuLinks = [
-  { to: "/scratch", label: "Raspadinha", icon: Ticket },
-  { to: "/prize-box", label: "Caixa Premiada", icon: Package },
-  { to: "/cup-game", label: "Jogo dos Copos", icon: CupSoda },
-  { to: "/roulette", label: "Roleta", icon: CircleDot },
-  { to: "/memory-game", label: "Memória", icon: Brain },
-  { to: "/referrals", label: "Indicações", icon: Users },
-  { to: "/withdrawals", label: "Saques", icon: Wallet },
-  { to: "/history", label: "Histórico", icon: History },
-  { to: "/iptv-info", label: "Meu IPTV", icon: Tv },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -172,27 +163,85 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="space-y-1">
-            {links.map((link) => {
-              const isActive = location.pathname === link.to;
-              return (
-                <li key={link.to}>
-                  <NavLink
-                    to={link.to}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                      isActive
-                        ? "bg-red-500/15 text-red-500 border border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.12)]"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    )}
-                  >
-                    <link.icon size={18} />
-                    {link.label}
-                  </NavLink>
-                </li>
-              );
-            })}
-          </ul>
+          {isAdmin ? (
+            <ul className="space-y-1">
+              {links.map((link) => {
+                const isActive = location.pathname === link.to;
+                return (
+                  <li key={link.to}>
+                    <NavLink
+                      to={link.to}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                        isActive
+                          ? "bg-red-500/15 text-red-500 border border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.12)]"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      )}
+                    >
+                      <link.icon size={18} />
+                      {link.label}
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="space-y-4">
+              <ul className="space-y-1">
+                {clientPrimaryLinks.map((link) => {
+                  const isActive = location.pathname === link.to;
+                  return (
+                    <li key={link.to}>
+                      <NavLink
+                        to={link.to}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                          isActive
+                            ? "bg-red-500/15 text-red-500 border border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.12)]"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        )}
+                      >
+                        <link.icon size={18} />
+                        {link.label}
+                      </NavLink>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="rounded-2xl border border-red-500/10 bg-red-500/[0.03] p-2">
+                <div className="mb-1 flex items-center gap-2 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-red-400">
+                  <Gamepad2 size={14} />
+                  Jogos
+                  <span className="ml-auto rounded-full border border-red-500/15 px-2 py-0.5 text-[9px] text-red-300/80">
+                    Expandido
+                  </span>
+                </div>
+
+                <ul className="space-y-1">
+                  {clientGameLinks.map((link) => {
+                    const isActive = location.pathname === link.to;
+                    return (
+                      <li key={link.to}>
+                        <NavLink
+                          to={link.to}
+                          className={cn(
+                            "flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all",
+                            isActive
+                              ? "bg-red-500/15 text-red-500 border border-red-500/20"
+                              : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          )}
+                        >
+                          <link.icon size={15} />
+                          <span className="truncate">{link.label}</span>
+                        </NavLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
         </nav>
         <div className="border-t border-border p-4">
           <div className="mb-3 rounded-lg bg-muted/50 p-3">
@@ -214,34 +263,25 @@ export function AppLayout({ children }: { children: ReactNode }) {
           className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-sidebar md:hidden"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-          <div className="flex items-stretch">
+          <div className="grid grid-cols-5">
             {clientBottomNav.map((link) => {
-              const isActive = location.pathname === link.to;
+              const isActive =
+                location.pathname === link.to ||
+                (link.to === "/challenges" && clientGameLinks.some((g) => g.to === location.pathname));
               return (
                 <NavLink
                   key={link.to}
                   to={link.to}
                   className={cn(
-                    "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
+                    "flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[9px] font-semibold leading-tight transition-colors",
                     isActive ? "text-red-500" : "text-muted-foreground",
                   )}
                 >
                   <link.icon size={20} />
-                  {link.label}
+                  <span className="max-w-full truncate">{link.label}</span>
                 </NavLink>
               );
             })}
-            {/* Menu button */}
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-                menuOpen ? "text-primary" : "text-muted-foreground",
-              )}
-            >
-              {menuOpen ? <X size={20} /> : <Menu size={20} />}
-              Menu
-            </button>
           </div>
         </nav>
       )}
@@ -281,7 +321,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* === MOBILE MENU OVERLAY === */}
-      {menuOpen && (
+      {isAdmin && menuOpen && (
         <>
           <div
             className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm md:hidden"
