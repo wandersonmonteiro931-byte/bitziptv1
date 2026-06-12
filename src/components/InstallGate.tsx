@@ -34,6 +34,32 @@ const BENEFITS = [
   { icon: Shield, label: "Segurança reforçada" },
 ];
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function ensurePwaAssetsReady() {
+  if (typeof window === "undefined") return;
+
+  try {
+    await fetch(`/manifest.webmanifest?install_check=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+  } catch {
+    // Continua: alguns navegadores bloqueiam o fetch, mas ainda conseguem ler o manifest.
+  }
+
+  if (!("serviceWorker" in navigator)) return;
+
+  try {
+    const existing = await navigator.serviceWorker.getRegistration("/");
+    const registration = existing || (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+    await registration.update().catch(() => undefined);
+    await navigator.serviceWorker.ready;
+  } catch {
+    // Se falhar, o botão ainda mostra instruções manuais.
+  }
+}
+
 const isComputerBrowser = () => {
   if (typeof navigator === "undefined") return false;
 
@@ -60,6 +86,8 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [isIOS, setIsIOS] = useState(false);
   const [showManualSteps, setShowManualSteps] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [pwaReady, setPwaReady] = useState(false);
+  const [nativeInstallReady, setNativeInstallReady] = useState(false);
   const [adminBypass, setAdminBypass] = useState(false);
   const checkedRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
@@ -88,31 +116,60 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     const handler = (e: Event) => {
       e.preventDefault();
       deferredPromptRef.current = e as BeforeInstallPromptEvent;
+      setNativeInstallReady(true);
     };
+
+    const installedHandler = () => {
+      setIsInstalled(true);
+      setShowContinueMessage(true);
+    };
+
     window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => setIsInstalled(true));
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", installedHandler);
+
+    ensurePwaAssetsReady().finally(() => setPwaReady(true));
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
   }, []);
 
   if (isStandalone || adminBypass || isDesktop) {
     return <>{children}</>;
   }
 
+  const waitForNativePrompt = async () => {
+    if (deferredPromptRef.current) return deferredPromptRef.current;
+
+    await ensurePwaAssetsReady();
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      if (deferredPromptRef.current) return deferredPromptRef.current;
+      await sleep(250);
+    }
+
+    return deferredPromptRef.current;
+  };
+
   const handleInstallClick = async () => {
-    // iOS — always show manual instructions
+    // iOS — always show manual instructions. iOS não possui prompt nativo igual Android.
     if (isIOS) {
       setShowManualSteps(true);
       return;
     }
 
-    // Android — try native prompt first
-    const prompt = deferredPromptRef.current;
+    setInstalling(true);
+
+    const prompt = await waitForNativePrompt();
+
     if (prompt) {
-      setInstalling(true);
       try {
         await prompt.prompt();
         const choice = await prompt.userChoice;
         deferredPromptRef.current = null;
+        setNativeInstallReady(false);
+
         if (choice.outcome === "accepted") {
           setShowContinueMessage(true);
           setInstalling(false);
@@ -120,12 +177,15 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
         }
       } catch {
         deferredPromptRef.current = null;
+        setNativeInstallReady(false);
       }
-      setInstalling(false);
-      return;
     }
 
-    // Android without native prompt — show prominent instructions
+    setInstalling(false);
+
+    // Sem prompt nativo: mostra instrução correta para instalar como app.
+    // Depois das correções de manifest/SW, o navegador deve mostrar "Instalar aplicativo",
+    // não apenas "Criar atalho".
     setShowManualSteps(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -310,7 +370,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Pronto! Abra o app</p>
-                    <p className="text-[10px] text-muted-foreground">Ícone na tela inicial do celular</p>
+                    <p className="text-[10px] text-muted-foreground">Ícone instalado como app na tela inicial</p>
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
@@ -357,7 +417,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-foreground">Toque em "Adicionar"</p>
-                    <p className="text-[10px] text-muted-foreground">App será adicionado à sua tela</p>
+                    <p className="text-[10px] text-muted-foreground">App será instalado na tela inicial</p>
                   </div>
                   <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
                     <div className="h-7 w-7 overflow-hidden rounded-lg border border-primary/30">
@@ -476,8 +536,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
                       2
                     </span>
                     <span>
-                      Selecione <strong className="text-primary">"Instalar aplicativo"</strong> ou{" "}
-                      <strong className="text-primary">"Adicionar à tela inicial"</strong>
+                      Selecione <strong className="text-primary">"Instalar aplicativo"</strong>
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -504,10 +563,14 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               >
                 <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <Download size={20} />
-                {installing ? "INSTALANDO..." : "INSTALAR APLICATIVO OFICIAL"}
+                {installing
+                  ? "PREPARANDO INSTALAÇÃO..."
+                  : nativeInstallReady || pwaReady
+                    ? "INSTALAR APLICATIVO OFICIAL"
+                    : "PREPARAR APP OFICIAL"}
               </button>
               <p className="mt-1.5 text-center text-[10px] text-muted-foreground/60">
-                Acesso liberado somente pelo app · Gratuito
+                Instala como PWA oficial · Não é apenas atalho
               </p>
             </>
           )}

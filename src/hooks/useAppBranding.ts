@@ -96,52 +96,44 @@ const setIconType = (selector: string, iconUrl: string) => {
 };
 
 export const buildDynamicManifest = (branding: AppBranding) => {
-  const iconUrl = branding.faviconUrl || branding.logoUrl;
-  const iconType = getImageMime(iconUrl);
-
   return {
-    name: branding.appName,
-    short_name: branding.appShortName,
-    description: branding.appDescription,
-    theme_color: "#0a0a0a",
-    background_color: "#0a0a0a",
+    id: "/",
+    name: branding.appName || "WMCFLIX",
+    short_name: branding.appShortName || "WMCFLIX",
+    description: branding.appDescription || "WMCFLIX - Programa Oficial de Fidelidade",
+    theme_color: "#000000",
+    background_color: "#000000",
     display: "standalone",
+    display_override: ["standalone", "fullscreen"],
     orientation: "portrait",
-    start_url: "/",
+    start_url: "/?source=pwa",
     scope: "/",
     icons: [
-      { src: iconUrl, sizes: "192x192", type: iconType, purpose: "any" },
-      { src: iconUrl, sizes: "512x512", type: iconType, purpose: "any" },
-      { src: iconUrl, sizes: "512x512", type: iconType, purpose: "maskable" },
+      { src: "/pwa-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/pwa-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/pwa-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 };
 
-const updateManifest = (branding: AppBranding) => {
+const updateManifest = (_branding: AppBranding) => {
   if (typeof document === "undefined") return;
 
-  document
-    .querySelectorAll('link[rel="manifest"]:not([data-dynamic-branding="true"])')
-    .forEach((link) => link.remove());
+  // Mantém o manifest real do PWA em arquivo estático.
+  // Manifest em Blob ou com ícone remoto/JPG pode fazer o navegador criar apenas atalho.
+  document.querySelectorAll('link[rel="manifest"][data-dynamic-branding="true"]').forEach((link) => link.remove());
 
   let manifestLink = document.querySelector(
-    'link[rel="manifest"][data-dynamic-branding="true"]',
+    'link[rel="manifest"]:not([data-dynamic-branding="true"])',
   ) as HTMLLinkElement | null;
 
   if (!manifestLink) {
     manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";
-    manifestLink.setAttribute("data-dynamic-branding", "true");
     document.head.appendChild(manifestLink);
   }
 
-  const oldBlobUrl = manifestLink.dataset.blobUrl;
-  if (oldBlobUrl) URL.revokeObjectURL(oldBlobUrl);
-
-  const blob = new Blob([JSON.stringify(buildDynamicManifest(branding))], { type: "application/manifest+json" });
-  const blobUrl = URL.createObjectURL(blob);
-  manifestLink.href = blobUrl;
-  manifestLink.dataset.blobUrl = blobUrl;
+  manifestLink.href = "/manifest.webmanifest";
 };
 
 const notifyServiceWorker = (branding: AppBranding) => {
