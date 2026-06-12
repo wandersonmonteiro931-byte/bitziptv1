@@ -16,11 +16,13 @@ interface AnnouncementData {
 // Só zera quando o app/site é realmente recarregado.
 const dismissedUntilReload = new Set<string>();
 let firstLoadExecuted = false;
+let sessionUserId: string | null = null;
 
 export function GlobalAnnouncementPopup() {
   const { user, isAdmin } = useAuth();
   const [popup, setPopup] = useState<AnnouncementData | null>(null);
   const popupRef = useRef<AnnouncementData | null>(null);
+  const queueRef = useRef<AnnouncementData[]>([]);
   const loadingRef = useRef(false);
 
   popupRef.current = popup;
@@ -40,6 +42,18 @@ export function GlobalAnnouncementPopup() {
       img.src = src;
       setTimeout(done, timeoutMs);
     });
+  }, []);
+
+  const showNextFromQueue = useCallback(() => {
+    const next = queueRef.current.find((item) => !dismissedUntilReload.has(item.id));
+
+    if (!next) {
+      setPopup(null);
+      return;
+    }
+
+    queueRef.current = queueRef.current.filter((item) => item.id !== next.id);
+    setPopup(next);
   }, []);
 
   const loadAnnouncements = useCallback(async () => {
@@ -70,6 +84,7 @@ export function GlobalAnnouncementPopup() {
         .eq("user_id", user.id);
 
       const dismissedIds = new Set((dismissed || []).map((d: any) => d.announcement_id));
+      const validAnnouncements: AnnouncementData[] = [];
 
       for (const a of announcements as any[]) {
         const displayFrequency = (a.display_frequency || "once") as "always" | "once";
@@ -88,7 +103,7 @@ export function GlobalAnnouncementPopup() {
         const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
         if (bannerUrl) await preloadImage(bannerUrl);
 
-        setPopup({
+        validAnnouncements.push({
           id: a.id,
           title: a.title || "",
           body: a.body || "",
@@ -96,17 +111,28 @@ export function GlobalAnnouncementPopup() {
           displayFrequency,
           updatedAt: a.updated_at,
         });
-        return;
       }
+
+      queueRef.current = validAnnouncements;
+      showNextFromQueue();
     } finally {
       loadingRef.current = false;
     }
-  }, [user?.id, isAdmin, preloadImage]);
+  }, [user?.id, isAdmin, preloadImage, showNextFromQueue]);
 
   useEffect(() => {
     if (!user?.id || isAdmin) return;
 
-    // Só carrega aviso quando o app abre/recarrega pela primeira vez.
+    // Se trocar de usuário na mesma aba, reinicia o ciclo.
+    if (sessionUserId !== user.id) {
+      sessionUserId = user.id;
+      firstLoadExecuted = false;
+      dismissedUntilReload.clear();
+      queueRef.current = [];
+      setPopup(null);
+    }
+
+    // Só carrega avisos quando o app abre/recarrega pela primeira vez.
     // Trocar de seção pode remontar layout, mas não deve reabrir aviso.
     if (!firstLoadExecuted) {
       firstLoadExecuted = true;
@@ -138,6 +164,7 @@ export function GlobalAnnouncementPopup() {
     }
 
     setPopup(null);
+    setTimeout(() => showNextFromQueue(), 180);
   };
 
   if (isAdmin || !popup) return null;
@@ -145,6 +172,7 @@ export function GlobalAnnouncementPopup() {
   return (
     <AnimatePresence>
       <motion.div
+        key={popup.id}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
