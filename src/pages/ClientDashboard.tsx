@@ -1546,38 +1546,54 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* RENEWAL OPTIONS (3m, 6m) — profissional e suave */}
+        {/* RENEWAL OPTIONS (3m, 6m) — visual mais premium e profissional */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
-          className="grid gap-3 sm:grid-cols-2"
+          className="grid gap-4 sm:grid-cols-2"
         >
           <motion.button
             type="button"
             {...renewalOptionMotion}
             onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
-            className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/70 p-4 text-left transition-colors hover:bg-card"
+            className="group relative overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-br from-[#111111] via-[#141414] to-[#0c0c0c] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/25 hover:shadow-[0_18px_40px_rgba(255,0,0,0.08)]"
           >
-            <motion.span
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500/80 to-red-600/0" />
+            <motion.div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-red-500/45 to-transparent"
-              animate={{ opacity: [0.35, 0.75, 0.35] }}
-              transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              animate={{ opacity: [0.04, 0.08, 0.04] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              style={{ background: "radial-gradient(circle at top right, rgba(255,0,0,0.16), transparent 42%)" }}
             />
 
-            <div className="relative z-10 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{renewal3mLabel}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
-                </p>
-                <p className="mt-2 text-[10px] text-red-300/90">Economia de R$ {discount3m.toFixed(2)}</p>
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-medium tracking-wide text-muted-foreground">
+                    Plano recomendado
+                  </span>
+                  <p className="mt-3 text-xl font-bold tracking-tight text-white">{renewal3mLabel}</p>
+                  <p className="mt-1 text-sm text-white/80">
+                    {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
+                  </p>
+                </div>
+
+                <div className="min-w-[94px] rounded-2xl border border-white/10 bg-black/30 px-3 py-3 text-right backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</p>
+                  <span className="mt-1 block text-lg font-bold text-white">R$ {final3m.toFixed(2)}</span>
+                </div>
               </div>
 
-              <div className="rounded-xl border border-border/50 bg-background/40 px-3 py-2 text-right">
-                <p className="text-[10px] text-muted-foreground">Total</p>
-                <span className="text-sm font-semibold text-foreground">R$ {final3m.toFixed(2)}</span>
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/6 pt-4">
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Economia</p>
+                  <p className="text-sm font-semibold text-red-400">R$ {discount3m.toFixed(2)}</p>
+                </div>
+                <div className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[11px] font-medium text-red-300 transition-colors duration-300 group-hover:bg-red-500/14">
+                  Selecionar oferta
+                </div>
               </div>
             </div>
           </motion.button>
@@ -1587,30 +1603,43 @@ const ClientDashboard = () => {
             {...renewalOptionMotion}
             transition={{ ...renewalOptionMotion.transition, delay: 0.4 }}
             onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
-            className="group relative overflow-hidden rounded-2xl border border-red-500/25 bg-card/75 p-4 text-left transition-colors hover:bg-card"
+            className="group relative overflow-hidden rounded-3xl border border-red-500/22 bg-gradient-to-br from-[#120b0b] via-[#151111] to-[#0d0d0d] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/35 hover:shadow-[0_20px_44px_rgba(255,0,0,0.12)]"
           >
-            <motion.span
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500 to-red-600/0" />
+            <motion.div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-red-500/55 to-transparent"
-              animate={{ opacity: [0.4, 0.85, 0.4] }}
-              transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
+              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              animate={{ opacity: [0.05, 0.1, 0.05] }}
+              transition={{ duration: 5.4, repeat: Infinity, ease: "easeInOut" }}
+              style={{ background: "radial-gradient(circle at top right, rgba(255,0,0,0.2), transparent 44%)" }}
             />
 
-            <div className="relative z-10 flex items-center justify-between gap-3">
-              <div>
-                <div className="mb-2 inline-flex rounded-full border border-red-500/20 bg-red-500/8 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wide text-red-300">
-                  Maior economia
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="inline-flex rounded-full border border-red-500/18 bg-red-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-red-300">
+                    Maior economia
+                  </span>
+                  <p className="mt-3 text-xl font-bold tracking-tight text-white">{renewal6mLabel}</p>
+                  <p className="mt-1 text-sm text-white/80">
+                    {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
+                  </p>
                 </div>
-                <p className="text-sm font-semibold text-foreground">{renewal6mLabel}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
-                </p>
-                <p className="mt-2 text-[10px] text-red-300/90">Economia de R$ {discount6m.toFixed(2)}</p>
+
+                <div className="min-w-[94px] rounded-2xl border border-red-500/18 bg-black/32 px-3 py-3 text-right backdrop-blur-sm">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</p>
+                  <span className="mt-1 block text-lg font-bold text-white">R$ {final6m.toFixed(2)}</span>
+                </div>
               </div>
 
-              <div className="rounded-xl border border-red-500/20 bg-background/40 px-3 py-2 text-right">
-                <p className="text-[10px] text-muted-foreground">Total</p>
-                <span className="text-sm font-semibold text-foreground">R$ {final6m.toFixed(2)}</span>
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-red-500/10 pt-4">
+                <div className="space-y-1">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Economia</p>
+                  <p className="text-sm font-semibold text-red-400">R$ {discount6m.toFixed(2)}</p>
+                </div>
+                <div className="rounded-full border border-red-500/28 bg-red-500/12 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors duration-300 group-hover:bg-red-500/16">
+                  Melhor custo-benefício
+                </div>
               </div>
             </div>
           </motion.button>
