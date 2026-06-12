@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getFhdImageUrl, preloadFhdImage } from "@/lib/imageQuality";
 
 interface AnnouncementData {
   id: string;
@@ -101,7 +102,7 @@ export function GlobalAnnouncementPopup() {
         if (a.target_type === "specific" && !(a.target_ids || []).includes(user.id)) continue;
 
         const bannerUrl = a.announcement_type === "banner" && a.banner_url ? a.banner_url : undefined;
-        if (bannerUrl) await preloadImage(bannerUrl);
+        if (bannerUrl) await preloadFhdImage(bannerUrl, 700);
 
         validAnnouncements.push({
           id: a.id,
@@ -188,7 +189,7 @@ export function GlobalAnnouncementPopup() {
           {popup.bannerUrl && (
             <div className="mb-4 flex max-h-[75vh] w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20">
               <img
-                src={popup.bannerUrl}
+                src={getFhdImageUrl(popup.bannerUrl)}
                 alt={popup.title || "Aviso"}
                 className="h-auto max-h-[75vh] w-auto max-w-full rounded-2xl object-contain"
               />

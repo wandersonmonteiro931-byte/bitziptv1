@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { getFhdImageUrl, preloadFhdImage } from "@/lib/imageQuality";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -145,18 +146,7 @@ function CopyButton({ text }: { text: string }) {
 
 // --- Banner Carousel (minimal) ---
 // Optimize Supabase storage URLs with image transformation for faster loading
-const optimizeImageUrl = (url: string, width = 1200): string => {
-  if (!url) return url;
-  // Only transform Supabase storage URLs
-  if (url.includes("/storage/v1/object/public/")) {
-    // Use render/image endpoint for on-the-fly resize + webp
-    return (
-      url.replace("/storage/v1/object/public/", `/storage/v1/render/image/public/`) +
-      `?width=${width}&quality=75&format=origin`
-    );
-  }
-  return url;
-};
+const optimizeImageUrl = (url: string, width = 1920): string => getFhdImageUrl(url, width);
 
 function BannerCarousel() {
   const navigate = useNavigate();
@@ -184,11 +174,9 @@ function BannerCarousel() {
             setLoadedIds((prev) => new Set(prev).add(b.id));
             return;
           }
-          const img = new window.Image();
-          const mark = () => setLoadedIds((prev) => new Set(prev).add(b.id));
-          img.onload = mark;
-          img.onerror = mark;
-          img.src = optimizeImageUrl(b.banner_url);
+          preloadFhdImage(b.banner_url, 700).finally(() => {
+            setLoadedIds((prev) => new Set(prev).add(b.id));
+          });
         });
       });
   }, []);
@@ -1915,7 +1903,7 @@ const ClientDashboard = () => {
                   className={`flex w-full items-center justify-center overflow-hidden rounded-2xl bg-black/20 ${notifPopup.imageOnly ? "max-h-[85vh]" : "mb-4 max-h-[60vh]"}`}
                 >
                   <img
-                    src={notifPopup.bannerUrl}
+                    src={getFhdImageUrl(notifPopup.bannerUrl)}
                     alt={notifPopup.title || "Imagem"}
                     className="h-auto max-h-[85vh] w-auto max-w-full rounded-2xl object-contain"
                   />

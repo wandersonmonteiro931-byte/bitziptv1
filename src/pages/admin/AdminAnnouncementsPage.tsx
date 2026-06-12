@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { IPTV_STATUSES } from "./iptv/types";
 import { formatDateTimeBRT } from "@/lib/utils";
+import { getFhdImageUrl } from "@/lib/imageQuality";
 
 interface Announcement {
   id: string;
@@ -397,7 +398,7 @@ const AdminAnnouncementsPage = () => {
                           const fileName = `announcement_${Date.now()}.${ext}`;
                           const { error: uploadError } = await supabase.storage
                             .from("banners")
-                            .upload(fileName, file, { upsert: true });
+                            .upload(fileName, file, { upsert: true, cacheControl: "31536000", contentType: file.type });
                           if (uploadError) throw uploadError;
                           const { data: urlData } = supabase.storage.from("banners").getPublicUrl(fileName);
                           setEditing((prev) => (prev ? { ...prev, banner_url: urlData.publicUrl } : prev));
@@ -429,7 +430,7 @@ const AdminAnnouncementsPage = () => {
                     {editing.banner_url && (
                       <div className="relative mb-3">
                         <img
-                          src={editing.banner_url}
+                          src={getFhdImageUrl(editing.banner_url)}
                           alt="Preview"
                           className="w-full rounded-xl max-h-48 object-contain bg-muted/10"
                         />

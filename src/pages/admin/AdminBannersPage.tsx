@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDateBRT } from "@/lib/utils";
+import { getFhdImageUrl } from "@/lib/imageQuality";
 
 const BANNER_DESTINATIONS = [
   { value: "", label: "Nenhuma ação" },
@@ -128,7 +129,9 @@ const AdminBannersPage = () => {
     setUploading(true);
     const ext = file.name.split(".").pop();
     const path = `${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("banners").upload(path, file);
+    const { error } = await supabase.storage
+      .from("banners")
+      .upload(path, file, { upsert: true, cacheControl: "31536000", contentType: file.type });
     if (error) {
       toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
       setUploading(false);
@@ -312,7 +315,7 @@ const AdminBannersPage = () => {
                   {preview && (
                     <div className="mt-2 flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-black/20 p-2">
                       <img
-                        src={preview}
+                        src={getFhdImageUrl(preview)}
                         alt="Preview"
                         className="h-auto max-h-[240px] w-auto max-w-full object-contain"
                         onError={() => setPreview("")}
@@ -437,7 +440,7 @@ const AdminBannersPage = () => {
               <div className="relative flex h-24 w-32 flex-shrink-0 items-center justify-center bg-muted/30 p-1">
                 {b.banner_url ? (
                   <img
-                    src={b.banner_url}
+                    src={getFhdImageUrl(b.banner_url)}
                     alt={b.title}
                     className="h-auto max-h-full w-auto max-w-full object-contain"
                   />
