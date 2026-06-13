@@ -138,6 +138,7 @@ const AdminUsersPage = () => {
     iptv_expiry: "",
     referred_by_code: "",
     billing_due_date_id: "",
+    billing_proportional_enabled: false,
   });
   const [creating, setCreating] = useState(false);
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
@@ -202,6 +203,7 @@ const AdminUsersPage = () => {
         iptv_status: "active",
         referred_by_code: autoReferredByCode.trim().toUpperCase() || undefined,
         billing_due_date_id: billingDueDates[0]?.id || undefined,
+        billing_proportional_enabled: false,
         admin_notes: buildDefaultNotes(iptvUser, iptvPass),
       },
     });
@@ -256,6 +258,7 @@ const AdminUsersPage = () => {
         iptv_expiry: "",
         referred_by_code: "",
         billing_due_date_id: "",
+        billing_proportional_enabled: false,
       });
       loadUsers();
     }
@@ -277,6 +280,7 @@ const AdminUsersPage = () => {
       iptv_monthly_value: u.iptv_monthly_value || 0,
       iptv_due_day: u.iptv_due_day || 10,
       billing_due_date_id: u.billing_due_date_id || "",
+      billing_proportional_enabled: Boolean(u.billing_proportional_enabled),
       iptv_client_code: u.iptv_client_code || "",
       referral_code: u.referral_code || "",
       referred_by: u.referred_by || "",
@@ -620,10 +624,25 @@ const AdminUsersPage = () => {
                       ))}
                     </select>
                     <p className="mt-1 text-[10px] text-muted-foreground">
-                      Se o primeiro ciclo tiver menos de 30 dias, a cobrança será proporcional automaticamente.
+                      A data fixa define o dia mensal de pagamento do cliente.
                     </p>
                   </div>
                 )}
+
+                <label className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((form as any).billing_proportional_enabled)}
+                    onChange={(e) => setForm({ ...form, billing_proportional_enabled: e.target.checked } as any)}
+                    className="mt-0.5 h-4 w-4 rounded accent-red-600"
+                  />
+                  <span>
+                    <span className="block text-xs font-semibold text-red-300">Pagamento proporcional</span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      Marque somente se o 1º pagamento deve cobrar apenas os dias até o vencimento fixo.
+                    </span>
+                  </span>
+                </label>
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">Função</label>
                   <select
@@ -1319,6 +1338,20 @@ const AdminUsersPage = () => {
                         Ao salvar, a validade do cliente passa a ser: Todo dia {getEditBillingDay()}.
                       </p>
                     </div>
+                    <label className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editForm.billing_proportional_enabled)}
+                        onChange={(e) => setEditForm({ ...editForm, billing_proportional_enabled: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 rounded accent-red-600"
+                      />
+                      <span>
+                        <span className="block text-xs font-semibold text-red-300">Pagamento proporcional</span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          Só calcula e mostra proporcional se esta opção estiver marcada.
+                        </span>
+                      </span>
+                    </label>
                   </div>
                   <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                     💡 Valor total:{" "}

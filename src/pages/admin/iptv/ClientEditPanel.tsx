@@ -91,6 +91,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     iptv_app: user.iptv_app || "",
     iptv_expiry: user.iptv_expiry || "",
     billing_due_date_id: user.billing_due_date_id || "",
+    billing_proportional_enabled: Boolean(user.billing_proportional_enabled),
     admin_notes: user.admin_notes || "",
     admin_notes_urgent: user.admin_notes_urgent || false,
     name: user.name || "",
@@ -586,6 +587,21 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         </p>
                       </div>
                     )}
+
+                    <label className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean((form as any).billing_proportional_enabled)}
+                        onChange={(e) => setForm({ ...form, billing_proportional_enabled: e.target.checked } as any)}
+                        className="mt-0.5 h-4 w-4 rounded accent-red-600"
+                      />
+                      <span>
+                        <span className="block text-xs font-semibold text-red-300">Pagamento proporcional</span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          Só calcula e mostra proporcional se esta opção estiver marcada pelo admin.
+                        </span>
+                      </span>
+                    </label>
                     <div className="rounded-lg bg-primary/10 p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">

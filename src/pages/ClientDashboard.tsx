@@ -1497,7 +1497,8 @@ const ClientDashboard = () => {
   const fixedCycleStart = getFixedBillingCycleStartDate(user, billingDueDay);
   const firstCycleCalc = calculateFirstCycleCharge(totalValue, billingCycleStart, billingDueDay);
   const firstCycleAlreadyPaid = Boolean(user?.billing_first_cycle_paid);
-  const useFirstCycleProportional = !firstCycleAlreadyPaid && firstCycleCalc.isProportional;
+  const proportionalEnabled = Boolean(user?.billing_proportional_enabled);
+  const useFirstCycleProportional = proportionalEnabled && !firstCycleAlreadyPaid && firstCycleCalc.isProportional;
   const firstCycleRenewalValue = useFirstCycleProportional ? firstCycleCalc.amount : totalValue;
 
   // Bloqueia somente após o limite configurado pelo admin.

@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       referred_by_code,
       admin_notes,
       billing_due_date_id,
+      billing_proportional_enabled,
     } = body;
 
     if (!name || !username) {
@@ -221,6 +222,7 @@ Deno.serve(async (req) => {
       billing_due_date_id: billingDueDateId,
       billing_cycle_started_at: billingStart,
       billing_first_cycle_paid: false,
+      billing_proportional_enabled: Boolean(billing_proportional_enabled),
       iptv_due_day: selectedDueDay,
       iptv_connections: iptv_connections || 1,
       iptv_monthly_value: iptv_monthly_value || 0,

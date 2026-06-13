@@ -32,6 +32,7 @@ export interface Profile {
   billing_due_date_id: string | null;
   billing_cycle_started_at: string | null;
   billing_first_cycle_paid: boolean;
+  billing_proportional_enabled: boolean;
   billing_first_cycle_prorated_amount: number | null;
   billing_grace_days_override: number | null;
   iptv_client_code: string;
@@ -72,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut({ scope: "local" });
           return;
         }
-        setUser(profile as unknown as Profile);
+        setUser(profile as Profile);
       }
       setRole((roleData?.role as UserRole) || "client");
     } catch (err) {
