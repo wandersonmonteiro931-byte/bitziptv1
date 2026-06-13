@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { formatDateBRT } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getFhdImageUrl } from "@/lib/imageQuality";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
@@ -66,6 +67,8 @@ const IptvInfoPage = () => {
   };
 
   const tvProvider = getUserTvProvider();
+  const fixedBillingDay = Number(user?.iptv_due_day || 10);
+  const formattedNextDue = user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-";
 
   const info = [
     { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
@@ -74,7 +77,8 @@ const IptvInfoPage = () => {
     { label: "App TV", value: displayedTvApp, icon: Tv },
     {
       label: "Validade",
-      value: user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-",
+      value: `Todo dia ${fixedBillingDay}`,
+      subValue: `Próximo vencimento: ${formattedNextDue}`,
       icon: Calendar,
     },
   ];
@@ -96,7 +100,7 @@ const IptvInfoPage = () => {
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-red-500/10 ring-1 ring-red-500/20">
             {logoUrl ? (
-              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain p-1" />
+              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain bg-black p-1" />
             ) : (
               <Tv size={24} className="text-red-500" />
             )}
@@ -113,12 +117,15 @@ const IptvInfoPage = () => {
 
         <div className="grid gap-4 sm:grid-cols-2">
           {info.map((item) => (
-            <div key={item.label} className="rounded-lg bg-muted/30 p-4">
+            <div key={item.label} className="rounded-lg bg-black/80 p-4">
               <div className="mb-1 flex items-center gap-2 text-muted-foreground">
                 <item.icon size={14} />
                 <span className="text-xs">{item.label}</span>
               </div>
               <p className="text-sm font-semibold text-foreground">{item.value}</p>
+              {"subValue" in item && item.subValue ? (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">{item.subValue}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -139,14 +146,22 @@ const IptvInfoPage = () => {
             {appLogo && (
               <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
                 <p className="text-xs text-muted-foreground">Aplicativo Mobile</p>
-                <img src={appLogo} alt={user?.iptv_app || "App"} className="h-16 w-16 rounded-xl object-contain" />
+                <img
+                  src={getFhdImageUrl(appLogo)}
+                  alt={user?.iptv_app || "App"}
+                  className="h-16 w-16 rounded-xl object-contain bg-black"
+                />
                 <p className="text-sm font-semibold text-foreground">{user?.iptv_app}</p>
               </div>
             )}
             {tvAppLogo && (
               <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
                 <p className="text-xs text-muted-foreground">Aplicativo TV</p>
-                <img src={tvAppLogo} alt={displayedTvApp} className="h-16 w-16 rounded-xl object-contain" />
+                <img
+                  src={getFhdImageUrl(tvAppLogo)}
+                  alt={displayedTvApp}
+                  className="h-16 w-16 rounded-xl object-contain bg-black"
+                />
                 <p className="text-sm font-semibold text-foreground">{displayedTvApp}</p>
               </div>
             )}
