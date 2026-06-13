@@ -251,13 +251,31 @@ Deno.serve(async (req) => {
           .select("iptv_status, iptv_user, username")
           .eq("id", user_id)
           .single();
+        if (!currentProfile) throw new Error("Cliente não encontrado.");
         const previousStatus = currentProfile?.iptv_status;
 
         const updateData = cleanProfileUpdateData(data || {});
 
         // REGRA FIXA: username/login sempre igual ao Usuário IPTV.
-        if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
-          const loginIdentifier = updateData.iptv_user.trim();
+        const submittedIptvUser = typeof updateData.iptv_user === "string" ? updateData.iptv_user.trim() : "";
+        const iptvUserChanged = submittedIptvUser && submittedIptvUser !== String(currentProfile.iptv_user || "").trim();
+
+        if (iptvUserChanged) {
+          const loginIdentifier = submittedIptvUser;
+          const { data: duplicateProfile } = await supabaseAdmin
+            .from("profiles")
+            .select("id, name, iptv_client_code")
+            .eq("username", loginIdentifier)
+            .neq("id", user_id)
+            .limit(1)
+            .maybeSingle();
+
+          if (duplicateProfile) {
+            throw new Error(
+              `Usuário IPTV já está em uso por ${duplicateProfile.name || duplicateProfile.iptv_client_code || "outro cliente"}. Escolha outro usuário.`,
+            );
+          }
+
           updateData.username = loginIdentifier;
 
           const loginEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
@@ -269,6 +287,8 @@ Deno.serve(async (req) => {
           if (authEmailError) {
             throw new Error(`Erro ao atualizar login do cliente: ${authEmailError.message}`);
           }
+        } else {
+          delete updateData.username;
         }
 
         if (updateData.billing_due_date_id) {
