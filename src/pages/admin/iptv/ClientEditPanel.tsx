@@ -166,11 +166,24 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const saveForm = async () => {
     setSaving(true);
-    await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "update_profile", user_id: user.id, data: form },
+    // Normalize empty strings for UUID columns (Postgres rejects "" as uuid)
+    const payload: any = { ...form };
+    if (!payload.billing_due_date_id) payload.billing_due_date_id = null;
+    if (!payload.iptv_expiry) payload.iptv_expiry = null;
+
+    const { data: resp, error } = await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "update_profile", user_id: user.id, data: payload },
     });
-    toast({ title: "✅ Dados atualizados para " + user.name });
     setSaving(false);
+    if (error || (resp as any)?.error) {
+      toast({
+        title: "❌ Erro ao salvar",
+        description: (resp as any)?.error || error?.message || "Falha desconhecida",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({ title: "✅ Dados atualizados para " + user.name });
     onSaved();
   };
 
