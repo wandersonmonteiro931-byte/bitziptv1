@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut({ scope: "local" });
           return;
         }
-        setUser(profile as Profile);
+        setUser(profile as unknown as Profile);
       }
       setRole((roleData?.role as UserRole) || "client");
     } catch (err) {
