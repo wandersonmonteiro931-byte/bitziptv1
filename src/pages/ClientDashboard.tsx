@@ -26,6 +26,16 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { useAppBranding } from "@/hooks/useAppBranding";
 import { getFhdImageUrl, preloadFhdImage } from "@/lib/imageQuality";
+import {
+  addDays,
+  calculateFirstCycleCharge,
+  formatDateBR,
+  getBillingGraceDays,
+  getNextBillingDueDate,
+  parseDateOnly,
+  pickBillingDueDate,
+  toDateOnlyString,
+} from "@/lib/billing";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -712,13 +722,23 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
 }
 
 // --- PIX Payment Modal ---
+type PixModalData = {
+  months: number;
+  value: number;
+  discount: number;
+  periodStartOverride?: string;
+  periodEndOverride?: string;
+  firstCycle?: boolean;
+  notes?: string;
+};
+
 function PixModal({
   pixModal,
   onClose,
   supportInfo,
   user,
 }: {
-  pixModal: { months: number; value: number; discount: number };
+  pixModal: PixModalData;
   onClose: (confirmed?: boolean) => void;
   supportInfo: any;
   user: any;
@@ -741,19 +761,26 @@ function PixModal({
       setLoading(true);
       setError(null);
       try {
-        // Always use client's registered expiry date as base
+        // Usa data calculada pelo ciclo de cobrança quando for proporcional.
         let baseExpiry: Date;
-        if (user?.iptv_expiry) {
-          const [y, m, d] = user.iptv_expiry.split("-").map(Number);
-          baseExpiry = new Date(y, m - 1, d);
+        if (pixModal.periodStartOverride) {
+          baseExpiry = parseDateOnly(pixModal.periodStartOverride);
+        } else if (user?.iptv_expiry) {
+          baseExpiry = parseDateOnly(user.iptv_expiry);
         } else {
           baseExpiry = new Date();
         }
-        const periodStart = new Date(baseExpiry);
-        const periodEndDate = new Date(baseExpiry);
-        periodEndDate.setMonth(periodEndDate.getMonth() + pixModal.months);
 
-        const periodEndStr = periodEndDate.toISOString().split("T")[0];
+        const periodStart = new Date(baseExpiry);
+        const periodEndDate = pixModal.periodEndOverride
+          ? parseDateOnly(pixModal.periodEndOverride)
+          : new Date(baseExpiry);
+
+        if (!pixModal.periodEndOverride) {
+          periodEndDate.setMonth(periodEndDate.getMonth() + pixModal.months);
+        }
+
+        const periodEndStr = toDateOnlyString(periodEndDate);
         setPeriodEnd(periodEndStr);
 
         const { data: payment, error: insertError } = await supabase
@@ -766,7 +793,7 @@ function PixModal({
             period_end: periodEndStr,
             status: "pending",
             payment_method: "pix",
-            notes: `Renovação ${pixModal.months} mês(es) via PIX automático`,
+            notes: pixModal.notes || `Renovação ${pixModal.months} mês(es) via PIX automático`,
           })
           .select("id")
           .single();
@@ -1130,7 +1157,7 @@ const ClientDashboard = () => {
   const location = useLocation();
   const [supportInfo, setSupportInfo] = useState<any>(null);
   const [tvApps, setTvApps] = useState<any[]>([]);
-  const [pixModal, setPixModal] = useState<{ months: number; value: number; discount: number } | null>(null);
+  const [pixModal, setPixModal] = useState<PixModalData | null>(null);
   const [pendingFutureExpiry, setPendingFutureExpiry] = useState<string | null>(null);
   const [trustRequesting, setTrustRequesting] = useState(false);
   const [trustCooldown, setTrustCooldown] = useState(false);
@@ -1147,6 +1174,7 @@ const ClientDashboard = () => {
   } | null>(null);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
+  const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
 
   useEffect(() => {
@@ -1184,7 +1212,9 @@ const ClientDashboard = () => {
   }, []);
   useEffect(() => {
     const loadData = async () => {
-      const [support, apps, platform] = await Promise.all([
+      await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
+
+      const [support, apps, platform, billingDates] = await Promise.all([
         supabase.from("support_settings").select("*").limit(1).maybeSingle(),
         supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
         supabase
@@ -1192,9 +1222,16 @@ const ClientDashboard = () => {
           .select("renewal_discount_3m_percent, renewal_discount_6m_percent")
           .limit(1)
           .maybeSingle(),
+        (supabase as any)
+          .from("billing_due_dates")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("day_of_month", { ascending: true }),
       ]);
       setSupportInfo(support.data);
       setTvApps(apps.data || []);
+      setBillingDueDates(billingDates.data || []);
 
       if (platform.data) {
         setRenewalDiscount3mPercent(Number((platform.data as any).renewal_discount_3m_percent ?? 5));
@@ -1420,31 +1457,43 @@ const ClientDashboard = () => {
   };
 
   const now = new Date();
+  const selectedBillingDueDate = pickBillingDueDate(billingDueDates, user);
+  const billingDueDay = Number(selectedBillingDueDate?.day_of_month || user?.iptv_due_day || 10);
+  const billingGraceDays = getBillingGraceDays(selectedBillingDueDate, user, 5);
 
   let dueDate: Date;
   if (user?.iptv_expiry) {
-    const [year, month, day] = user.iptv_expiry.split("-").map(Number);
-    dueDate = new Date(year, month - 1, day);
+    dueDate = parseDateOnly(user.iptv_expiry);
   } else {
-    const dueDay = user?.iptv_due_day || 10;
-    dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
-    if (dueDate < now && dueDay < now.getDate()) {
-      dueDate.setMonth(dueDate.getMonth() + 1);
-    }
+    dueDate = getNextBillingDueDate(now, billingDueDay);
   }
 
-  const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const daysUntilDue = Math.ceil(
+    (dueDate.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / (1000 * 60 * 60 * 24),
+  );
   const isOverdue = daysUntilDue < 0;
+  const overdueDays = isOverdue ? Math.abs(daysUntilDue) : 0;
+  const isPastGraceLimit = isOverdue && overdueDays > billingGraceDays;
+  const blockAfterDate = addDays(dueDate, billingGraceDays);
 
-  // Auto-block: if expired and still "active", update status locally
-  const effectiveStatus = isOverdue && user?.iptv_status === "active" ? "blocked" : user?.iptv_status || "active";
-  const status = SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
-  const isDueToday = daysUntilDue === 0;
   const monthlyValue = Number(user?.iptv_monthly_value || 0);
   const connections = user?.iptv_connections || 1;
   const totalValue = monthlyValue * connections;
 
-  const formattedDueDate = `${String(dueDate.getDate()).padStart(2, "0")}/${String(dueDate.getMonth() + 1).padStart(2, "0")}/${dueDate.getFullYear()}`;
+  const billingCycleStart = user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(now);
+  const firstCycleCalc = calculateFirstCycleCharge(totalValue, billingCycleStart, billingDueDay);
+  const firstCycleAlreadyPaid = Boolean(user?.billing_first_cycle_paid);
+  const useFirstCycleProportional = !firstCycleAlreadyPaid && firstCycleCalc.isProportional;
+  const firstCycleRenewalValue = useFirstCycleProportional ? firstCycleCalc.amount : totalValue;
+
+  // Bloqueia somente após o limite configurado pelo admin.
+  const effectiveStatus =
+    isPastGraceLimit && user?.iptv_status === "active" ? "blocked" : user?.iptv_status || "active";
+  const status = SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
+  const isDueToday = daysUntilDue === 0;
+
+  const formattedDueDate = formatDateBR(dueDate);
+  const formattedBlockDate = formatDateBR(blockAfterDate);
 
   // Progress bar: 30 days cycle
   const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
@@ -1458,13 +1507,15 @@ const ClientDashboard = () => {
 
   const isNearDueNotice = !isOverdue && !isDueToday && daysUntilDue >= 1 && daysUntilDue <= 4;
   const isRenewPlanWindow = isOverdue || isDueToday || (daysUntilDue >= 1 && daysUntilDue <= 5);
-  const planSubtitle = isOverdue
-    ? "Você está em atraso!"
-    : isDueToday
-      ? "Vence hoje!"
-      : isNearDueNotice
-        ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
-        : "Você está em dias!";
+  const planSubtitle = isPastGraceLimit
+    ? "Você está bloqueado por atraso!"
+    : isOverdue
+      ? "Você está em atraso!"
+      : isDueToday
+        ? "Vence hoje!"
+        : isNearDueNotice
+          ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
+          : "Você está em dias!";
   const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
   const renewal3mLabel = isRenewPlanWindow ? "Renovar 3 meses" : "Antecipar 3 meses";
   const renewal6mLabel = isRenewPlanWindow ? "Renovar 6 meses" : "Antecipar 6 meses";
@@ -1518,14 +1569,23 @@ const ClientDashboard = () => {
       } else if (renew === "6") {
         setPixModal({ months: 6, value: final6m, discount: discount6m });
       } else {
-        setPixModal({ months: 1, value: totalValue, discount: 0 });
+        setPixModal({ months: 1, value: firstCycleRenewalValue, discount: 0 });
       }
 
       window.history.replaceState(null, "", `${location.pathname}${location.hash || ""}`);
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [location.search, location.pathname, location.hash, totalValue, final3m, final6m, discount3m, discount6m]);
+  }, [
+    location.search,
+    location.pathname,
+    location.hash,
+    firstCycleRenewalValue,
+    final3m,
+    final6m,
+    discount3m,
+    discount6m,
+  ]);
 
   return (
     <AppLayout>
@@ -1575,6 +1635,11 @@ const ClientDashboard = () => {
                 R$ {totalValue.toFixed(2)}
                 <span className="text-sm font-normal text-muted-foreground"> / mês</span>
               </p>
+              {useFirstCycleProportional && (
+                <p className="mt-1 text-[11px] font-semibold text-red-300">
+                  1º pagamento proporcional: R$ {firstCycleRenewalValue.toFixed(2)} por {firstCycleCalc.days} dia(s)
+                </p>
+              )}
             </div>
             <div className="text-right">
               {isOverdue ? (
@@ -1598,7 +1663,21 @@ const ClientDashboard = () => {
           <motion.button
             type="button"
             {...renewalButtonMotion}
-            onClick={() => setPixModal({ months: 1, value: totalValue, discount: 0 })}
+            onClick={() =>
+              setPixModal({
+                months: 1,
+                value: firstCycleRenewalValue,
+                discount: 0,
+                periodStartOverride: useFirstCycleProportional
+                  ? toDateOnlyString(parseDateOnly(billingCycleStart))
+                  : undefined,
+                periodEndOverride: useFirstCycleProportional ? toDateOnlyString(firstCycleCalc.dueDate) : undefined,
+                firstCycle: useFirstCycleProportional,
+                notes: useFirstCycleProportional
+                  ? `Primeiro pagamento proporcional (${firstCycleCalc.days} dia(s)) até o vencimento unificado`
+                  : undefined,
+              })
+            }
             className="group relative mt-5 w-full overflow-hidden rounded-xl bg-red-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-colors hover:bg-red-500"
           >
             <motion.span
@@ -1675,7 +1754,7 @@ const ClientDashboard = () => {
                   : `Faltam ${daysUntilDue} dias para o vencimento`}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Bloqueio automático às 23:59 caso não identificado pagamento.
+              Bloqueio automático em {formattedBlockDate}, após {billingGraceDays} dia(s) corridos de atraso.
             </p>
           </motion.div>
         )}

@@ -562,7 +562,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         <select
                           value={(form as any).billing_due_date_id || ""}
                           onChange={(e) => {
-                            const selected = billingDueDates.find((item) => item.id === e.target.value);
+                            const selected = billingDueDates.find((item: any) => item.id === e.target.value);
                             setForm({
                               ...form,
                               billing_due_date_id: e.target.value,
@@ -572,7 +572,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           className={inputCls}
                         >
                           <option value="">Usar data padrão</option>
-                          {billingDueDates.map((item) => (
+                          {billingDueDates.map((item: any) => (
                             <option key={item.id} value={item.id}>
                               {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
                             </option>

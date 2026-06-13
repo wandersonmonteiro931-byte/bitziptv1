@@ -255,6 +255,7 @@ const AdminUsersPage = () => {
         iptv_app: "",
         iptv_expiry: "",
         referred_by_code: "",
+        billing_due_date_id: "",
       });
       loadUsers();
     }
@@ -602,7 +603,7 @@ const AdminUsersPage = () => {
                       className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     >
                       <option value="">Usar data padrão</option>
-                      {billingDueDates.map((item) => (
+                      {billingDueDates.map((item: any) => (
                         <option key={item.id} value={item.id}>
                           {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
                         </option>
@@ -796,17 +797,17 @@ const AdminUsersPage = () => {
                           <select
                             value={billingDueDates[0]?.id || ""}
                             onChange={(e) => {
-                              const selected = billingDueDates.find((item) => item.id === e.target.value);
+                              const selected = billingDueDates.find((item: any) => item.id === e.target.value);
                               if (selected) {
                                 setBillingDueDates([
                                   selected,
-                                  ...billingDueDates.filter((item) => item.id !== selected.id),
+                                  ...billingDueDates.filter((item: any) => item.id !== selected.id),
                                 ]);
                               }
                             }}
                             className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                           >
-                            {billingDueDates.map((item) => (
+                            {billingDueDates.map((item: any) => (
                               <option key={item.id} value={item.id}>
                                 {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
                               </option>
@@ -1282,7 +1283,7 @@ const AdminUsersPage = () => {
                       <select
                         value={editForm.billing_due_date_id || ""}
                         onChange={(e) => {
-                          const selected = billingDueDates.find((item) => item.id === e.target.value);
+                          const selected = billingDueDates.find((item: any) => item.id === e.target.value);
                           setEditForm({
                             ...editForm,
                             billing_due_date_id: e.target.value,
@@ -1292,7 +1293,7 @@ const AdminUsersPage = () => {
                         className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                       >
                         <option value="">Usar padrão</option>
-                        {billingDueDates.map((item) => (
+                        {billingDueDates.map((item: any) => (
                           <option key={item.id} value={item.id}>
                             {item.label || `Dia ${item.day_of_month}`} · {item.grace_days} dia(s)
                           </option>

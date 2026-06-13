@@ -29,6 +29,11 @@ export interface Profile {
   iptv_tv_app: string;
   iptv_status: string;
   iptv_due_day: number;
+  billing_due_date_id: string | null;
+  billing_cycle_started_at: string | null;
+  billing_first_cycle_paid: boolean;
+  billing_first_cycle_prorated_amount: number | null;
+  billing_grace_days_override: number | null;
   iptv_client_code: string;
   iptv_password: string;
   admin_notes: string;
@@ -64,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (profile.status === "archived") {
           setUser(null);
           setRole(null);
-          await supabase.auth.signOut({ scope: 'local' });
+          await supabase.auth.signOut({ scope: "local" });
           return;
         }
         setUser(profile as Profile);
@@ -77,7 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
     if (authUser) {
       await fetchProfile(authUser.id);
     }
@@ -88,30 +95,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let initialLoad = true;
 
     // Listener for ONGOING auth changes (does NOT control loading after init)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!isMounted) return;
-        if (session?.user) {
-          // Dispatch after callback completes to avoid deadlock
-          setTimeout(() => {
-            fetchProfile(session.user.id).then(() => {
-              if (isMounted && !initialLoad) {
-                // only needed for subsequent changes, not initial
-              }
-            });
-          }, 0);
-        } else {
-          setUser(null);
-          setRole(null);
-          if (!initialLoad) setLoading(false);
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return;
+      if (session?.user) {
+        // Dispatch after callback completes to avoid deadlock
+        setTimeout(() => {
+          fetchProfile(session.user.id).then(() => {
+            if (isMounted && !initialLoad) {
+              // only needed for subsequent changes, not initial
+            }
+          });
+        }, 0);
+      } else {
+        setUser(null);
+        setRole(null);
+        if (!initialLoad) setLoading(false);
       }
-    );
+    });
 
     // INITIAL load (controls loading state)
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!isMounted) return;
 
         if (session?.user) {
@@ -148,15 +157,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const ua = navigator.userAgent;
         const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
-        const browser = /Firefox/i.test(ua) ? "Firefox" : /Edg/i.test(ua) ? "Edge" : /Chrome/i.test(ua) ? "Chrome" : /Safari/i.test(ua) ? "Safari" : "Outro";
-        const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad|Mac/i.test(ua) ? "iOS/macOS" : /Windows/i.test(ua) ? "Windows" : /Linux/i.test(ua) ? "Linux" : "Outro";
-        supabase.from("login_logs").insert({
-          user_id: data.session.user.id,
-          user_agent: ua,
-          device_type: deviceType,
-          browser,
-          os,
-        }).then(() => {});
+        const browser = /Firefox/i.test(ua)
+          ? "Firefox"
+          : /Edg/i.test(ua)
+            ? "Edge"
+            : /Chrome/i.test(ua)
+              ? "Chrome"
+              : /Safari/i.test(ua)
+                ? "Safari"
+                : "Outro";
+        const os = /Android/i.test(ua)
+          ? "Android"
+          : /iPhone|iPad|Mac/i.test(ua)
+            ? "iOS/macOS"
+            : /Windows/i.test(ua)
+              ? "Windows"
+              : /Linux/i.test(ua)
+                ? "Linux"
+                : "Outro";
+        supabase
+          .from("login_logs")
+          .insert({
+            user_id: data.session.user.id,
+            user_agent: ua,
+            device_type: deviceType,
+            browser,
+            os,
+          })
+          .then(() => {});
       } catch {}
     }
     return null;
@@ -166,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRole(null);
     setLoading(false);
-    await supabase.auth.signOut({ scope: 'local' });
+    await supabase.auth.signOut({ scope: "local" });
   };
 
   return (

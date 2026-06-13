@@ -1,5 +1,18 @@
 import { AppLayout } from "@/components/AppLayout";
-import { Settings, Loader2, Tv, Bell, Send, Upload, Image as ImageIcon, Smartphone, Percent } from "lucide-react";
+import {
+  Settings,
+  Loader2,
+  Tv,
+  Bell,
+  Send,
+  Upload,
+  Image as ImageIcon,
+  Smartphone,
+  Percent,
+  CalendarDays,
+  PlusCircle,
+  Trash2,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +43,25 @@ const AdminSettingsPage = () => {
   const [savingProviders, setSavingProviders] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
 
+  // Datas de vencimento/pagamento
+  const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
+  const [newDueDay, setNewDueDay] = useState("10");
+  const [newGraceDays, setNewGraceDays] = useState("5");
+  const [savingBilling, setSavingBilling] = useState(false);
+
+  const loadBillingDueDates = async () => {
+    const { data } = await (supabase as any)
+      .from("billing_due_dates")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("day_of_month", { ascending: true });
+
+    setBillingDueDates(data || []);
+  };
+
   useEffect(() => {
+    loadBillingDueDates();
+
     Promise.all([
       supabase.from("platform_settings").select("*").limit(1).single(),
       supabase.from("support_settings").select("*").limit(1).single(),
@@ -156,6 +187,76 @@ const AdminSettingsPage = () => {
       });
     } finally {
       setSavingBranding(false);
+    }
+  };
+
+  const addBillingDueDate = async () => {
+    const day = Math.max(1, Math.min(31, Number(newDueDay || 10)));
+    const grace = Math.max(0, Math.min(31, Number(newGraceDays || 5)));
+
+    setSavingBilling(true);
+    try {
+      const { error } = await (supabase as any).from("billing_due_dates").insert({
+        label: `Dia ${day}`,
+        day_of_month: day,
+        grace_days: grace,
+        is_active: true,
+        sort_order: day,
+      });
+
+      if (error) throw error;
+
+      setNewDueDay(String(day));
+      setNewGraceDays(String(grace));
+      await loadBillingDueDates();
+      toast({ title: "Data de pagamento cadastrada!" });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao cadastrar data",
+        description: err.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  const updateBillingDueDate = async (id: string, patch: any) => {
+    setSavingBilling(true);
+    try {
+      const { error } = await (supabase as any).from("billing_due_dates").update(patch).eq("id", id);
+      if (error) throw error;
+
+      await loadBillingDueDates();
+      await (supabase as any).rpc("auto_block_overdue_clients");
+      toast({ title: "Data de pagamento atualizada!" });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao atualizar data",
+        description: err.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingBilling(false);
+    }
+  };
+
+  const deactivateBillingDueDate = async (id: string) => {
+    setSavingBilling(true);
+    try {
+      const { error } = await (supabase as any).from("billing_due_dates").update({ is_active: false }).eq("id", id);
+      if (error) throw error;
+
+      await loadBillingDueDates();
+      toast({ title: "Data desativada!" });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao desativar data",
+        description: err.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingBilling(false);
     }
   };
 
@@ -394,6 +495,135 @@ const AdminSettingsPage = () => {
               <span className="text-xs text-muted-foreground">Ícone de instalação</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Billing Due Dates */}
+      <div className="glass-card rounded-xl p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15">
+            <CalendarDays size={16} className="text-red-500" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Datas de Pagamento dos Clientes</h2>
+            <p className="text-xs text-muted-foreground">
+              Cadastre um ou mais dias do mês. Cada cliente pode receber uma data. O 1º mês incompleto é cobrado
+              proporcionalmente.
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-4 rounded-xl border border-red-500/25 bg-red-500/5 p-4">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">Dia do mês</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={newDueDay}
+                onChange={(e) => setNewDueDay(e.target.value)}
+                className={inputCls + " max-w-full"}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">Bloquear após quantos dias de atraso</label>
+              <input
+                type="number"
+                min="0"
+                max="31"
+                value={newGraceDays}
+                onChange={(e) => setNewGraceDays(e.target.value)}
+                className={inputCls + " max-w-full"}
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={addBillingDueDate}
+                disabled={savingBilling}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {savingBilling ? <Loader2 size={16} className="animate-spin" /> : <PlusCircle size={16} />}
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {billingDueDates.length === 0 ? (
+            <p className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Nenhuma data cadastrada. Aplique a migração SQL e cadastre o primeiro vencimento.
+            </p>
+          ) : (
+            billingDueDates.map((item: any) => (
+              <div
+                key={item.id}
+                className={`rounded-xl border p-4 ${item.is_active ? "border-border bg-black/70" : "border-muted/30 bg-muted/10 opacity-60"}`}
+              >
+                <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase text-muted-foreground">Nome</label>
+                    <input
+                      value={item.label || `Dia ${item.day_of_month}`}
+                      onChange={(e) => updateBillingDueDate(item.id, { label: e.target.value })}
+                      className={inputCls + " max-w-full"}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase text-muted-foreground">Dia</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={item.day_of_month}
+                      onChange={(e) =>
+                        updateBillingDueDate(item.id, {
+                          day_of_month: Number(e.target.value),
+                          sort_order: Number(e.target.value),
+                        })
+                      }
+                      className={inputCls + " max-w-full"}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase text-muted-foreground">Limite atraso</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="31"
+                      value={item.grace_days}
+                      onChange={(e) => updateBillingDueDate(item.id, { grace_days: Number(e.target.value) })}
+                      className={inputCls + " max-w-full"}
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => updateBillingDueDate(item.id, { is_active: !item.is_active })}
+                      disabled={savingBilling}
+                      className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted/40"
+                    >
+                      {item.is_active ? "Ativa" : "Inativa"}
+                    </button>
+                    <button
+                      onClick={() => deactivateBillingDueDate(item.id)}
+                      disabled={savingBilling}
+                      className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
+                      title="Desativar data"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-[11px] text-muted-foreground">
+          Regra: no 1º mês, se o cliente não completar 30 dias até o vencimento escolhido, o sistema calcula
+          automaticamente somente o proporcional. Depois disso, os meses são cobrados normalmente pela mensalidade
+          cheia.
         </div>
       </div>
 
