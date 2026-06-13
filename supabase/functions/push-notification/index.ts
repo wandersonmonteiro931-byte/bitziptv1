@@ -2,8 +2,73 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const DEFAULT_PUSH_ICON = "/pwa-512.png";
+const DEFAULT_PUSH_BADGE = "/pwa-192.png";
+
+function isImageIcon(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const url = value.trim();
+  if (!url) return false;
+
+  // Aceita URL/arquivo de imagem. Não aceita emoji/texto em icon do push.
+  return (
+    url.startsWith("/") || url.startsWith("https://") || url.startsWith("http://") || url.startsWith("data:image/")
+  );
+}
+
+async function getPushBranding(supabaseAdmin: any) {
+  try {
+    const { data } = await supabaseAdmin
+      .from("platform_settings")
+      .select("app_name, app_short_name, app_logo_url, app_favicon_url")
+      .limit(1)
+      .maybeSingle();
+
+    const icon = isImageIcon(data?.app_favicon_url)
+      ? data.app_favicon_url.trim()
+      : isImageIcon(data?.app_logo_url)
+        ? data.app_logo_url.trim()
+        : DEFAULT_PUSH_ICON;
+
+    const badge = isImageIcon(data?.app_favicon_url) ? data.app_favicon_url.trim() : DEFAULT_PUSH_BADGE;
+
+    return {
+      appName: String(data?.app_name || data?.app_short_name || "WMCFLIX"),
+      icon,
+      badge,
+    };
+  } catch {
+    return {
+      appName: "WMCFLIX",
+      icon: DEFAULT_PUSH_ICON,
+      badge: DEFAULT_PUSH_BADGE,
+    };
+  }
+}
+
+function buildPushPayload(input: {
+  title: string;
+  body: string;
+  icon?: unknown;
+  badge?: unknown;
+  url?: string;
+  branding: { appName: string; icon: string; badge: string };
+}) {
+  const icon = isImageIcon(input.icon) ? input.icon.trim() : input.branding.icon || DEFAULT_PUSH_ICON;
+  const badge = isImageIcon(input.badge) ? input.badge.trim() : input.branding.badge || DEFAULT_PUSH_BADGE;
+
+  return JSON.stringify({
+    title: input.title || input.branding.appName || "WMCFLIX",
+    body: input.body || "",
+    icon,
+    badge,
+    data: { url: input.url || "/" },
+  });
+}
 
 // ─── Base64URL helpers ───
 function b64UrlEncode(buf: ArrayBuffer | Uint8Array): string {
@@ -34,13 +99,25 @@ async function generateVapidKeys(): Promise<{ publicKey: string; privateKey: str
 async function createVapidJwt(audience: string, vapidPub: string, vapidPriv: string): Promise<string> {
   const header = b64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
   const now = Math.floor(Date.now() / 1000);
-  const payload = b64UrlEncode(new TextEncoder().encode(JSON.stringify({
-    aud: audience, exp: now + 12 * 3600, sub: "mailto:push@bitziptv.app",
-  })));
+  const payload = b64UrlEncode(
+    new TextEncoder().encode(
+      JSON.stringify({
+        aud: audience,
+        exp: now + 12 * 3600,
+        sub: "mailto:push@bitziptv.app",
+      }),
+    ),
+  );
   const unsigned = `${header}.${payload}`;
 
   const pubBytes = b64UrlDecode(vapidPub);
-  const jwk = { kty: "EC", crv: "P-256", d: vapidPriv, x: b64UrlEncode(pubBytes.slice(1, 33)), y: b64UrlEncode(pubBytes.slice(33, 65)) };
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    d: vapidPriv,
+    x: b64UrlEncode(pubBytes.slice(1, 33)),
+    y: b64UrlEncode(pubBytes.slice(33, 65)),
+  };
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, new TextEncoder().encode(unsigned));
 
@@ -55,10 +132,7 @@ async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length:
 }
 
 // ─── RFC 8291 aes128gcm encryption ───
-async function encryptPayload(
-  sub: { p256dh: string; auth: string },
-  payloadText: string
-): Promise<Uint8Array> {
+async function encryptPayload(sub: { p256dh: string; auth: string }, payloadText: string): Promise<Uint8Array> {
   const clientPubBytes = b64UrlDecode(sub.p256dh);
   const authSecret = b64UrlDecode(sub.auth);
 
@@ -67,8 +141,18 @@ async function encryptPayload(
   const localPubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", localKP.publicKey));
 
   // 2. Import subscriber's public key and derive shared secret
-  const clientPubKey = await crypto.subtle.importKey("raw", clientPubBytes, { name: "ECDH", namedCurve: "P-256" }, false, []);
-  const sharedSecretBuf = await crypto.subtle.deriveBits({ name: "ECDH", public: clientPubKey }, localKP.privateKey, 256);
+  const clientPubKey = await crypto.subtle.importKey(
+    "raw",
+    clientPubBytes,
+    { name: "ECDH", namedCurve: "P-256" },
+    false,
+    [],
+  );
+  const sharedSecretBuf = await crypto.subtle.deriveBits(
+    { name: "ECDH", public: clientPubKey },
+    localKP.privateKey,
+    256,
+  );
   const sharedSecret = new Uint8Array(sharedSecretBuf);
 
   // 3. Build "WebPush: info" context for IKM derivation
@@ -102,7 +186,9 @@ async function encryptPayload(
 
   // 9. AES-128-GCM encrypt
   const aesKey = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, tagLength: 128 }, aesKey, paddedPayload));
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, tagLength: 128 }, aesKey, paddedPayload),
+  );
 
   // 10. Build aes128gcm body: salt(16) + rs(4) + idlen(1) + keyid(65) + ciphertext
   const rs = new DataView(new ArrayBuffer(4));
@@ -110,10 +196,14 @@ async function encryptPayload(
 
   const body = new Uint8Array(16 + 4 + 1 + localPubRaw.length + ciphertext.length);
   let off = 0;
-  body.set(salt, off); off += 16;
-  body.set(new Uint8Array(rs.buffer), off); off += 4;
-  body[off] = localPubRaw.length; off += 1;
-  body.set(localPubRaw, off); off += localPubRaw.length;
+  body.set(salt, off);
+  off += 16;
+  body.set(new Uint8Array(rs.buffer), off);
+  off += 4;
+  body[off] = localPubRaw.length;
+  off += 1;
+  body.set(localPubRaw, off);
+  off += localPubRaw.length;
   body.set(ciphertext, off);
 
   return body;
@@ -124,7 +214,7 @@ async function sendPush(
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: string,
   vapidPub: string,
-  vapidPriv: string
+  vapidPriv: string,
 ): Promise<boolean> {
   try {
     const url = new URL(sub.endpoint);
@@ -140,7 +230,7 @@ async function sendPush(
       headers: {
         "Content-Type": "application/octet-stream",
         "Content-Encoding": "aes128gcm",
-        "TTL": "2419200",
+        TTL: "2419200",
         Authorization: `vapid t=${jwt}, k=${vapidPub}`,
       },
       body,
@@ -175,6 +265,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const pushBranding = await getPushBranding(supabaseAdmin);
 
     const body = await req.json();
     const { action } = body;
@@ -185,8 +276,10 @@ Deno.serve(async (req) => {
       if (!vapid) {
         const keys = await generateVapidKeys();
         const { data: inserted } = await supabaseAdmin
-          .from("push_vapid_keys").insert({ public_key: keys.publicKey, private_key: keys.privateKey })
-          .select("public_key").single();
+          .from("push_vapid_keys")
+          .insert({ public_key: keys.publicKey, private_key: keys.privateKey })
+          .select("public_key")
+          .single();
         vapid = inserted;
       }
       return new Response(JSON.stringify({ public_key: vapid?.public_key }), {
@@ -199,7 +292,8 @@ Deno.serve(async (req) => {
       const internalKey = req.headers.get("x-internal-key");
       if (internalKey !== supabaseServiceKey) {
         return new Response(JSON.stringify({ error: "Acesso interno não autorizado" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -216,16 +310,29 @@ Deno.serve(async (req) => {
         });
       }
 
-      const payload = JSON.stringify({
-        title, body: notifBody, icon: icon || "/logo-bitz.jpg",
-        badge: "/logo-bitz.jpg", data: { url: clickUrl || "/" },
+      const payload = buildPushPayload({
+        title,
+        body: notifBody,
+        icon,
+        url: clickUrl || "/",
+        branding: pushBranding,
       });
 
-      let sent = 0, failed = 0;
+      let sent = 0,
+        failed = 0;
       const expired: string[] = [];
       for (const s of subs) {
-        const ok = await sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, vapid.public_key, vapid.private_key);
-        if (ok) sent++; else { failed++; expired.push(s.endpoint); }
+        const ok = await sendPush(
+          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+          payload,
+          vapid.public_key,
+          vapid.private_key,
+        );
+        if (ok) sent++;
+        else {
+          failed++;
+          expired.push(s.endpoint);
+        }
       }
       if (expired.length > 0) {
         await supabaseAdmin.from("push_subscriptions").delete().in("endpoint", expired);
@@ -247,7 +354,7 @@ Deno.serve(async (req) => {
 
       // Get all admin user IDs
       const { data: adminRoles } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin");
-      const adminIds = (adminRoles || []).map(r => r.user_id);
+      const adminIds = (adminRoles || []).map((r) => r.user_id);
       if (adminIds.length === 0) {
         return new Response(JSON.stringify({ success: true, sent: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -261,16 +368,28 @@ Deno.serve(async (req) => {
         });
       }
 
-      const payload = JSON.stringify({
-        title, body: notifBody, icon: "/logo-bitz.jpg",
-        badge: "/logo-bitz.jpg", data: { url: "/admin/iptv" },
+      const payload = buildPushPayload({
+        title,
+        body: notifBody,
+        url: "/admin/iptv",
+        branding: pushBranding,
       });
 
-      let sent = 0, failed = 0;
+      let sent = 0,
+        failed = 0;
       const expired: string[] = [];
       for (const s of subs) {
-        const ok = await sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, vapid.public_key, vapid.private_key);
-        if (ok) sent++; else { failed++; expired.push(s.endpoint); }
+        const ok = await sendPush(
+          { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+          payload,
+          vapid.public_key,
+          vapid.private_key,
+        );
+        if (ok) sent++;
+        else {
+          failed++;
+          expired.push(s.endpoint);
+        }
       }
       if (expired.length > 0) {
         await supabaseAdmin.from("push_subscriptions").delete().in("endpoint", expired);
@@ -285,17 +404,21 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user: caller } } = await supabaseAuth.auth.getUser();
+    const {
+      data: { user: caller },
+    } = await supabaseAuth.auth.getUser();
     if (!caller) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -324,10 +447,15 @@ Deno.serve(async (req) => {
 
     // ── Admin only: send notifications ──
     const { data: roleData } = await supabaseAdmin
-      .from("user_roles").select("role").eq("user_id", caller.id).eq("role", "admin").maybeSingle();
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", caller.id)
+      .eq("role", "admin")
+      .maybeSingle();
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Apenas administradores" }), {
-        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -346,20 +474,30 @@ Deno.serve(async (req) => {
 
       if (!subs || subs.length === 0) {
         await supabaseAdmin.from("push_notifications").insert({
-          title, body: notifBody, icon: icon || "", target_type: target_type || "all",
-          target_ids: target_ids || [], sent_count: 0, failed_count: 0, sent_by: caller.id,
+          title,
+          body: notifBody,
+          icon: icon || "",
+          target_type: target_type || "all",
+          target_ids: target_ids || [],
+          sent_count: 0,
+          failed_count: 0,
+          sent_by: caller.id,
         });
         return new Response(JSON.stringify({ success: true, sent: 0, failed: 0 }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const payload = JSON.stringify({
-        title, body: notifBody, icon: icon || "/logo-bitz.jpg",
-        badge: "/logo-bitz.jpg", data: { url: "/" },
+      const payload = buildPushPayload({
+        title,
+        body: notifBody,
+        icon,
+        url: "/",
+        branding: pushBranding,
       });
 
-      let sent = 0, failed = 0;
+      let sent = 0,
+        failed = 0;
       const expired: string[] = [];
 
       // Send in parallel batches of 10
@@ -367,11 +505,22 @@ Deno.serve(async (req) => {
       for (let i = 0; i < subs.length; i += batchSize) {
         const batch = subs.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-          batch.map(s => sendPush({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, payload, vapid.public_key, vapid.private_key))
+          batch.map((s) =>
+            sendPush(
+              { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+              payload,
+              vapid.public_key,
+              vapid.private_key,
+            ),
+          ),
         );
         results.forEach((r, idx) => {
-          if (r.status === "fulfilled" && r.value) { sent++; }
-          else { failed++; expired.push(batch[idx].endpoint); }
+          if (r.status === "fulfilled" && r.value) {
+            sent++;
+          } else {
+            failed++;
+            expired.push(batch[idx].endpoint);
+          }
         });
       }
 
@@ -381,8 +530,14 @@ Deno.serve(async (req) => {
       }
 
       await supabaseAdmin.from("push_notifications").insert({
-        title, body: notifBody, icon: icon || "", target_type: target_type || "all",
-        target_ids: target_ids || [], sent_count: sent, failed_count: failed, sent_by: caller.id,
+        title,
+        body: notifBody,
+        icon: icon || "",
+        target_type: target_type || "all",
+        target_ids: target_ids || [],
+        sent_count: sent,
+        failed_count: failed,
+        sent_by: caller.id,
       });
 
       return new Response(JSON.stringify({ success: true, sent, failed }), {
@@ -394,7 +549,8 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("Push notification error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

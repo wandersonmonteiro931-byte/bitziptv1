@@ -85,14 +85,7 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       strategies: "generateSW",
       registerType: "prompt",
-      includeAssets: [
-        "favicon.ico",
-        "logo-bitz.jpg",
-        "pwa-192.png",
-        "pwa-512.png",
-        "pwa-maskable-512.png",
-        "apple-touch-icon.png",
-      ],
+      includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png", "pwa-maskable-512.png", "apple-touch-icon.png"],
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: "/index.html",
