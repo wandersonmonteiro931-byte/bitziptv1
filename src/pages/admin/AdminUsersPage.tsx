@@ -291,16 +291,28 @@ const AdminUsersPage = () => {
     setEditSaving(true);
 
     // Update profile fields
-    const profileData = { ...editForm };
+    const profileData: any = { ...editForm };
     profileData.username = String(editForm.iptv_user || editForm.username || "").trim();
     profileData.iptv_user = String(editForm.iptv_user || editForm.username || "").trim();
+    if (!profileData.billing_due_date_id) profileData.billing_due_date_id = null;
+    if (!profileData.iptv_expiry) profileData.iptv_expiry = null;
     delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
     delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
     delete profileData.referred_by_code_input; // campo auxiliar da tela
 
-    await supabase.functions.invoke("admin-manage-user", {
+    const { data: saveResp, error: saveError } = await supabase.functions.invoke("admin-manage-user", {
       body: { action: "update_profile", user_id: editUser.id, data: profileData },
     });
+
+    if (saveError || (saveResp as any)?.error) {
+      toast({
+        title: "❌ Erro ao salvar",
+        description: (saveResp as any)?.error || saveError?.message || "Falha desconhecida",
+        variant: "destructive",
+      });
+      setEditSaving(false);
+      return;
+    }
 
     // If password changed, also update auth password
     if (editForm.iptv_password && editForm.iptv_password !== editUser.iptv_password) {
