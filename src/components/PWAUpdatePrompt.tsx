@@ -15,10 +15,12 @@ type RemoteVersion = {
 const CHECK_INTERVAL_MS = 12000;
 const UPDATE_HANDLED_KEY = "wmcflix_pwa_update_handled_build";
 const UPDATE_LOCK_UNTIL_KEY = "wmcflix_pwa_update_lock_until";
+const AUTO_UPDATE_ATTEMPT_KEY = "wmcflix_pwa_auto_update_attempt";
 
 let globalPromptVisible = false;
 let globalUpdateRunning = false;
 let globalReloading = false;
+let globalAutoUpdating = false;
 
 function getCurrentBuild(): number {
   return Number(__BUILD_TIMESTAMP__ || 0);
@@ -50,6 +52,48 @@ async function clearPwaCaches() {
     const keys = await caches.keys();
     await Promise.all(keys.map((key) => caches.delete(key)));
   }
+}
+
+async function forceAutomaticPwaUpdate(build?: number | null) {
+  const key = getUpdateKey(build);
+  if (globalAutoUpdating || globalReloading || globalUpdateRunning) return false;
+  if (sessionStorage.getItem(AUTO_UPDATE_ATTEMPT_KEY) === key) return false;
+
+  globalAutoUpdating = true;
+  sessionStorage.setItem(AUTO_UPDATE_ATTEMPT_KEY, key);
+  sessionStorage.removeItem(UPDATE_LOCK_UNTIL_KEY);
+  sessionStorage.removeItem(UPDATE_HANDLED_KEY);
+
+  try {
+    const registrations = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistrations() : [];
+
+    await Promise.all(
+      registrations.map(async (registration) => {
+        try {
+          registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+          registration.installing?.postMessage({ type: "SKIP_WAITING" });
+          registration.active?.postMessage({ type: "SKIP_WAITING" });
+          await registration.update();
+
+          // Remove SW antigo quando ele está travando bundle/cache velho.
+          await registration.unregister();
+        } catch {
+          // Continua com os outros registros.
+        }
+      }),
+    );
+
+    await clearPwaCaches();
+  } catch {
+    // Mesmo se der erro, tenta recarregar com cache-buster.
+  }
+
+  if (!globalReloading) {
+    globalReloading = true;
+    window.location.replace(buildReloadUrl());
+  }
+
+  return true;
 }
 
 function buildReloadUrl() {
@@ -106,7 +150,10 @@ export function PWAUpdatePrompt() {
       const currentTimestamp = getCurrentBuild();
 
       if (remoteTimestamp && currentTimestamp && remoteTimestamp > currentTimestamp) {
-        forcePrompt(remoteTimestamp);
+        const autoStarted = await forceAutomaticPwaUpdate(remoteTimestamp);
+        if (!autoStarted) {
+          forcePrompt(remoteTimestamp);
+        }
       }
     } catch {
       // Se estiver sem internet ou em propagação, tenta novamente depois.
@@ -116,7 +163,9 @@ export function PWAUpdatePrompt() {
   const { updateServiceWorker } = useRegisterSW({
     immediate: true,
     onNeedRefresh() {
-      forcePrompt(remoteBuild);
+      void forceAutomaticPwaUpdate(remoteBuild).then((autoStarted) => {
+        if (!autoStarted) forcePrompt(remoteBuild);
+      });
     },
     onOfflineReady() {
       checkRemoteVersion();

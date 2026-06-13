@@ -6,7 +6,79 @@ declare const __BUILD_TIMESTAMP__: number;
 
 const PWA_RESCUE_DONE_KEY = "wmcflix_pwa_rescue_v1_done";
 const PWA_LAST_BUILD_KEY = "wmcflix_pwa_last_build";
+const PWA_AUTO_UPDATE_ATTEMPT_KEY = "wmcflix_pwa_auto_update_attempt";
 const CURRENT_BUILD_ID = String(__BUILD_TIMESTAMP__ || Date.now());
+
+async function clearAllBrowserCaches() {
+  if (!("caches" in window)) return;
+
+  const keys = await caches.keys();
+  await Promise.all(keys.map((key) => caches.delete(key)));
+}
+
+async function updateOrResetServiceWorkers(unregister = false) {
+  if (!("serviceWorker" in navigator)) return;
+
+  const registrations = await navigator.serviceWorker.getRegistrations();
+
+  await Promise.all(
+    registrations.map(async (registration) => {
+      try {
+        registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+        registration.installing?.postMessage({ type: "SKIP_WAITING" });
+        registration.active?.postMessage({ type: "SKIP_WAITING" });
+        await registration.update();
+
+        if (unregister) {
+          await registration.unregister();
+        }
+      } catch {
+        // Continua com os outros registros.
+      }
+    }),
+  );
+}
+
+function reloadWithCacheBuster(reason: string) {
+  if (sessionStorage.getItem(`wmcflix_${reason}_reload_done`) === "1") return;
+
+  sessionStorage.setItem(`wmcflix_${reason}_reload_done`, "1");
+  const url = new URL(window.location.href);
+  url.searchParams.set(reason, String(Date.now()));
+  window.location.replace(url.toString());
+}
+
+async function checkRemoteBuildAndAutoUpdate() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const response = await fetch(`/version.json?auto_update=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
+    });
+
+    if (!response.ok) return;
+
+    const remote = await response.json();
+    const remoteBuild = String(remote.buildId || remote.buildTimestamp || remote.version || "");
+    if (!remoteBuild || remoteBuild === CURRENT_BUILD_ID) return;
+
+    const attemptedForBuild = sessionStorage.getItem(PWA_AUTO_UPDATE_ATTEMPT_KEY);
+    if (attemptedForBuild === remoteBuild) return;
+
+    sessionStorage.setItem(PWA_AUTO_UPDATE_ATTEMPT_KEY, remoteBuild);
+
+    await clearAllBrowserCaches();
+    await updateOrResetServiceWorkers(true);
+
+    reloadWithCacheBuster("pwa_auto_update");
+  } catch {
+    // Se falhar, o modal/botão manual ainda continua funcionando.
+  }
+}
 
 async function rescueOldInstalledPwa() {
   if (typeof window === "undefined") return;
@@ -28,31 +100,16 @@ async function rescueOldInstalledPwa() {
   localStorage.setItem(PWA_RESCUE_DONE_KEY, "1");
 
   try {
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((key) => caches.delete(key)));
-    }
-
-    if ("serviceWorker" in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(
-        registrations.map(async (registration) => {
-          try {
-            await registration.update();
-          } catch {}
-        }),
-      );
-    }
-  } catch {}
-
-  if (!sessionStorage.getItem("wmcflix_pwa_rescue_reload_done")) {
-    sessionStorage.setItem("wmcflix_pwa_rescue_reload_done", "1");
-    const url = new URL(window.location.href);
-    url.searchParams.set("pwa_rescue", String(Date.now()));
-    window.location.replace(url.toString());
+    await clearAllBrowserCaches();
+    await updateOrResetServiceWorkers(false);
+  } catch {
+    // Continua para reload.
   }
+
+  reloadWithCacheBuster("pwa_rescue");
 }
 
+void checkRemoteBuildAndAutoUpdate();
 void rescueOldInstalledPwa();
 
 // Helper: check if the event target is an editable field
