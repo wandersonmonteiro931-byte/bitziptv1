@@ -67,7 +67,11 @@ export const diffDays = (from: Date, to: Date) => {
 
 export const daysInclusive = (from: Date, to: Date) => Math.max(1, diffDays(from, to) + 1);
 
-export const calculateFirstCycleCharge = (monthlyTotal: number, startDateInput: string | Date, dueDay: number): FirstCycleCalculation => {
+export const calculateFirstCycleCharge = (
+  monthlyTotal: number,
+  startDateInput: string | Date,
+  dueDay: number,
+): FirstCycleCalculation => {
   const startDate = startDateInput instanceof Date ? startDateInput : parseDateOnly(startDateInput);
   const dueDate = getNextBillingDueDate(startDate, dueDay);
   const days = Math.min(30, daysInclusive(startDate, dueDate));
@@ -102,4 +106,29 @@ export const getBillingGraceDays = (dueDate: BillingDueDate | null, user: any, f
   if (Number.isFinite(fromDate) && fromDate >= 0) return fromDate;
 
   return fallback;
+};
+
+export const getBillingCycleStartDate = (user: any) => {
+  // Compatibilidade: próximas cobranças não usam a data do último pagamento.
+  // Elas usam a validade/vencimento fixo do cliente.
+  return user?.iptv_expiry || user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(new Date());
+};
+
+export const getFirstCycleStartDate = (user: any) => {
+  // Para o 1º pagamento proporcional, a base deve ser o cadastro do usuário.
+  // Se não houver cadastro, usa billing_cycle_started_at; se não houver, hoje.
+  return user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(new Date());
+};
+
+export const addBillingMonthsByFixedDay = (from: Date, months: number, fixedDay: number) => {
+  const base = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const targetMonth = base.getMonth() + Math.max(1, Number(months) || 1);
+  return makeBillingDate(base.getFullYear(), targetMonth, fixedDay);
+};
+
+export const getFixedBillingCycleStartDate = (user: any, dueDay: number) => {
+  // Depois do 1º proporcional, a base da próxima cobrança é SEMPRE
+  // o vencimento fixo configurado para o cliente, não a data que ele pagou.
+  if (user?.iptv_expiry) return user.iptv_expiry;
+  return toDateOnlyString(getNextBillingDueDate(new Date(), dueDay));
 };

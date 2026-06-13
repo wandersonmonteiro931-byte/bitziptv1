@@ -27,11 +27,14 @@ import { Progress } from "@/components/ui/progress";
 import { useAppBranding } from "@/hooks/useAppBranding";
 import { getFhdImageUrl, preloadFhdImage } from "@/lib/imageQuality";
 import {
+  addBillingMonthsByFixedDay,
   addDays,
   calculateFirstCycleCharge,
   formatDateBR,
   getBillingGraceDays,
   getNextBillingDueDate,
+  getFirstCycleStartDate,
+  getFixedBillingCycleStartDate,
   parseDateOnly,
   pickBillingDueDate,
   toDateOnlyString,
@@ -730,6 +733,7 @@ type PixModalData = {
   periodEndOverride?: string;
   firstCycle?: boolean;
   notes?: string;
+  billingDueDay?: number;
 };
 
 function PixModal({
@@ -761,23 +765,22 @@ function PixModal({
       setLoading(true);
       setError(null);
       try {
-        // Usa data calculada pelo ciclo de cobrança quando for proporcional.
-        let baseExpiry: Date;
-        if (pixModal.periodStartOverride) {
-          baseExpiry = parseDateOnly(pixModal.periodStartOverride);
-        } else if (user?.iptv_expiry) {
-          baseExpiry = parseDateOnly(user.iptv_expiry);
+        // Base correta da cobrança:
+        // 1º mês proporcional: cadastro do usuário até o dia fixo configurado.
+        // Próximas cobranças: sempre do vencimento fixo atual para o próximo vencimento fixo.
+        // A data em que o cliente pagou NÃO muda o dia fixo de pagamento.
+        const dueDay = Number(pixModal.billingDueDay || user?.iptv_due_day || 10);
+
+        let periodStart: Date;
+        let periodEndDate: Date;
+
+        if (pixModal.periodStartOverride && pixModal.periodEndOverride) {
+          periodStart = parseDateOnly(pixModal.periodStartOverride);
+          periodEndDate = parseDateOnly(pixModal.periodEndOverride);
         } else {
-          baseExpiry = new Date();
-        }
-
-        const periodStart = new Date(baseExpiry);
-        const periodEndDate = pixModal.periodEndOverride
-          ? parseDateOnly(pixModal.periodEndOverride)
-          : new Date(baseExpiry);
-
-        if (!pixModal.periodEndOverride) {
-          periodEndDate.setMonth(periodEndDate.getMonth() + pixModal.months);
+          const fixedCycleStart = getFixedBillingCycleStartDate(user, dueDay);
+          periodStart = parseDateOnly(fixedCycleStart);
+          periodEndDate = addBillingMonthsByFixedDay(periodStart, pixModal.months, dueDay);
         }
 
         const periodEndStr = toDateOnlyString(periodEndDate);
@@ -1480,7 +1483,8 @@ const ClientDashboard = () => {
   const connections = user?.iptv_connections || 1;
   const totalValue = monthlyValue * connections;
 
-  const billingCycleStart = user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(now);
+  const billingCycleStart = getFirstCycleStartDate(user);
+  const fixedCycleStart = getFixedBillingCycleStartDate(user, billingDueDay);
   const firstCycleCalc = calculateFirstCycleCharge(totalValue, billingCycleStart, billingDueDay);
   const firstCycleAlreadyPaid = Boolean(user?.billing_first_cycle_paid);
   const useFirstCycleProportional = !firstCycleAlreadyPaid && firstCycleCalc.isProportional;
@@ -1569,7 +1573,7 @@ const ClientDashboard = () => {
       } else if (renew === "6") {
         setPixModal({ months: 6, value: final6m, discount: discount6m });
       } else {
-        setPixModal({ months: 1, value: firstCycleRenewalValue, discount: 0 });
+        setPixModal({ months: 1, value: firstCycleRenewalValue, discount: 0, billingDueDay });
       }
 
       window.history.replaceState(null, "", `${location.pathname}${location.hash || ""}`);
@@ -1638,6 +1642,10 @@ const ClientDashboard = () => {
               {useFirstCycleProportional && (
                 <p className="mt-1 text-[11px] font-semibold text-red-300">
                   1º pagamento proporcional: R$ {firstCycleRenewalValue.toFixed(2)} por {firstCycleCalc.days} dia(s)
+                  <br />
+                  <span className="text-[10px] text-muted-foreground">
+                    Base: cadastro em {formatDateBR(parseDateOnly(billingCycleStart))}
+                  </span>
                 </p>
               )}
             </div>
@@ -1673,6 +1681,7 @@ const ClientDashboard = () => {
                   : undefined,
                 periodEndOverride: useFirstCycleProportional ? toDateOnlyString(firstCycleCalc.dueDate) : undefined,
                 firstCycle: useFirstCycleProportional,
+                billingDueDay,
                 notes: useFirstCycleProportional
                   ? `Primeiro pagamento proporcional (${firstCycleCalc.days} dia(s)) até o vencimento unificado`
                   : undefined,
@@ -1810,7 +1819,7 @@ const ClientDashboard = () => {
           <motion.button
             type="button"
             {...renewalOptionMotion}
-            onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m })}
+            onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m, billingDueDay })}
             className="group relative overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-br from-[#111111] via-[#141414] to-[#0c0c0c] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/25 hover:shadow-[0_18px_40px_rgba(255,0,0,0.08)]"
           >
             <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500/80 to-red-600/0" />
@@ -1856,7 +1865,7 @@ const ClientDashboard = () => {
             type="button"
             {...renewalOptionMotion}
             transition={{ ...renewalOptionMotion.transition, delay: 0.4 }}
-            onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m })}
+            onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m, billingDueDay })}
             className="group relative overflow-hidden rounded-3xl border border-red-500/22 bg-gradient-to-br from-[#120b0b] via-[#151111] to-[#0d0d0d] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/35 hover:shadow-[0_20px_44px_rgba(255,0,0,0.12)]"
           >
             <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500 to-red-600/0" />

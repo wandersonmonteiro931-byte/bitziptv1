@@ -8,63 +8,6 @@ const corsHeaders = {
 
 const roundMoney = (v: number) => Math.round(v * 100) / 100;
 
-const PROFILE_UPDATE_FIELDS = new Set([
-  "name",
-  "username",
-  "status",
-  "pix_key",
-  "balance_frozen",
-  "credit_purchases_blocked",
-  "vip_badge",
-  "user_level",
-  "iptv_user",
-  "iptv_server",
-  "iptv_app",
-  "iptv_tv_app",
-  "iptv_status",
-  "iptv_status_before_event",
-  "iptv_monthly_value",
-  "iptv_connections",
-  "iptv_due_day",
-  "iptv_client_code",
-  "iptv_password",
-  "iptv_expiry",
-  "billing_due_date_id",
-  "billing_cycle_started_at",
-  "billing_first_cycle_paid",
-  "billing_first_cycle_prorated_amount",
-  "billing_grace_days_override",
-  "admin_notes",
-  "admin_notes_urgent",
-]);
-
-const cleanProfileUpdateData = (raw: Record<string, unknown>) => {
-  const cleaned: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(raw || {})) {
-    if (!PROFILE_UPDATE_FIELDS.has(key)) continue;
-    cleaned[key] = value;
-  }
-
-  for (const key of ["billing_due_date_id"] as const) {
-    if (cleaned[key] === "") cleaned[key] = null;
-  }
-
-  for (const key of ["iptv_expiry", "billing_cycle_started_at"] as const) {
-    if (cleaned[key] === "") cleaned[key] = null;
-  }
-
-  for (const key of ["billing_first_cycle_prorated_amount", "billing_grace_days_override"] as const) {
-    if (cleaned[key] === "") cleaned[key] = null;
-  }
-
-  for (const key of ["iptv_monthly_value", "iptv_connections", "iptv_due_day"] as const) {
-    if (cleaned[key] === "") delete cleaned[key];
-  }
-
-  return cleaned;
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -251,31 +194,13 @@ Deno.serve(async (req) => {
           .select("iptv_status, iptv_user, username")
           .eq("id", user_id)
           .single();
-        if (!currentProfile) throw new Error("Cliente não encontrado.");
         const previousStatus = currentProfile?.iptv_status;
 
-        const updateData = cleanProfileUpdateData(data || {});
+        const updateData = { ...(data || {}) };
 
         // REGRA FIXA: username/login sempre igual ao Usuário IPTV.
-        const submittedIptvUser = typeof updateData.iptv_user === "string" ? updateData.iptv_user.trim() : "";
-        const iptvUserChanged = submittedIptvUser && submittedIptvUser !== String(currentProfile.iptv_user || "").trim();
-
-        if (iptvUserChanged) {
-          const loginIdentifier = submittedIptvUser;
-          const { data: duplicateProfile } = await supabaseAdmin
-            .from("profiles")
-            .select("id, name, iptv_client_code")
-            .eq("username", loginIdentifier)
-            .neq("id", user_id)
-            .limit(1)
-            .maybeSingle();
-
-          if (duplicateProfile) {
-            throw new Error(
-              `Usuário IPTV já está em uso por ${duplicateProfile.name || duplicateProfile.iptv_client_code || "outro cliente"}. Escolha outro usuário.`,
-            );
-          }
-
+        if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
+          const loginIdentifier = updateData.iptv_user.trim();
           updateData.username = loginIdentifier;
 
           const loginEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
@@ -287,8 +212,6 @@ Deno.serve(async (req) => {
           if (authEmailError) {
             throw new Error(`Erro ao atualizar login do cliente: ${authEmailError.message}`);
           }
-        } else {
-          delete updateData.username;
         }
 
         if (updateData.billing_due_date_id) {
@@ -318,7 +241,21 @@ Deno.serve(async (req) => {
               return due.toISOString().split("T")[0];
             };
 
-            updateData.iptv_expiry = makeDueDate(now, day);
+            const { data: profileBillingBase } = await supabaseAdmin
+              .from("profiles")
+              .select("iptv_expiry, billing_cycle_started_at, created_at")
+              .eq("id", user_id)
+              .maybeSingle();
+
+            const baseDate = profileBillingBase?.iptv_expiry
+              ? new Date(`${profileBillingBase.iptv_expiry}T00:00:00`)
+              : profileBillingBase?.billing_cycle_started_at
+                ? new Date(`${profileBillingBase.billing_cycle_started_at}T00:00:00`)
+                : profileBillingBase?.created_at
+                  ? new Date(profileBillingBase.created_at)
+                  : now;
+
+            updateData.iptv_expiry = makeDueDate(baseDate, day);
           }
         }
 
@@ -330,10 +267,6 @@ Deno.serve(async (req) => {
           if (authPwdError) {
             throw new Error(`Erro ao atualizar senha do cliente: ${authPwdError.message}`);
           }
-        }
-
-        if (Object.keys(updateData).length === 0) {
-          throw new Error("Nenhum campo válido para atualizar.");
         }
 
         const { error } = await supabaseAdmin.from("profiles").update(updateData).eq("id", user_id);
@@ -1539,7 +1472,6 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("admin-manage-user error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
