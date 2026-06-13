@@ -6,6 +6,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const brDateOnly = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value || "01";
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  const year = parts.find((part) => part.type === "year")?.value || String(date.getFullYear());
+
+  return `${year}-${month}-${day}`;
+};
+
 const roundMoney = (v: number) => Math.round(v * 100) / 100;
 
 Deno.serve(async (req) => {
@@ -225,7 +240,7 @@ Deno.serve(async (req) => {
             const day = Number(selectedDue.day_of_month);
             updateData.iptv_due_day = day;
 
-            const now = new Date();
+            const now = new Date(`${brDateOnly(new Date())}T00:00:00`);
             const makeDueDate = (from: Date, dueDay: number) => {
               const y = from.getFullYear();
               const m = from.getMonth();

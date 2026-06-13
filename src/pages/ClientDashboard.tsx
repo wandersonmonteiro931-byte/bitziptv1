@@ -37,6 +37,7 @@ import {
   getFixedBillingCycleStartDate,
   parseDateOnly,
   pickBillingDueDate,
+  toBrazilDateOnlyString,
   toDateOnlyString,
 } from "@/lib/billing";
 
@@ -1459,7 +1460,7 @@ const ClientDashboard = () => {
     }
   };
 
-  const now = new Date();
+  const now = parseDateOnly(toBrazilDateOnlyString(new Date()));
   const selectedBillingDueDate = pickBillingDueDate(billingDueDates, user);
   const billingDueDay = Number(selectedBillingDueDate?.day_of_month || user?.iptv_due_day || 10);
   const billingGraceDays = getBillingGraceDays(selectedBillingDueDate, user, 5);

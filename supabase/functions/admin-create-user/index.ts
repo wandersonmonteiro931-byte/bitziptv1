@@ -5,6 +5,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const brDateOnly = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value || "01";
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  const year = parts.find((part) => part.type === "year")?.value || String(date.getFullYear());
+
+  return `${year}-${month}-${day}`;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -189,8 +204,9 @@ Deno.serve(async (req) => {
       return due.toISOString().split("T")[0];
     };
 
-    const billingStart = new Date().toISOString().split("T")[0];
-    const calculatedExpiry = makeDueDate(new Date(), selectedDueDay);
+    const billingStart = brDateOnly(new Date());
+    // O primeiro proporcional começa no dia do cadastro do usuário em data comercial do Brasil.
+    const calculatedExpiry = makeDueDate(new Date(billingStart + "T00:00:00"), selectedDueDay);
 
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({

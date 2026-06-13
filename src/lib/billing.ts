@@ -16,6 +16,25 @@ export type FirstCycleCalculation = {
 
 export const clampBillingDay = (day: number) => Math.max(1, Math.min(31, Number(day) || 10));
 
+export const BILLING_TIME_ZONE = "America/Sao_Paulo";
+
+export const toBrazilDateOnlyString = (value: Date | string = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: BILLING_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value || "01";
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  const year = parts.find((part) => part.type === "year")?.value || String(new Date().getFullYear());
+
+  return `${year}-${month}-${day}`;
+};
+
 export const toDateOnlyString = (date: Date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -23,11 +42,25 @@ export const toDateOnlyString = (date: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-export const parseDateOnly = (value?: string | null) => {
-  if (!value) return new Date();
+export const normalizeBillingDateOnly = (value?: string | null) => {
+  if (!value) return toBrazilDateOnlyString(new Date());
 
-  const [y, m, d] = String(value).split("T")[0].split("-").map(Number);
-  if (!y || !m || !d) return new Date();
+  const raw = String(value).trim();
+  if (!raw) return toBrazilDateOnlyString(new Date());
+
+  // created_at vem em UTC do Supabase. Ex: 13/06 02:00 UTC ainda é 12/06 no Brasil.
+  // Para cobrança, sempre converte timestamp para data comercial do Brasil.
+  if (raw.includes("T")) {
+    return toBrazilDateOnlyString(raw);
+  }
+
+  return raw.slice(0, 10);
+};
+
+export const parseDateOnly = (value?: string | null) => {
+  const normalized = normalizeBillingDateOnly(value);
+  const [y, m, d] = normalized.split("-").map(Number);
+  if (!y || !m || !d) return parseDateOnly(toBrazilDateOnlyString(new Date()));
 
   return new Date(y, m - 1, d);
 };
@@ -111,13 +144,22 @@ export const getBillingGraceDays = (dueDate: BillingDueDate | null, user: any, f
 export const getBillingCycleStartDate = (user: any) => {
   // Compatibilidade: próximas cobranças não usam a data do último pagamento.
   // Elas usam a validade/vencimento fixo do cliente.
-  return user?.iptv_expiry || user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(new Date());
+  return normalizeBillingDateOnly(
+    user?.iptv_expiry || user?.billing_cycle_started_at || user?.created_at || toBrazilDateOnlyString(new Date()),
+  );
 };
 
 export const getFirstCycleStartDate = (user: any) => {
-  // Para o 1º pagamento proporcional, a base deve ser o cadastro do usuário.
-  // Se não houver cadastro, usa billing_cycle_started_at; se não houver, hoje.
-  return user?.billing_cycle_started_at || user?.created_at || toDateOnlyString(new Date());
+  // Para o 1º pagamento proporcional, a base correta é o dia de cadastro do usuário.
+  // created_at é timestamp UTC; convertemos para data do Brasil para não virar "amanhã".
+  const today = parseDateOnly(toBrazilDateOnlyString(new Date()));
+  const rawBase = user?.created_at || user?.billing_cycle_started_at || toBrazilDateOnlyString(new Date());
+  const base = parseDateOnly(rawBase);
+
+  // Proteção contra UTC virar dia seguinte no Brasil.
+  if (base > today) return toBrazilDateOnlyString(today);
+
+  return toDateOnlyString(base);
 };
 
 export const addBillingMonthsByFixedDay = (from: Date, months: number, fixedDay: number) => {
@@ -129,6 +171,6 @@ export const addBillingMonthsByFixedDay = (from: Date, months: number, fixedDay:
 export const getFixedBillingCycleStartDate = (user: any, dueDay: number) => {
   // Depois do 1º proporcional, a base da próxima cobrança é SEMPRE
   // o vencimento fixo configurado para o cliente, não a data que ele pagou.
-  if (user?.iptv_expiry) return user.iptv_expiry;
-  return toDateOnlyString(getNextBillingDueDate(new Date(), dueDay));
+  if (user?.iptv_expiry) return normalizeBillingDateOnly(user.iptv_expiry);
+  return toDateOnlyString(getNextBillingDueDate(parseDateOnly(toBrazilDateOnlyString(new Date())), dueDay));
 };
