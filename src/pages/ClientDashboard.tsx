@@ -1244,6 +1244,14 @@ const ClientDashboard = () => {
     };
     loadData();
 
+    const billingDatesChannel = supabase
+      .channel("billing-due-dates-dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "billing_due_dates" }, () => {
+        loadData();
+        refreshProfile();
+      })
+      .subscribe();
+
     // Check trust request status
     const checkTrustStatus = async () => {
       if (!user?.id) return;
@@ -1327,6 +1335,7 @@ const ClientDashboard = () => {
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(billingDatesChannel);
     };
   }, [user?.id]);
 
@@ -1499,6 +1508,8 @@ const ClientDashboard = () => {
 
   const formattedDueDate = formatDateBR(dueDate);
   const formattedBlockDate = formatDateBR(blockAfterDate);
+  const fixedBillingLabel = `Todo dia ${billingDueDay}`;
+  const fixedBillingSubtitle = `Próxima cobrança: ${formattedDueDate}`;
 
   // Progress bar: 30 days cycle
   const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
@@ -1740,7 +1751,9 @@ const ClientDashboard = () => {
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Validade</span>
             <div className="text-right">
-              <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
+              <span className="text-sm font-semibold text-red-300">{fixedBillingLabel}</span>
+              <p className="text-[10px] text-muted-foreground">{fixedBillingSubtitle}</p>
+              <p className="text-[10px] text-muted-foreground">Limite: {billingGraceDays} dia(s) corridos</p>
               {pendingFutureExpiry && <p className="text-[10px] text-blue-400 mt-0.5">Nova: {pendingFutureExpiry}</p>}
             </div>
           </div>

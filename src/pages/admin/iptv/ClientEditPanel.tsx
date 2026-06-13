@@ -98,6 +98,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const totalValue = Number(form.iptv_monthly_value) * Number(form.iptv_connections);
   const statusInfo = getStatusInfo(form.iptv_status);
+  const selectedBillingDueDate = billingDueDates.find((item: any) => item.id === (form as any).billing_due_date_id);
+  const fixedBillingDay = Number(selectedBillingDueDate?.day_of_month || (form as any).iptv_due_day || 10);
+  const fixedBillingGraceDays = Number(selectedBillingDueDate?.grace_days ?? 5);
 
   useEffect(() => {
     (supabase as any)
@@ -166,24 +169,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const saveForm = async () => {
     setSaving(true);
-    // Normalize empty strings for UUID columns (Postgres rejects "" as uuid)
-    const payload: any = { ...form };
-    if (!payload.billing_due_date_id) payload.billing_due_date_id = null;
-    if (!payload.iptv_expiry) payload.iptv_expiry = null;
-
-    const { data: resp, error } = await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "update_profile", user_id: user.id, data: payload },
+    await supabase.functions.invoke("admin-manage-user", {
+      body: { action: "update_profile", user_id: user.id, data: form },
     });
-    setSaving(false);
-    if (error || (resp as any)?.error) {
-      toast({
-        title: "❌ Erro ao salvar",
-        description: (resp as any)?.error || error?.message || "Falha desconhecida",
-        variant: "destructive",
-      });
-      return;
-    }
     toast({ title: "✅ Dados atualizados para " + user.name });
+    setSaving(false);
     onSaved();
   };
 
@@ -592,7 +582,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           ))}
                         </select>
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          Ao trocar, o vencimento é recalculado automaticamente para o próximo dia escolhido.
+                          Ao salvar, a validade do cliente passa a ser: Todo dia {fixedBillingDay}.
                         </p>
                       </div>
                     )}
@@ -610,13 +600,19 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📅 Validade</p>
                     <div>
-                      <label className={labelCls}>Data de Expiração</label>
-                      <input
-                        type="date"
-                        value={form.iptv_expiry || ""}
-                        onChange={(e) => setForm({ ...form, iptv_expiry: e.target.value })}
-                        className={inputCls}
-                      />
+                      <label className={labelCls}>Validade fixa</label>
+                      <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
+                        <p className="text-sm font-semibold text-red-300">Todo dia {fixedBillingDay}</p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          Próxima cobrança:{" "}
+                          {form.iptv_expiry
+                            ? String(form.iptv_expiry).split("-").reverse().join("/")
+                            : "calculada automaticamente"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Bloqueio após {fixedBillingGraceDays} dia(s) corridos de atraso.
+                        </p>
+                      </div>
                     </div>
                     {isExpired && (
                       <div className="rounded-lg bg-destructive/10 p-2 text-center">

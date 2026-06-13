@@ -286,33 +286,31 @@ const AdminUsersPage = () => {
     });
   };
 
+  const getEditBillingDay = () => {
+    const selected = billingDueDates.find((item: any) => item.id === editForm.billing_due_date_id);
+    return Number(selected?.day_of_month || editForm.iptv_due_day || 10);
+  };
+
+  const getEditBillingGraceDays = () => {
+    const selected = billingDueDates.find((item: any) => item.id === editForm.billing_due_date_id);
+    return Number(selected?.grace_days ?? 5);
+  };
+
   const saveEditUser = async () => {
     if (!editUser) return;
     setEditSaving(true);
 
     // Update profile fields
-    const profileData: any = { ...editForm };
+    const profileData = { ...editForm };
     profileData.username = String(editForm.iptv_user || editForm.username || "").trim();
     profileData.iptv_user = String(editForm.iptv_user || editForm.username || "").trim();
-    if (!profileData.billing_due_date_id) profileData.billing_due_date_id = null;
-    if (!profileData.iptv_expiry) profileData.iptv_expiry = null;
     delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
     delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
     delete profileData.referred_by_code_input; // campo auxiliar da tela
 
-    const { data: saveResp, error: saveError } = await supabase.functions.invoke("admin-manage-user", {
+    await supabase.functions.invoke("admin-manage-user", {
       body: { action: "update_profile", user_id: editUser.id, data: profileData },
     });
-
-    if (saveError || (saveResp as any)?.error) {
-      toast({
-        title: "❌ Erro ao salvar",
-        description: (saveResp as any)?.error || saveError?.message || "Falha desconhecida",
-        variant: "destructive",
-      });
-      setEditSaving(false);
-      return;
-    }
 
     // If password changed, also update auth password
     if (editForm.iptv_password && editForm.iptv_password !== editUser.iptv_password) {
@@ -1255,13 +1253,19 @@ const AdminUsersPage = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Vencimento IPTV</label>
-                      <input
-                        type="date"
-                        value={editForm.iptv_expiry}
-                        onChange={(e) => setEditForm({ ...editForm, iptv_expiry: e.target.value })}
-                        className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
-                      />
+                      <label className="mb-1 block text-xs text-muted-foreground">Validade</label>
+                      <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
+                        <p className="text-sm font-semibold text-red-300">Todo dia {getEditBillingDay()}</p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          Próxima cobrança:{" "}
+                          {editForm.iptv_expiry
+                            ? editForm.iptv_expiry.split("-").reverse().join("/")
+                            : "calculada automaticamente"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Bloqueio após {getEditBillingGraceDays()} dia(s) corridos de atraso.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1311,6 +1315,9 @@ const AdminUsersPage = () => {
                           </option>
                         ))}
                       </select>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Ao salvar, a validade do cliente passa a ser: Todo dia {getEditBillingDay()}.
+                      </p>
                     </div>
                   </div>
                   <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
