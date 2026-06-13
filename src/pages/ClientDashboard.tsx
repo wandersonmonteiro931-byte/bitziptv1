@@ -1645,7 +1645,7 @@ const ClientDashboard = () => {
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">Plano IPTV</p>
+              <p className="text-xs text-muted-foreground">Meu plano</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
                 R$ {totalValue.toFixed(2)}
                 <span className="text-sm font-normal text-muted-foreground"> / mês</span>
