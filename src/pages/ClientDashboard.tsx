@@ -1265,60 +1265,6 @@ function PixModal({
   );
 }
 
-// --- Pending Activation Banner ---
-function PendingActivationBanner({ userId, effectiveStatus }: { userId: string | undefined; effectiveStatus: string }) {
-  const [futureExpiry, setFutureExpiry] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const { data } = await supabase
-        .from("iptv_payments")
-        .select("period_end")
-        .eq("user_id", userId)
-        .eq("status", "paid_pending_activation")
-        .order("period_end", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.period_end) {
-        const [y, m, d] = data.period_end.split("-").map(Number);
-        setFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
-      } else {
-        setFutureExpiry(null);
-      }
-    };
-    load();
-
-    const channel = supabase
-      .channel("pending-activation-banner")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
-        load();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
-
-  if (effectiveStatus !== "awaiting_activation" && !futureExpiry) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mx-0 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
-    >
-      <p className="text-xs font-medium text-blue-400">⏳ Aguardando liberação do suporte</p>
-      <p className="mt-0.5 text-[10px] text-muted-foreground">
-        Seu pagamento foi recebido. O suporte está atualizando seu servidor. Em média leva menos de 2 horas.
-      </p>
-      {futureExpiry && (
-        <p className="mt-2 text-xs font-semibold text-blue-300">Sua nova data de vencimento será: {futureExpiry}</p>
-      )}
-    </motion.div>
-  );
-}
-
 // --- Main Dashboard ---
 const ClientDashboard = () => {
   const { user, refreshProfile } = useAuth();
