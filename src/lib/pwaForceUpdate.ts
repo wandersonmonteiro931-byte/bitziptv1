@@ -98,6 +98,9 @@ export async function forcePwaUpdateAndReload() {
 
   sessionStorage.removeItem(UPDATE_HANDLED_KEY);
   sessionStorage.removeItem(UPDATE_LOCK_UNTIL_KEY);
+  sessionStorage.removeItem("wmcflix_pwa_auto_update_attempt");
+  sessionStorage.removeItem("wmcflix_pwa_auto_update_reload_done");
+  sessionStorage.removeItem("wmcflix_pwa_rescue_reload_done");
 
   const [remoteBuild, swResult] = await Promise.all([
     fetchRemoteVersion(),
