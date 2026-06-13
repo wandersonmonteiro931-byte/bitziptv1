@@ -50,6 +50,7 @@ interface BannerItem {
   starts_at: string;
   ends_at: string | null;
   click_count: number;
+  display_duration_seconds: number | null;
   created_at: string;
 }
 
@@ -72,6 +73,7 @@ const AdminBannersPage = () => {
     sort_order: 0,
     starts_at: new Date().toISOString().slice(0, 16),
     ends_at: "",
+    display_duration_seconds: 5,
   });
 
   const load = async () => {
@@ -101,6 +103,7 @@ const AdminBannersPage = () => {
       sort_order: banners.length,
       starts_at: new Date().toISOString().slice(0, 16),
       ends_at: "",
+      display_duration_seconds: 5,
     });
     setShowForm(true);
   };
@@ -119,6 +122,7 @@ const AdminBannersPage = () => {
       sort_order: b.sort_order || 0,
       starts_at: b.starts_at ? b.starts_at.slice(0, 16) : "",
       ends_at: b.ends_at ? b.ends_at.slice(0, 16) : "",
+      display_duration_seconds: Number(b.display_duration_seconds || 5),
     });
     setShowForm(true);
   };
@@ -160,6 +164,7 @@ const AdminBannersPage = () => {
       sort_order: form.sort_order,
       starts_at: form.starts_at || new Date().toISOString(),
       ends_at: form.ends_at || null,
+      display_duration_seconds: Math.max(2, Math.min(60, Number(form.display_duration_seconds || 5))),
     };
     if (editing) {
       await supabase.from("content").update(payload).eq("id", editing.id);
@@ -367,7 +372,7 @@ const AdminBannersPage = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-muted-foreground">Público-alvo</label>
                     <select
@@ -388,6 +393,18 @@ const AdminBannersPage = () => {
                       onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) })}
                       className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                     />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Tempo do slide (seg)</label>
+                    <input
+                      type="number"
+                      min="2"
+                      max="60"
+                      value={form.display_duration_seconds}
+                      onChange={(e) => setForm({ ...form, display_duration_seconds: Number(e.target.value) })}
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    />
+                    <p className="mt-1 text-[10px] text-muted-foreground">Tempo para este banner passar. Padrão: 5s.</p>
                   </div>
                 </div>
 
@@ -468,6 +485,9 @@ const AdminBannersPage = () => {
                       </span>
                       <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
                         <Eye size={10} /> {b.click_count || 0}
+                      </span>
+                      <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] text-red-300">
+                        {Number(b.display_duration_seconds || 5)}s por slide
                       </span>
                     </div>
                   </div>
