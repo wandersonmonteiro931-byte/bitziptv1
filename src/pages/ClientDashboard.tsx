@@ -233,9 +233,11 @@ function BannerCarousel() {
   const [banners, setBanners] = useState<any[]>([]);
   const [current, setCurrent] = useState(0);
   const [loadedIds, setLoadedIds] = useState<Set<string>>(new Set());
+  const [imageRatios, setImageRatios] = useState<Record<string, number>>({});
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef(0);
   const loadedIdsRef = useRef<Set<string>>(new Set());
+  const ratiosRef = useRef<Record<string, number>>({});
 
   const markLoaded = useCallback((id: string) => {
     setLoadedIds((prev) => {
@@ -247,19 +249,66 @@ function BannerCarousel() {
     });
   }, []);
 
+  const saveRatio = useCallback((id: string, width?: number, height?: number) => {
+    if (!id || !width || !height) return;
+    const ratio = Math.max(0.35, Math.min(3.2, width / height));
+
+    ratiosRef.current = { ...ratiosRef.current, [id]: ratio };
+    setImageRatios((prev) => (prev[id] ? prev : { ...prev, [id]: ratio }));
+  }, []);
+
   const preloadBanner = useCallback(
-    async (banner: any) => {
-      if (!banner) return;
+    (banner: any) => {
+      if (!banner) return Promise.resolve(false);
 
       if (!banner.banner_url) {
         markLoaded(banner.id);
-        return;
+        return Promise.resolve(true);
       }
 
-      await preloadFhdImage(banner.banner_url, 1600);
-      markLoaded(banner.id);
+      if (loadedIdsRef.current.has(banner.id) && ratiosRef.current[banner.id]) {
+        return Promise.resolve(true);
+      }
+
+      return new Promise<boolean>((resolve) => {
+        const src = optimizeImageUrl(banner.banner_url);
+        const img = new Image();
+        let done = false;
+
+        const finish = (ok: boolean) => {
+          if (done) return;
+          done = true;
+
+          if (ok) {
+            saveRatio(banner.id, img.naturalWidth || 16, img.naturalHeight || 9);
+            markLoaded(banner.id);
+          }
+
+          resolve(ok);
+        };
+
+        img.onload = () => {
+          if ("decode" in img) {
+            img
+              .decode()
+              .then(() => finish(true))
+              .catch(() => finish(true));
+          } else {
+            finish(true);
+          }
+        };
+
+        img.onerror = () => finish(false);
+        img.decoding = "async";
+        img.src = src;
+
+        // Fallback: deixa o preload util trabalhar também, mas não troca slide até o Image.onload.
+        void preloadFhdImage(banner.banner_url, 1800);
+
+        setTimeout(() => finish(false), 3500);
+      });
     },
-    [markLoaded],
+    [markLoaded, saveRatio],
   );
 
   const goToSlide = useCallback(
@@ -269,16 +318,13 @@ function BannerCarousel() {
       const normalizedIndex = (targetIndex + banners.length) % banners.length;
       const nextBanner = banners[normalizedIndex];
 
-      // Nunca troca para imagem ainda carregando. Isso evita piscar preto.
-      if (!loadedIdsRef.current.has(nextBanner.id)) {
-        await preloadBanner(nextBanner);
-      }
-
-      if (!loadedIdsRef.current.has(nextBanner.id)) return;
+      // Nunca troca para imagem ainda carregando. Isso evita piscar, tela preta e miniatura.
+      const ready = await preloadBanner(nextBanner);
+      if (!ready && nextBanner?.banner_url) return;
 
       setCurrent(normalizedIndex);
 
-      // Prepara a próxima imagem antes da transição seguinte.
+      // Prepara a próxima imagem antes da próxima transição.
       const afterNext = banners[(normalizedIndex + 1) % banners.length];
       void preloadBanner(afterNext);
     },
@@ -300,9 +346,11 @@ function BannerCarousel() {
         setBanners(active);
         setCurrent(0);
         setLoadedIds(new Set());
+        setImageRatios({});
         loadedIdsRef.current = new Set();
+        ratiosRef.current = {};
 
-        // Carrega todas em FHD em paralelo, sem cortar e sem perder qualidade.
+        // Carrega todas em FHD em paralelo. A primeira só aparece quando já estiver pronta.
         active.forEach((banner: any) => void preloadBanner(banner));
       });
   }, [preloadBanner]);
@@ -310,6 +358,10 @@ function BannerCarousel() {
   useEffect(() => {
     loadedIdsRef.current = loadedIds;
   }, [loadedIds]);
+
+  useEffect(() => {
+    ratiosRef.current = imageRatios;
+  }, [imageRatios]);
 
   useEffect(() => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -329,7 +381,8 @@ function BannerCarousel() {
 
   if (banners.length === 0) return null;
 
-  const firstReady = banners.length > 0 && loadedIds.has(banners[0].id);
+  const firstReady =
+    banners.length > 0 && loadedIds.has(banners[0].id) && Boolean(imageRatios[banners[0].id] || !banners[0].banner_url);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartRef.current = e.touches[0].clientX;
@@ -342,8 +395,8 @@ function BannerCarousel() {
     }
   };
 
-  // Antes da primeira imagem estar pronta, mantém espaço limpo.
-  // Depois disso, nunca mostra placeholder preto entre slides.
+  // Antes da primeira imagem estar pronta, mantém só espaço transparente.
+  // Depois disso, nunca mostra placeholder preto nem miniatura.
   if (!firstReady) {
     return (
       <div className="mx-4 mt-2 mb-4">
@@ -353,6 +406,7 @@ function BannerCarousel() {
   }
 
   const banner = banners[current] || banners[0];
+  const currentRatio = imageRatios[banner.id] || 16 / 9;
 
   const openBannerDestination = (raw?: string) => {
     const destination = String(raw || "").trim();
@@ -392,35 +446,29 @@ function BannerCarousel() {
         className={`block w-full ${banner.redirect_url ? "cursor-pointer" : "cursor-default"}`}
       >
         <div
-          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-transparent"
-          style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
+          className="relative mx-auto flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-transparent"
+          style={{
+            aspectRatio: String(currentRatio),
+            maxHeight: "70vh",
+            maxWidth: `min(100%, calc(70vh * ${currentRatio}))`,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+          }}
         >
           <AnimatePresence mode="sync" initial={false}>
-            <motion.div
+            <motion.img
               key={banner.id}
+              src={optimizeImageUrl(banner.banner_url)}
+              alt={banner.title}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+              draggable={false}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.65, ease: "easeInOut" }}
-              className="flex w-full items-center justify-center rounded-[20px] bg-transparent"
-            >
-              {banner.banner_url ? (
-                <img
-                  src={optimizeImageUrl(banner.banner_url)}
-                  alt={banner.title}
-                  loading="eager"
-                  decoding="async"
-                  fetchPriority="high"
-                  className="block h-auto max-h-[70vh] w-auto max-w-full rounded-[20px] object-contain"
-                  draggable={false}
-                />
-              ) : (
-                <div className="flex min-h-40 w-full flex-col items-center justify-center rounded-[20px] bg-black/70 p-6">
-                  <p className="text-center text-sm font-semibold text-foreground">{banner.title}</p>
-                  {banner.body && <p className="mt-1 text-center text-xs text-muted-foreground">{banner.body}</p>}
-                </div>
-              )}
-            </motion.div>
+              transition={{ duration: 0.7, ease: "easeInOut" }}
+              className="absolute inset-0 h-full w-full rounded-[20px] object-contain"
+            />
           </AnimatePresence>
         </div>
       </button>
@@ -430,6 +478,7 @@ function BannerCarousel() {
           {banners.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => void goToSlide(i)}
               className={`h-1 rounded-full transition-all duration-300 ${i === current ? "w-5 bg-primary/60" : "w-1.5 bg-muted-foreground/15"}`}
             />
@@ -489,728 +538,6 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
       {futureExpiry && (
         <p className="mt-2 text-xs font-semibold text-blue-300">Sua nova data de vencimento será: {futureExpiry}</p>
       )}
-    </motion.div>
-  );
-}
-
-function AccessDataBlock({ user }: { user: any }) {
-  const [revealed, setRevealed] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const reveal = useCallback(() => {
-    setConfirming(false);
-    setRevealed(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setRevealed(false), 60000);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  const maskUser = (val: string) => {
-    if (!val || val.length <= 4) return val || "—";
-    return val.slice(0, 4) + "•".repeat(Math.min(val.length - 4, 6));
-  };
-
-  const clientCode = user?.iptv_client_code || "—";
-  const iptvUser = user?.iptv_user || "—";
-  const iptvPass = user?.iptv_password || "—";
-
-  return (
-    <motion.div
-      id="dados-acesso"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-black/90 p-5"
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Lock size={13} /> Dados de Acesso
-        </div>
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-          <Shield size={9} /> Protegido
-        </span>
-      </div>
-
-      <div className="space-y-2">
-        {[
-          { label: "Código do Cliente", value: clientCode, masked: "••••••••" },
-          { label: "Usuário", value: iptvUser, masked: maskUser(iptvUser) },
-          { label: "Senha", value: iptvPass, masked: "••••••••••" },
-        ].map((field) => (
-          <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] text-muted-foreground">{field.label}</p>
-              <p className="truncate font-mono text-sm text-foreground">{revealed ? field.value : field.masked}</p>
-            </div>
-            {revealed && <CopyButton text={field.value} />}
-          </div>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {confirming ? (
-          <motion.div
-            key="confirm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4 flex items-center gap-2"
-          >
-            <button
-              onClick={reveal}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]"
-            >
-              <Eye size={16} /> Sim, mostrar
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="rounded-xl bg-black/80 px-4 py-2.5 text-sm text-muted-foreground"
-            >
-              Cancelar
-            </button>
-          </motion.div>
-        ) : revealed ? (
-          <motion.div
-            key="hide"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4"
-          >
-            <button
-              onClick={() => {
-                setRevealed(false);
-                if (timerRef.current) clearTimeout(timerRef.current);
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]"
-            >
-              <EyeOff size={16} /> Ocultar dados
-            </button>
-            <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="show"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4"
-          >
-            <button
-              onClick={() => setConfirming(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
-            >
-              <Eye size={16} /> Mostrar dados
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// --- Admin Notes ---
-function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
-  const [open, setOpen] = useState(false);
-  if (!notes) return null;
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]"
-      >
-        <div className="flex items-center gap-2">
-          <FileText size={14} className="text-muted-foreground" />
-          <span className="font-medium text-foreground">Observações</span>
-          {urgent && (
-            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
-              Atenção
-            </span>
-          )}
-        </div>
-        {open ? (
-          <ChevronUp size={16} className="text-muted-foreground" />
-        ) : (
-          <ChevronDown size={16} className="text-muted-foreground" />
-        )}
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}
-            >
-              <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
-              <button
-                onClick={() => setOpen(false)}
-                className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground"
-              >
-                Fechar
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// --- Payment History (Collapsible — from iptv_payments + balance_history) ---
-function PaymentHistory() {
-  const [payments, setPayments] = useState<any[]>([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-      const { data, error } = await (supabase as any)
-        .from("iptv_payments")
-        .select("*")
-        .in("status", ["confirmed", "paid_pending_activation"])
-        .order("payment_date", { ascending: false })
-        .limit(20);
-      if (!error) setPayments(data || []);
-    };
-    load();
-
-    // Realtime: reload when iptv_payments changes
-    const channel = supabase
-      .channel("payment-history-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
-        load();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  return (
-    <motion.div
-      id="faturas"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.45 }}
-    >
-      <button
-        onClick={() => setHistoryOpen(!historyOpen)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-black/90 px-5 py-3.5 text-sm active:opacity-80"
-      >
-        <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
-        <ChevronDown
-          size={16}
-          className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      <AnimatePresence>
-        {historyOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-1 rounded-2xl border border-border/30 bg-card/40 p-4">
-              {payments.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
-              ) : (
-                <div className="space-y-2">
-                  {payments.map((p) => {
-                    const date = new Date(p.payment_date);
-                    const formatted = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
-                    const endParts = p.period_end?.split("-");
-                    const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
-                    const isPendingActivation = p.status === "paid_pending_activation";
-                    return (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
-                      >
-                        <div>
-                          <p className="text-sm text-foreground">{formatted}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {p.months} mês(es) · até {endFormatted}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-0.5">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-foreground">
-                              R$ {Number(p.amount).toFixed(2)}
-                            </span>
-                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                              Pago
-                            </span>
-                          </div>
-                          {isPendingActivation && (
-                            <span className="text-[9px] text-blue-400">Aguardando liberação do suporte</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// --- TV App Mini Icons ---
-function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
-  const { appName, logoUrl } = useAppBranding();
-  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
-  const normalizedUserApp = String(userApp || "")
-    .trim()
-    .toLowerCase();
-  const visibleTvApps = [
-    { id: "wmcflix-oficial", name: appTitle, logoUrl, isOfficialWmcflix: true },
-    ...(Array.isArray(tvApps) ? tvApps : []).filter((app) => {
-      const name = String(app?.name || "")
-        .trim()
-        .toLowerCase();
-      return name !== "wmcflix" && name !== appTitle.toLowerCase();
-    }),
-  ];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-black/90 p-5"
-    >
-      <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
-      <div className="flex flex-wrap gap-2">
-        {visibleTvApps.map((app) => {
-          const appNameValue = String(app.name || "");
-          const normalizedAppName = appNameValue.trim().toLowerCase();
-          const isOfficial = !!app.isOfficialWmcflix;
-          const isActive = normalizedUserApp === normalizedAppName || (isOfficial && normalizedUserApp === "wmcflix");
-          const logo = isOfficial ? logoUrl : getAppLogoSrc(appNameValue);
-
-          return (
-            <div
-              key={app.id}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${
-                isActive
-                  ? "bg-red-500/10 text-red-300 font-medium ring-1 ring-red-500/20"
-                  : "bg-muted/15 text-muted-foreground/40"
-              }`}
-            >
-              {logo ? (
-                <img src={logo} alt={appNameValue} className="h-4 w-4 rounded-full object-contain bg-black" />
-              ) : (
-                <Tv size={12} />
-              )}
-              <span>{appNameValue}</span>
-            </div>
-          );
-        })}
-        {visibleTvApps.length === 0 && userApp && (
-          <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs text-red-300 font-medium">
-            {(() => {
-              const logo = normalizedUserApp === "wmcflix" ? logoUrl : getAppLogoSrc(userApp);
-              return logo ? (
-                <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain bg-black" />
-              ) : (
-                <Tv size={12} />
-              );
-            })()}
-            <span>{userApp}</span>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-// --- PIX Payment Modal ---
-type PixModalData = {
-  months: number;
-  value: number;
-  discount: number;
-  periodStartOverride?: string;
-  periodEndOverride?: string;
-  firstCycle?: boolean;
-  notes?: string;
-  billingDueDay?: number;
-};
-
-function PixModal({
-  pixModal,
-  onClose,
-  supportInfo,
-  user,
-}: {
-  pixModal: PixModalData;
-  onClose: (confirmed?: boolean) => void;
-  supportInfo: any;
-  user: any;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(3600);
-  const [loading, setLoading] = useState(true);
-  const [pixData, setPixData] = useState<{
-    qrcode: string;
-    qrcode_image: string;
-    txid: string;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
-  const { appName } = useAppBranding();
-  useEffect(() => {
-    const createCharge = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Base correta da cobrança:
-        // 1º mês proporcional: cadastro do usuário até o dia fixo configurado.
-        // Próximas cobranças: sempre do vencimento fixo atual para o próximo vencimento fixo.
-        // A data em que o cliente pagou NÃO muda o dia fixo de pagamento.
-        const dueDay = Number(pixModal.billingDueDay || user?.iptv_due_day || 10);
-
-        let periodStart: Date;
-        let periodEndDate: Date;
-
-        if (pixModal.periodStartOverride && pixModal.periodEndOverride) {
-          periodStart = parseDateOnly(pixModal.periodStartOverride);
-          periodEndDate = parseDateOnly(pixModal.periodEndOverride);
-        } else {
-          const fixedCycleStart = getFixedBillingCycleStartDate(user, dueDay);
-          periodStart = parseDateOnly(fixedCycleStart);
-          periodEndDate = addBillingMonthsByFixedDay(periodStart, pixModal.months, dueDay);
-        }
-
-        const periodEndStr = toDateOnlyString(periodEndDate);
-        setPeriodEnd(periodEndStr);
-
-        const { data: payment, error: insertError } = await supabase
-          .from("iptv_payments")
-          .insert({
-            user_id: user.id,
-            amount: pixModal.value,
-            months: pixModal.months,
-            period_start: periodStart.toISOString().split("T")[0],
-            period_end: periodEndStr,
-            status: "pending",
-            payment_method: "pix",
-            notes: pixModal.notes || `Renovação ${pixModal.months} mês(es) via PIX automático`,
-          })
-          .select("id")
-          .single();
-
-        if (insertError || !payment) {
-          throw new Error(insertError?.message || "Erro ao criar pagamento");
-        }
-
-        setPaymentId(payment.id);
-
-        const { data, error: fnError } = await supabase.functions.invoke("pix-efi/create-charge", {
-          body: {
-            payment_id: payment.id,
-            amount: pixModal.value,
-            devedor_nome: user.name || undefined,
-            descricao: `${appName} - ${pixModal.months} mês(es)`,
-          },
-        });
-
-        if (fnError || data?.error) {
-          throw new Error(data?.error || fnError?.message || "Erro ao gerar PIX");
-        }
-
-        setPixData(data);
-        setTimeLeft(data.expiracao || 3600);
-      } catch (err: any) {
-        console.error("PIX charge error:", err);
-        setError(err.message || "Erro ao gerar cobrança PIX");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    createCharge();
-  }, []);
-
-  // Poll every 1s checking DB + edge function for payment confirmation
-  useEffect(() => {
-    if (!paymentId || paymentConfirmed) return;
-
-    let active = true;
-
-    const checkPayment = async () => {
-      if (!active) return;
-
-      // 1. Always check DB first (fastest, most reliable)
-      try {
-        const { data } = await supabase.from("iptv_payments").select("status").eq("id", paymentId).maybeSingle();
-        if (data?.status && data.status !== "pending") {
-          if (active) setPaymentConfirmed(true);
-          return;
-        }
-      } catch (err) {
-        console.error("DB poll error:", err);
-      }
-
-      // 2. If still pending, actively check Efí API via edge function
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session) {
-          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            body: JSON.stringify({ payment_id: paymentId }),
-          });
-          if (resp.ok) {
-            const result = await resp.json();
-            if (result?.confirmed && active) {
-              setPaymentConfirmed(true);
-            }
-          }
-        }
-      } catch (err) {
-        // Edge function failed — DB check above is the fallback
-      }
-    };
-
-    // Check immediately, then every 1 second
-    checkPayment();
-    const poll = setInterval(checkPayment, 1000);
-
-    return () => {
-      active = false;
-      clearInterval(poll);
-    };
-  }, [paymentId, paymentConfirmed]);
-
-  useEffect(() => {
-    if (loading || error || paymentConfirmed) return;
-    const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [loading, error, paymentConfirmed]);
-
-  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
-  const copyPix = () => {
-    if (!pixData?.qrcode) return;
-    navigator.clipboard.writeText(pixData.qrcode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  // When closing without payment, delete the pending record
-  const handleClose = async () => {
-    if (!paymentConfirmed && paymentId) {
-      try {
-        await supabase.from("iptv_payments").delete().eq("id", paymentId).eq("status", "pending");
-      } catch (err) {
-        // ignore
-      }
-    }
-    onClose(paymentConfirmed);
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
-      onClick={handleClose}
-    >
-      <motion.div
-        initial={{ scale: 0.95, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.95, y: 20 }}
-        className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {paymentConfirmed ? (
-          (() => {
-            // Use period_end from the payment record (calculated at creation time based on iptv_expiry)
-            let formattedNewExpiry = "—";
-            if (periodEnd) {
-              const [y, m, d] = periodEnd.split("-").map(Number);
-              formattedNewExpiry = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
-            }
-
-            return (
-              <>
-                <div className="py-6 text-center">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                  >
-                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
-                      <Check size={40} className="text-emerald-400" />
-                    </div>
-                  </motion.div>
-                  <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">Seu pagamento foi confirmado com sucesso.</p>
-
-                  <div className="mt-4 rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nova data de validade</p>
-                    <p className="mt-1 text-lg font-bold text-foreground">{formattedNewExpiry}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      Renovação de {pixModal.months} {pixModal.months === 1 ? "mês" : "meses"}
-                    </p>
-                  </div>
-
-                  <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
-                    <p className="text-xs font-medium text-primary">✅ Nosso suporte já foi notificado!</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no
-                      servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>,
-                      no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará
-                      funcionando normalmente.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleClose}
-                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  Fechar
-                </button>
-              </>
-            );
-          })()
-        ) : (
-          <>
-            <div className="mb-5 text-center">
-              <p className="text-lg font-bold text-foreground">Pagamento PIX</p>
-              <p className="text-xs text-muted-foreground">
-                {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
-              </p>
-            </div>
-
-            <div className="mb-5 rounded-2xl bg-muted/15 p-5 text-center">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
-              <p className="mt-2 text-3xl font-bold text-foreground">R$ {pixModal.value.toFixed(2)}</p>
-              {pixModal.discount > 0 && (
-                <p className="mt-1 text-xs text-success">Você economiza R$ {pixModal.discount.toFixed(2)}</p>
-              )}
-            </div>
-
-            {loading ? (
-              <div className="mb-5 flex flex-col items-center justify-center py-8">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                <p className="mt-3 text-sm text-muted-foreground">Gerando cobrança PIX...</p>
-              </div>
-            ) : error ? (
-              <div className="mb-5 rounded-2xl bg-destructive/10 p-4 text-center">
-                <p className="text-sm text-destructive">{error}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Entre em contato com o suporte para pagamento manual.
-                </p>
-              </div>
-            ) : pixData ? (
-              <>
-                <div className="mb-5 flex justify-center">
-                  {pixData.qrcode_image ? (
-                    <img
-                      src={
-                        pixData.qrcode_image.startsWith("data:")
-                          ? pixData.qrcode_image
-                          : `data:image/png;base64,${pixData.qrcode_image}`
-                      }
-                      alt="QR Code PIX"
-                      className="h-40 w-40 rounded-2xl"
-                    />
-                  ) : (
-                    <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-black">
-                      <div className="text-center">
-                        <p className="text-3xl">📱</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-5">
-                  <p className="mb-2 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
-                  <button
-                    onClick={copyPix}
-                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.97] ${
-                      copied
-                        ? "bg-emerald-500 text-white"
-                        : "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
-                    }`}
-                  >
-                    {copied ? (
-                      <>
-                        <Check size={16} /> Código copiado!
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={16} /> Copiar código PIX
-                      </>
-                    )}
-                  </button>
-                  <p className="mt-2 truncate text-center font-mono text-[10px] text-muted-foreground/60">
-                    {pixData.qrcode}
-                  </p>
-                </div>
-
-                <div className="mb-5 rounded-xl bg-blue-500/10 px-4 py-3">
-                  <p className="text-[11px] text-blue-300 leading-relaxed text-center">
-                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos
-                    de <span className="font-semibold">2 horas</span>.
-                  </p>
-                </div>
-
-                <div className="mb-5 text-center">
-                  <p className="text-[10px] text-muted-foreground">Tempo restante</p>
-                  <p
-                    className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}
-                  >
-                    {formatTime(timeLeft)}
-                  </p>
-                </div>
-              </>
-            ) : null}
-
-            <button
-              onClick={handleClose}
-              className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground"
-            >
-              Fechar
-            </button>
-          </>
-        )}
-      </motion.div>
     </motion.div>
   );
 }
