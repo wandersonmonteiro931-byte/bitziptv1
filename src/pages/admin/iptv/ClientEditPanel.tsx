@@ -72,6 +72,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const [scheduledRates, setScheduledRates] = useState<any[]>([]);
   const [rateForm, setRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
   const [showRateForm, setShowRateForm] = useState(false);
+  const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
   const [editRateForm, setEditRateForm] = useState({ new_monthly_value: "", effective_date: "", notes: "" });
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
@@ -89,6 +90,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     iptv_password: user.iptv_password || "",
     iptv_app: user.iptv_app || "",
     iptv_expiry: user.iptv_expiry || "",
+    billing_due_date_id: user.billing_due_date_id || "",
     admin_notes: user.admin_notes || "",
     admin_notes_urgent: user.admin_notes_urgent || false,
     name: user.name || "",
@@ -96,6 +98,16 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const totalValue = Number(form.iptv_monthly_value) * Number(form.iptv_connections);
   const statusInfo = getStatusInfo(form.iptv_status);
+
+  useEffect(() => {
+    (supabase as any)
+      .from("billing_due_dates")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("day_of_month", { ascending: true })
+      .then(({ data }: any) => setBillingDueDates(data || []));
+  }, []);
   const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
   const tvAppOptions = useMemo(() => {
     const normalizedTitle = appTitle.toLowerCase();
@@ -491,7 +503,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         </select>
                         {selectedTvApp?.isOfficialWmcflix && (
                           <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
-                            <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain" />
+                            <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain bg-black" />
                             <span className="text-xs font-medium text-red-300">App oficial {appTitle}</span>
                           </div>
                         )}
@@ -544,6 +556,33 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         className={inputCls}
                       />
                     </div>
+                    {billingDueDates.length > 0 && (
+                      <div>
+                        <label className={labelCls}>Data de Pagamento</label>
+                        <select
+                          value={(form as any).billing_due_date_id || ""}
+                          onChange={(e) => {
+                            const selected = billingDueDates.find((item) => item.id === e.target.value);
+                            setForm({
+                              ...form,
+                              billing_due_date_id: e.target.value,
+                              iptv_due_day: selected?.day_of_month || (form as any).iptv_due_day,
+                            } as any);
+                          }}
+                          className={inputCls}
+                        >
+                          <option value="">Usar data padrão</option>
+                          {billingDueDates.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          Ao trocar, o vencimento é recalculado automaticamente para o próximo dia escolhido.
+                        </p>
+                      </div>
+                    )}
                     <div className="rounded-lg bg-primary/10 p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
@@ -1468,7 +1507,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       </select>
                       {selectedTvApp?.isOfficialWmcflix && (
                         <div className="mt-2 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
-                          <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain" />
+                          <img src={logoUrl} alt={appTitle} className="h-6 w-6 rounded-md object-contain bg-black" />
                           <span className="text-xs font-medium text-red-300">App oficial {appTitle}</span>
                         </div>
                       )}

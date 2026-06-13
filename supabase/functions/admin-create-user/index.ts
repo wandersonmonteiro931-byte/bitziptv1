@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       iptv_status,
       referred_by_code,
       admin_notes,
+      billing_due_date_id,
     } = body;
 
     if (!name || !username) {
@@ -141,6 +142,56 @@ Deno.serve(async (req) => {
       referredById = referrer.id;
     }
 
+    let billingDueDateId = billing_due_date_id || null;
+    let selectedDueDay = Number(body.iptv_due_day || 0);
+
+    if (billingDueDateId) {
+      const { data: selectedDue } = await supabaseAdmin
+        .from("billing_due_dates")
+        .select("id, day_of_month")
+        .eq("id", billingDueDateId)
+        .maybeSingle();
+
+      if (selectedDue) selectedDueDay = Number(selectedDue.day_of_month);
+      else billingDueDateId = null;
+    }
+
+    if (!billingDueDateId) {
+      const { data: defaultDue } = await supabaseAdmin
+        .from("billing_due_dates")
+        .select("id, day_of_month")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("day_of_month", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (defaultDue) {
+        billingDueDateId = defaultDue.id;
+        selectedDueDay = Number(defaultDue.day_of_month);
+      }
+    }
+
+    if (!selectedDueDay || selectedDueDay < 1) selectedDueDay = 10;
+
+    const makeDueDate = (from: Date, day: number) => {
+      const y = from.getFullYear();
+      const m = from.getMonth();
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      let due = new Date(y, m, Math.min(day, lastDay));
+
+      if (due < new Date(from.getFullYear(), from.getMonth(), from.getDate())) {
+        const next = new Date(y, m + 1, 1);
+        const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+        due = new Date(next.getFullYear(), next.getMonth(), Math.min(day, nextLastDay));
+      }
+
+      return due.toISOString().split("T")[0];
+    };
+
+    const billingStart = new Date().toISOString().split("T")[0];
+    const calculatedExpiry = makeDueDate(new Date(), selectedDueDay);
+
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
@@ -150,7 +201,11 @@ Deno.serve(async (req) => {
       iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
-      iptv_expiry: iptv_expiry || null,
+      iptv_expiry: iptv_expiry || calculatedExpiry,
+      billing_due_date_id: billingDueDateId,
+      billing_cycle_started_at: billingStart,
+      billing_first_cycle_paid: false,
+      iptv_due_day: selectedDueDay,
       iptv_connections: iptv_connections || 1,
       iptv_monthly_value: iptv_monthly_value || 0,
       iptv_status: iptv_status || "active",

@@ -137,16 +137,30 @@ const AdminUsersPage = () => {
     iptv_app: "",
     iptv_expiry: "",
     referred_by_code: "",
+    billing_due_date_id: "",
   });
   const [creating, setCreating] = useState(false);
+  const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
 
   const loadUsers = async () => {
     const { data } = await supabase.from("profiles").select("*").order("iptv_client_code", { ascending: true });
     setUsers(data || []);
   };
 
+  const loadBillingDueDates = async () => {
+    const { data } = await (supabase as any)
+      .from("billing_due_dates")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("day_of_month", { ascending: true });
+
+    setBillingDueDates(data || []);
+  };
+
   useEffect(() => {
     loadUsers();
+    loadBillingDueDates();
   }, []);
 
   const filtered = users.filter((u) => {
@@ -187,6 +201,7 @@ const AdminUsersPage = () => {
         iptv_monthly_value: parsedData.monthly_value ? parseFloat(parsedData.monthly_value) : 0,
         iptv_status: "active",
         referred_by_code: autoReferredByCode.trim().toUpperCase() || undefined,
+        billing_due_date_id: billingDueDates[0]?.id || undefined,
         admin_notes: buildDefaultNotes(iptvUser, iptvPass),
       },
     });
@@ -260,6 +275,7 @@ const AdminUsersPage = () => {
       iptv_connections: u.iptv_connections || 1,
       iptv_monthly_value: u.iptv_monthly_value || 0,
       iptv_due_day: u.iptv_due_day || 10,
+      billing_due_date_id: u.billing_due_date_id || "",
       iptv_client_code: u.iptv_client_code || "",
       referral_code: u.referral_code || "",
       referred_by: u.referred_by || "",
@@ -577,6 +593,26 @@ const AdminUsersPage = () => {
                     )}
                   </div>
                 ))}
+                {billingDueDates.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">Data de pagamento</label>
+                    <select
+                      value={form.billing_due_date_id}
+                      onChange={(e) => setForm({ ...form, billing_due_date_id: e.target.value })}
+                      className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                    >
+                      <option value="">Usar data padrão</option>
+                      {billingDueDates.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Se o primeiro ciclo tiver menos de 30 dias, a cobrança será proporcional automaticamente.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">Função</label>
                   <select
@@ -754,6 +790,30 @@ const AdminUsersPage = () => {
                           O código do cliente novo será gerado em ordem: WMC001A, WMC002A...
                         </p>
                       </div>
+                      {billingDueDates.length > 0 && (
+                        <div>
+                          <label className="mb-1 block text-xs text-muted-foreground">Data de pagamento</label>
+                          <select
+                            value={billingDueDates[0]?.id || ""}
+                            onChange={(e) => {
+                              const selected = billingDueDates.find((item) => item.id === e.target.value);
+                              if (selected) {
+                                setBillingDueDates([
+                                  selected,
+                                  ...billingDueDates.filter((item) => item.id !== selected.id),
+                                ]);
+                              }
+                            }}
+                            className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                          >
+                            {billingDueDates.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.label || `Dia ${item.day_of_month}`} · Bloqueia após {item.grace_days} dia(s)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                         💡 Login: <strong>Usuário:</strong> {parsedData.username} · <strong>Senha:</strong>{" "}
                         {parsedData.password || parsedData.username}
@@ -1218,15 +1278,26 @@ const AdminUsersPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Dia Vencimento</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="28"
-                        value={editForm.iptv_due_day}
-                        onChange={(e) => setEditForm({ ...editForm, iptv_due_day: Number(e.target.value) })}
+                      <label className="mb-1 block text-xs text-muted-foreground">Data de Pagamento</label>
+                      <select
+                        value={editForm.billing_due_date_id || ""}
+                        onChange={(e) => {
+                          const selected = billingDueDates.find((item) => item.id === e.target.value);
+                          setEditForm({
+                            ...editForm,
+                            billing_due_date_id: e.target.value,
+                            iptv_due_day: selected?.day_of_month || editForm.iptv_due_day,
+                          });
+                        }}
                         className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
-                      />
+                      >
+                        <option value="">Usar padrão</option>
+                        {billingDueDates.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.label || `Dia ${item.day_of_month}`} · {item.grace_days} dia(s)
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <div className="rounded-lg bg-muted/20 px-3 py-2 text-xs text-muted-foreground">

@@ -214,6 +214,37 @@ Deno.serve(async (req) => {
           }
         }
 
+        if (updateData.billing_due_date_id) {
+          const { data: selectedDue } = await supabaseAdmin
+            .from("billing_due_dates")
+            .select("id, day_of_month")
+            .eq("id", updateData.billing_due_date_id)
+            .maybeSingle();
+
+          if (selectedDue) {
+            const day = Number(selectedDue.day_of_month);
+            updateData.iptv_due_day = day;
+
+            const now = new Date();
+            const makeDueDate = (from: Date, dueDay: number) => {
+              const y = from.getFullYear();
+              const m = from.getMonth();
+              const lastDay = new Date(y, m + 1, 0).getDate();
+              let due = new Date(y, m, Math.min(dueDay, lastDay));
+
+              if (due < new Date(from.getFullYear(), from.getMonth(), from.getDate())) {
+                const next = new Date(y, m + 1, 1);
+                const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+                due = new Date(next.getFullYear(), next.getMonth(), Math.min(dueDay, nextLastDay));
+              }
+
+              return due.toISOString().split("T")[0];
+            };
+
+            updateData.iptv_expiry = makeDueDate(now, day);
+          }
+        }
+
         // REGRA FIXA: senha de login sempre igual à Senha IPTV.
         if (typeof updateData.iptv_password === "string" && updateData.iptv_password.trim()) {
           const { error: authPwdError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
