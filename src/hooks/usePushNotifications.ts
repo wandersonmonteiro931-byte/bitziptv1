@@ -53,7 +53,7 @@ export function usePushNotifications(userId: string | undefined) {
         if (!subscription) {
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey,
+            applicationServerKey: applicationServerKey as BufferSource,
           });
         }
 
