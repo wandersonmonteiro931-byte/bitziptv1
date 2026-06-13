@@ -543,119 +543,275 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
   );
 }
 
-type PixModalData = {
-  months: number;
-  value: number;
-  discount: number;
-  billingDueDay?: number;
-  periodStartOverride?: string;
-  periodEndOverride?: string;
-  firstCycle?: boolean;
-  notes?: string;
-};
+function AccessDataBlock({ user }: { user: any }) {
+  const [revealed, setRevealed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
-type PixChargeData = {
-  qrcode: string;
-  qrcode_image: string;
-  txid: string;
-};
+  const reveal = useCallback(() => {
+    setConfirming(false);
+    setRevealed(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setRevealed(false), 60000);
+  }, []);
 
-const formatCurrency = (value: number) =>
-  Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
-const formatHistoryDate = (value?: string | null) => {
-  if (!value) return "—";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-");
-    return `${day}/${month}/${year}`;
-  }
-  return new Date(value).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-};
+  const maskUser = (val: string) => {
+    if (!val || val.length <= 4) return val || "—";
+    return val.slice(0, 4) + "•".repeat(Math.min(val.length - 4, 6));
+  };
 
-const getPaymentStatus = (status?: string | null) => {
-  if (status === "paid_pending_activation") return { label: "Aguardando Ativação", className: "text-primary" };
-  if (status === "confirmed") return { label: "Confirmado", className: "text-success" };
-  return { label: "Pendente", className: "text-warning" };
-};
-
-function PaymentHistory() {
-  const { user } = useAuth();
-  const [open, setOpen] = useState(false);
-  const [payments, setPayments] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const loadPayments = async () => {
-      const { data } = await supabase
-        .from("iptv_payments")
-        .select("id, amount, months, status, payment_date, period_start, period_end, notes, created_at")
-        .eq("user_id", user.id)
-        .in("status", ["confirmed", "paid_pending_activation"])
-        .order("period_start", { ascending: true });
-
-      setPayments(data || []);
-    };
-
-    void loadPayments();
-    const channel = supabase
-      .channel(`client-payment-history-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments", filter: `user_id=eq.${user.id}` }, () => {
-        void loadPayments();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
+  const clientCode = user?.iptv_client_code || "—";
+  const iptvUser = user?.iptv_user || "—";
+  const iptvPass = user?.iptv_password || "—";
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card px-5 py-4 text-left transition-colors hover:bg-muted/30"
-      >
-        <span className="flex items-center gap-3 text-sm font-semibold text-foreground">
-          <History size={16} className="text-primary" /> Histórico de pagamentos
+    <motion.div
+      id="dados-acesso"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border/40 bg-black/90 p-5"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Lock size={13} /> Dados de Acesso
+        </div>
+        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <Shield size={9} /> Protegido
         </span>
-        {open ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
-      </button>
+      </div>
 
+      <div className="space-y-2">
+        {[
+          { label: "Código do Cliente", value: clientCode, masked: "••••••••" },
+          { label: "Usuário", value: iptvUser, masked: maskUser(iptvUser) },
+          { label: "Senha", value: iptvPass, masked: "••••••••••" },
+        ].map((field) => (
+          <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-muted-foreground">{field.label}</p>
+              <p className="truncate font-mono text-sm text-foreground">{revealed ? field.value : field.masked}</p>
+            </div>
+            {revealed && <CopyButton text={field.value} />}
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {confirming ? (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4 flex items-center gap-2"
+          >
+            <button
+              onClick={reveal}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]"
+            >
+              <Eye size={16} /> Sim, mostrar
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-xl bg-black/80 px-4 py-2.5 text-sm text-muted-foreground"
+            >
+              Cancelar
+            </button>
+          </motion.div>
+        ) : revealed ? (
+          <motion.div
+            key="hide"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => {
+                setRevealed(false);
+                if (timerRef.current) clearTimeout(timerRef.current);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]"
+            >
+              <EyeOff size={16} /> Ocultar dados
+            </button>
+            <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="show"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
+            >
+              <Eye size={16} /> Mostrar dados
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// --- Admin Notes ---
+function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!notes) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-2">
+          <FileText size={14} className="text-muted-foreground" />
+          <span className="font-medium text-foreground">Observações</span>
+          {urgent && (
+            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
+              Atenção
+            </span>
+          )}
+        </div>
+        {open ? (
+          <ChevronUp size={16} className="text-muted-foreground" />
+        ) : (
+          <ChevronDown size={16} className="text-muted-foreground" />
+        )}
+      </button>
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-2 space-y-2 rounded-2xl border border-border/30 bg-card/70 p-3">
+            <div
+              className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}
+            >
+              <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
+              <button
+                onClick={() => setOpen(false)}
+                className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// --- Payment History (Collapsible — from iptv_payments + balance_history) ---
+function PaymentHistory() {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await (supabase as any)
+        .from("iptv_payments")
+        .select("*")
+        .in("status", ["confirmed", "paid_pending_activation"])
+        .order("payment_date", { ascending: false })
+        .limit(20);
+      if (!error) setPayments(data || []);
+    };
+    load();
+
+    // Realtime: reload when iptv_payments changes
+    const channel = supabase
+      .channel("payment-history-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        load();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return (
+    <motion.div
+      id="faturas"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.45 }}
+    >
+      <button
+        onClick={() => setHistoryOpen(!historyOpen)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border/40 bg-black/90 px-5 py-3.5 text-sm active:opacity-80"
+      >
+        <span className="text-sm text-muted-foreground">Mensalidades pagas</span>
+        <ChevronDown
+          size={16}
+          className={`text-muted-foreground transition-transform ${historyOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {historyOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1 rounded-2xl border border-border/30 bg-card/40 p-4">
               {payments.length === 0 ? (
-                <p className="px-2 py-4 text-center text-xs text-muted-foreground">Nenhum pagamento confirmado ainda.</p>
+                <p className="py-4 text-center text-xs text-muted-foreground">Nenhum pagamento registrado.</p>
               ) : (
-                payments.map((payment) => {
-                  const status = getPaymentStatus(payment.status);
-                  return (
-                    <div key={payment.id} className="rounded-xl bg-muted/20 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <Receipt size={15} className="text-primary" />
-                          <span className="text-sm font-semibold text-foreground">{formatCurrency(Number(payment.amount))}</span>
+                <div className="space-y-2">
+                  {payments.map((p) => {
+                    const date = new Date(p.payment_date);
+                    const formatted = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+                    const endParts = p.period_end?.split("-");
+                    const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
+                    const isPendingActivation = p.status === "paid_pending_activation";
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
+                      >
+                        <div>
+                          <p className="text-sm text-foreground">{formatted}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {p.months} mês(es) · até {endFormatted}
+                          </p>
                         </div>
-                        <span className={`text-[11px] font-semibold ${status.className}`}>{status.label}</span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-foreground">
+                              R$ {Number(p.amount).toFixed(2)}
+                            </span>
+                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                              Pago
+                            </span>
+                          </div>
+                          {isPendingActivation && (
+                            <span className="text-[9px] text-blue-400">Aguardando liberação do suporte</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                        <span>{Number(payment.months || 1)} mês(es)</span>
-                        <span className="text-right">Pago em {formatHistoryDate(payment.payment_date || payment.created_at)}</span>
-                        <span className="col-span-2">
-                          Período: {formatHistoryDate(payment.period_start)} até {formatHistoryDate(payment.period_end)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </motion.div>
@@ -665,116 +821,86 @@ function PaymentHistory() {
   );
 }
 
-function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp?: string | null }) {
-  const apps = tvApps.length ? tvApps : userApp ? [{ id: userApp, name: userApp, icon: "📺" }] : [];
-  if (!apps.length) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.48 }}
-      className="rounded-2xl border border-border/40 bg-card p-5"
-    >
-      <div className="mb-4 flex items-center gap-2">
-        <Tv size={16} className="text-primary" />
-        <p className="text-sm font-semibold text-foreground">Aplicativo de TV</p>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        {apps.map((app) => {
-          const selected = Boolean(userApp && String(app.name).toLowerCase() === String(userApp).toLowerCase());
-          const logo = getAppLogoSrc(app.name);
-          return (
-            <div
-              key={app.id || app.name}
-              className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border p-2 text-center ${
-                selected ? "border-primary/50 bg-primary/10" : "border-border/30 bg-muted/20 opacity-60"
-              }`}
-            >
-              {logo ? (
-                <img src={logo} alt={app.name} className="h-8 w-8 object-contain" loading="lazy" />
-              ) : (
-                <span className="text-2xl">{app.icon || "📺"}</span>
-              )}
-              <span className="line-clamp-2 text-[10px] font-medium text-foreground">{app.name}</span>
-            </div>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-}
-
-function AccessDataBlock({ user }: { user: any }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    const timer = setTimeout(() => setVisible(false), 60000);
-    return () => clearTimeout(timer);
-  }, [visible]);
-
-  const fields = [
-    { label: "Servidor", value: user?.iptv_server || "" },
-    { label: "Usuário", value: user?.iptv_user || user?.username || "" },
-    { label: "Senha", value: user?.iptv_password || "" },
+// --- TV App Mini Icons ---
+function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
+  const { appName, logoUrl } = useAppBranding();
+  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const normalizedUserApp = String(userApp || "")
+    .trim()
+    .toLowerCase();
+  const visibleTvApps = [
+    { id: "wmcflix-oficial", name: appTitle, logoUrl, isOfficialWmcflix: true },
+    ...(Array.isArray(tvApps) ? tvApps : []).filter((app) => {
+      const name = String(app?.name || "")
+        .trim()
+        .toLowerCase();
+      return name !== "wmcflix" && name !== appTitle.toLowerCase();
+    }),
   ];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.52 }}
-      className="rounded-2xl border border-border/40 bg-card p-5"
+      transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border/40 bg-black/90 p-5"
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Lock size={16} className="text-primary" />
-          <p className="text-sm font-semibold text-foreground">Dados de acesso</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setVisible((current) => !current)}
-          className="rounded-lg bg-muted/30 p-2 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label={visible ? "Ocultar dados" : "Mostrar dados"}
-        >
-          {visible ? <EyeOff size={15} /> : <Eye size={15} />}
-        </button>
-      </div>
+      <p className="mb-3 text-xs text-muted-foreground">App na sua TV</p>
+      <div className="flex flex-wrap gap-2">
+        {visibleTvApps.map((app) => {
+          const appNameValue = String(app.name || "");
+          const normalizedAppName = appNameValue.trim().toLowerCase();
+          const isOfficial = !!app.isOfficialWmcflix;
+          const isActive = normalizedUserApp === normalizedAppName || (isOfficial && normalizedUserApp === "wmcflix");
+          const logo = isOfficial ? logoUrl : getAppLogoSrc(appNameValue);
 
-      <div className="space-y-2">
-        {fields.map((field) => (
-          <div key={field.label} className="flex items-center justify-between gap-3 rounded-xl bg-muted/20 px-3 py-2.5">
-            <span className="text-xs text-muted-foreground">{field.label}</span>
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-medium text-foreground">{visible ? field.value || "—" : field.value ? "••••••••" : "—"}</span>
-              {visible && field.value ? <CopyButton text={field.value} /> : null}
+          return (
+            <div
+              key={app.id}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all ${
+                isActive
+                  ? "bg-red-500/10 text-red-300 font-medium ring-1 ring-red-500/20"
+                  : "bg-muted/15 text-muted-foreground/40"
+              }`}
+            >
+              {logo ? (
+                <img src={logo} alt={appNameValue} className="h-4 w-4 rounded-full object-contain bg-black" />
+              ) : (
+                <Tv size={12} />
+              )}
+              <span>{appNameValue}</span>
             </div>
+          );
+        })}
+        {visibleTvApps.length === 0 && userApp && (
+          <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs text-red-300 font-medium">
+            {(() => {
+              const logo = normalizedUserApp === "wmcflix" ? logoUrl : getAppLogoSrc(userApp);
+              return logo ? (
+                <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain bg-black" />
+              ) : (
+                <Tv size={12} />
+              );
+            })()}
+            <span>{userApp}</span>
           </div>
-        ))}
+        )}
       </div>
     </motion.div>
   );
 }
 
-function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
-  if (!notes.trim()) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.55 }}
-      className={`rounded-2xl border p-5 ${urgent ? "border-destructive/25 bg-destructive/10" : "border-primary/20 bg-primary/5"}`}
-    >
-      <div className="mb-2 flex items-center gap-2">
-        <FileText size={16} className={urgent ? "text-destructive" : "text-primary"} />
-        <p className="text-sm font-semibold text-foreground">Aviso do suporte</p>
-      </div>
-      <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{notes}</p>
-    </motion.div>
-  );
-}
+// --- PIX Payment Modal ---
+type PixModalData = {
+  months: number;
+  value: number;
+  discount: number;
+  periodStartOverride?: string;
+  periodEndOverride?: string;
+  firstCycle?: boolean;
+  notes?: string;
+  billingDueDay?: number;
+};
 
 function PixModal({
   pixModal,
@@ -787,221 +913,408 @@ function PixModal({
   supportInfo: any;
   user: any;
 }) {
-  const [pixData, setPixData] = useState<PixChargeData | null>(null);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(3600);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const dueDay = Number(pixModal.billingDueDay || user?.iptv_due_day || 10);
-  const periodStart = pixModal.periodStartOverride || toDateOnlyString(parseDateOnly(user?.iptv_expiry || toBrazilDateOnlyString(new Date())));
-  const periodEnd =
-    pixModal.periodEndOverride || toDateOnlyString(addBillingMonthsByFixedDay(parseDateOnly(periodStart), pixModal.months, dueDay));
-
+  const [loading, setLoading] = useState(true);
+  const [pixData, setPixData] = useState<{
+    qrcode: string;
+    qrcode_image: string;
+    txid: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const { appName } = useAppBranding();
   useEffect(() => {
-    let cancelled = false;
-
-    const createPayment = async () => {
-      if (!user?.id) {
-        setError("Usuário não encontrado.");
-        setLoading(false);
-        return;
-      }
-
+    const createCharge = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        const { data: payment, error: paymentError } = await (supabase as any)
+        // Base correta da cobrança:
+        // 1º mês proporcional: cadastro do usuário até o dia fixo configurado.
+        // Próximas cobranças: sempre do vencimento fixo atual para o próximo vencimento fixo.
+        // A data em que o cliente pagou NÃO muda o dia fixo de pagamento.
+        const dueDay = Number(pixModal.billingDueDay || user?.iptv_due_day || 10);
+
+        let periodStart: Date;
+        let periodEndDate: Date;
+
+        if (pixModal.periodStartOverride && pixModal.periodEndOverride) {
+          periodStart = parseDateOnly(pixModal.periodStartOverride);
+          periodEndDate = parseDateOnly(pixModal.periodEndOverride);
+        } else {
+          const fixedCycleStart = getFixedBillingCycleStartDate(user, dueDay);
+          periodStart = parseDateOnly(fixedCycleStart);
+          periodEndDate = addBillingMonthsByFixedDay(periodStart, pixModal.months, dueDay);
+        }
+
+        const periodEndStr = toDateOnlyString(periodEndDate);
+        setPeriodEnd(periodEndStr);
+
+        const { data: payment, error: insertError } = await supabase
           .from("iptv_payments")
           .insert({
             user_id: user.id,
-            amount: Number(pixModal.value.toFixed(2)),
+            amount: pixModal.value,
             months: pixModal.months,
-            period_start: periodStart,
-            period_end: periodEnd,
+            period_start: periodStart.toISOString().split("T")[0],
+            period_end: periodEndStr,
             status: "pending",
             payment_method: "pix",
-            notes: pixModal.notes || (pixModal.firstCycle ? "Primeiro pagamento proporcional" : "Pagamento via PIX pelo app"),
+            notes: pixModal.notes || `Renovação ${pixModal.months} mês(es) via PIX automático`,
           })
           .select("id")
           .single();
 
-        if (paymentError || !payment?.id) throw new Error(paymentError?.message || "Falha ao criar pagamento.");
-        if (cancelled) return;
+        if (insertError || !payment) {
+          throw new Error(insertError?.message || "Erro ao criar pagamento");
+        }
+
         setPaymentId(payment.id);
 
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/pix-efi/create-charge`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+        const { data, error: fnError } = await supabase.functions.invoke("pix-efi/create-charge", {
+          body: {
             payment_id: payment.id,
             amount: pixModal.value,
-            devedor_nome: user?.name || user?.username || "Cliente Bitz IPTV",
-            descricao: `Renovação IPTV ${pixModal.months} mês(es) - Bitz IPTV`,
-          }),
-        });
-
-        const result = await response.json();
-        if (!response.ok || result.error) throw new Error(result.error || "Falha ao gerar PIX.");
-        if (!cancelled) setPixData({ qrcode: result.qrcode, qrcode_image: result.qrcode_image, txid: result.txid });
-      } catch (err: any) {
-        if (!cancelled) setError(err?.message || "Falha ao gerar cobrança PIX.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void createPayment();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, pixModal.months, pixModal.value, pixModal.notes, pixModal.firstCycle, periodStart, periodEnd]);
-
-  useEffect(() => {
-    if (!paymentId || !pixData || confirmed) return;
-
-    const poll = async () => {
-      try {
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/pix-efi/check-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            devedor_nome: user.name || undefined,
+            descricao: `${appName} - ${pixModal.months} mês(es)`,
           },
-          body: JSON.stringify({ payment_id: paymentId }),
         });
-        const result = await response.json();
-        if (result.confirmed) {
-          setConfirmed(true);
-          if (pollingRef.current) clearInterval(pollingRef.current);
+
+        if (fnError || data?.error) {
+          throw new Error(data?.error || fnError?.message || "Erro ao gerar PIX");
         }
-      } catch {
-        // Mantém o polling silencioso para instabilidades momentâneas.
+
+        setPixData(data);
+        setTimeLeft(data.expiracao || 3600);
+      } catch (err: any) {
+        console.error("PIX charge error:", err);
+        setError(err.message || "Erro ao gerar cobrança PIX");
+      } finally {
+        setLoading(false);
       }
     };
 
-    pollingRef.current = setInterval(poll, 2500);
-    void poll();
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+    createCharge();
+  }, []);
+
+  // Poll every 1s checking DB + edge function for payment confirmation
+  useEffect(() => {
+    if (!paymentId || paymentConfirmed) return;
+
+    let active = true;
+
+    const checkPayment = async () => {
+      if (!active) return;
+
+      // 1. Always check DB first (fastest, most reliable)
+      try {
+        const { data } = await supabase.from("iptv_payments").select("status").eq("id", paymentId).maybeSingle();
+        if (data?.status && data.status !== "pending") {
+          if (active) setPaymentConfirmed(true);
+          return;
+        }
+      } catch (err) {
+        console.error("DB poll error:", err);
+      }
+
+      // 2. If still pending, actively check Efí API via edge function
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({ payment_id: paymentId }),
+          });
+          if (resp.ok) {
+            const result = await resp.json();
+            if (result?.confirmed && active) {
+              setPaymentConfirmed(true);
+            }
+          }
+        }
+      } catch (err) {
+        // Edge function failed — DB check above is the fallback
+      }
     };
-  }, [paymentId, pixData, confirmed]);
+
+    // Check immediately, then every 1 second
+    checkPayment();
+    const poll = setInterval(checkPayment, 1000);
+
+    return () => {
+      active = false;
+      clearInterval(poll);
+    };
+  }, [paymentId, paymentConfirmed]);
 
   useEffect(() => {
-    if (confirmed) return;
-    const timer = setInterval(() => setTimeLeft((current) => Math.max(0, current - 1)), 1000);
-    return () => clearInterval(timer);
-  }, [confirmed]);
+    if (loading || error || paymentConfirmed) return;
+    const interval = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading, error, paymentConfirmed]);
 
-  const closeModal = async () => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    if (paymentId && !confirmed) {
-      await (supabase as any).from("iptv_payments").delete().eq("id", paymentId).eq("status", "pending");
-    }
-    onClose(confirmed);
-  };
+  const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-  const copyPixCode = () => {
+  const copyPix = () => {
     if (!pixData?.qrcode) return;
     navigator.clipboard.writeText(pixData.qrcode);
-    toast({ title: "PIX copiado!" });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const minutes = String(Math.floor(timeLeft / 60)).padStart(2, "0");
-  const seconds = String(timeLeft % 60).padStart(2, "0");
+  // When closing without payment, delete the pending record
+  const handleClose = async () => {
+    if (!paymentConfirmed && paymentId) {
+      try {
+        await supabase.from("iptv_payments").delete().eq("id", paymentId).eq("status", "pending");
+      } catch (err) {
+        // ignore
+      }
+    }
+    onClose(paymentConfirmed);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4 backdrop-blur-sm"
-      onClick={closeModal}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4"
+      onClick={handleClose}
     >
       <motion.div
         initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
-        className="max-h-[92vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl border border-border bg-card p-6"
+        onClick={(e) => e.stopPropagation()}
       >
-        {confirmed ? (
-          <div className="py-4 text-center">
-            <div className="mb-4 text-5xl">✅</div>
-            <h3 className="text-lg font-bold text-foreground">Pagamento confirmado</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Seu pagamento foi recebido e está aguardando ativação do suporte.</p>
-            <button onClick={closeModal} className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground">
-              Fechar
-            </button>
-          </div>
-        ) : loading ? (
-          <div className="flex flex-col items-center py-8 text-center">
-            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <p className="text-sm font-medium text-foreground">Gerando PIX...</p>
-            <p className="mt-1 text-xs text-muted-foreground">Aguarde alguns segundos.</p>
-          </div>
-        ) : error ? (
-          <div className="py-4 text-center">
-            <p className="text-sm font-medium text-destructive">{error}</p>
-            {supportInfo?.whatsapp_link ? (
-              <a
-                href={supportInfo.whatsapp_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-success/10 py-3 text-sm font-semibold text-success"
-              >
-                <MessageCircle size={15} /> Chamar suporte
-              </a>
-            ) : null}
-            <button onClick={closeModal} className="mt-3 w-full rounded-xl bg-muted/30 py-3 text-sm text-foreground">
-              Fechar
-            </button>
-          </div>
-        ) : pixData ? (
-          <>
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-foreground">Pagamento PIX</h3>
-              <p className="mt-2 text-3xl font-bold text-primary">{formatCurrency(pixModal.value)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {pixModal.months} mês(es) · expira em {minutes}:{seconds}
-              </p>
-              {pixModal.discount > 0 ? <p className="mt-1 text-xs font-semibold text-success">Economia de {formatCurrency(pixModal.discount)}</p> : null}
-            </div>
+        {paymentConfirmed ? (
+          (() => {
+            // Use period_end from the payment record (calculated at creation time based on iptv_expiry)
+            let formattedNewExpiry = "—";
+            if (periodEnd) {
+              const [y, m, d] = periodEnd.split("-").map(Number);
+              formattedNewExpiry = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+            }
 
-            {pixData.qrcode_image ? (
-              <div className="my-5 flex justify-center">
-                <img src={pixData.qrcode_image} alt="QR Code PIX" className="h-48 w-48 rounded-xl bg-background p-2" />
-              </div>
-            ) : null}
+            return (
+              <>
+                <div className="py-6 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                  >
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15">
+                      <Check size={40} className="text-emerald-400" />
+                    </div>
+                  </motion.div>
+                  <h3 className="mt-5 text-xl font-bold text-foreground">Pagamento Recebido!</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Seu pagamento foi confirmado com sucesso.</p>
 
-            <div className="rounded-xl bg-muted/30 p-3">
-              <p className="mb-2 text-xs text-muted-foreground">PIX Copia e Cola</p>
-              <div className="flex items-center gap-2">
-                <code className="line-clamp-3 flex-1 break-all text-xs text-foreground">{pixData.qrcode}</code>
-                <button onClick={copyPixCode} className="rounded-lg bg-primary/15 p-2 text-primary transition-colors hover:bg-primary/25">
-                  <Copy size={16} />
+                  <div className="mt-4 rounded-xl border border-border/40 bg-muted/15 px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nova data de validade</p>
+                    <p className="mt-1 text-lg font-bold text-foreground">{formattedNewExpiry}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Renovação de {pixModal.months} {pixModal.months === 1 ? "mês" : "meses"}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
+                    <p className="text-xs font-medium text-primary">✅ Nosso suporte já foi notificado!</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no
+                      servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>,
+                      no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará
+                      funcionando normalmente.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleClose}
+                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+                >
+                  Fechar
                 </button>
+              </>
+            );
+          })()
+        ) : (
+          <>
+            <div className="mb-5 text-center">
+              <p className="text-lg font-bold text-foreground">Pagamento PIX</p>
+              <p className="text-xs text-muted-foreground">
+                {pixModal.months === 1 ? "Renovação 1 mês" : `Renovação ${pixModal.months} meses`}
+              </p>
+            </div>
+
+            <div className="mb-5 rounded-2xl bg-muted/15 p-5 text-center">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Valor a pagar</p>
+              <p className="mt-2 text-3xl font-bold text-foreground">R$ {pixModal.value.toFixed(2)}</p>
+              {pixModal.discount > 0 && (
+                <p className="mt-1 text-xs text-success">Você economiza R$ {pixModal.discount.toFixed(2)}</p>
+              )}
+            </div>
+
+            {loading ? (
+              <div className="mb-5 flex flex-col items-center justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <p className="mt-3 text-sm text-muted-foreground">Gerando cobrança PIX...</p>
               </div>
-            </div>
+            ) : error ? (
+              <div className="mb-5 rounded-2xl bg-destructive/10 p-4 text-center">
+                <p className="text-sm text-destructive">{error}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Entre em contato com o suporte para pagamento manual.
+                </p>
+              </div>
+            ) : pixData ? (
+              <>
+                <div className="mb-5 flex justify-center">
+                  {pixData.qrcode_image ? (
+                    <img
+                      src={
+                        pixData.qrcode_image.startsWith("data:")
+                          ? pixData.qrcode_image
+                          : `data:image/png;base64,${pixData.qrcode_image}`
+                      }
+                      alt="QR Code PIX"
+                      className="h-40 w-40 rounded-2xl"
+                    />
+                  ) : (
+                    <div className="flex h-36 w-36 items-center justify-center rounded-2xl border border-dashed border-border bg-black">
+                      <div className="text-center">
+                        <p className="text-3xl">📱</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">QR Code</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Aguardando pagamento...
-            </div>
+                <div className="mb-5">
+                  <p className="mb-2 text-center text-[10px] text-muted-foreground">PIX Copia e Cola</p>
+                  <button
+                    onClick={copyPix}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all active:scale-[0.97] ${
+                      copied
+                        ? "bg-emerald-500 text-white"
+                        : "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <Check size={16} /> Código copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} /> Copiar código PIX
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-2 truncate text-center font-mono text-[10px] text-muted-foreground/60">
+                    {pixData.qrcode}
+                  </p>
+                </div>
 
-            <button onClick={closeModal} className="mt-5 w-full rounded-xl bg-muted/30 py-3 text-sm text-muted-foreground">
-              Cancelar
+                <div className="mb-5 rounded-xl bg-blue-500/10 px-4 py-3">
+                  <p className="text-[11px] text-blue-300 leading-relaxed text-center">
+                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos
+                    de <span className="font-semibold">2 horas</span>.
+                  </p>
+                </div>
+
+                <div className="mb-5 text-center">
+                  <p className="text-[10px] text-muted-foreground">Tempo restante</p>
+                  <p
+                    className={`mt-1 font-mono text-lg font-bold ${timeLeft <= 120 ? "text-destructive" : "text-foreground"}`}
+                  >
+                    {formatTime(timeLeft)}
+                  </p>
+                </div>
+              </>
+            ) : null}
+
+            <button
+              onClick={handleClose}
+              className="w-full rounded-xl bg-muted/20 py-2.5 text-sm text-muted-foreground"
+            >
+              Fechar
             </button>
           </>
-        ) : null}
+        )}
       </motion.div>
+    </motion.div>
+  );
+}
+
+// --- Pending Activation Banner ---
+function PendingActivationBanner({ userId, effectiveStatus }: { userId: string | undefined; effectiveStatus: string }) {
+  const [futureExpiry, setFutureExpiry] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from("iptv_payments")
+        .select("period_end")
+        .eq("user_id", userId)
+        .eq("status", "paid_pending_activation")
+        .order("period_end", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.period_end) {
+        const [y, m, d] = data.period_end.split("-").map(Number);
+        setFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
+      } else {
+        setFutureExpiry(null);
+      }
+    };
+    load();
+
+    const channel = supabase
+      .channel("pending-activation-banner")
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
+        load();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  if (effectiveStatus !== "awaiting_activation" && !futureExpiry) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mx-0 rounded-2xl border border-blue-500/20 bg-blue-500/5 px-4 py-3"
+    >
+      <p className="text-xs font-medium text-blue-400">⏳ Aguardando liberação do suporte</p>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        Seu pagamento foi recebido. O suporte está atualizando seu servidor. Em média leva menos de 2 horas.
+      </p>
+      {futureExpiry && (
+        <p className="mt-2 text-xs font-semibold text-blue-300">Sua nova data de vencimento será: {futureExpiry}</p>
+      )}
     </motion.div>
   );
 }
