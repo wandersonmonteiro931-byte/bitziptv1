@@ -6,13 +6,20 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const DEFAULT_PUSH_ICON = "/pwa-512.png";
-const DEFAULT_PUSH_BADGE = "/pwa-192.png";
+const DEFAULT_PUSH_ICON = "/pwa-512.png?v=wmcflix-push-final-2";
+const DEFAULT_PUSH_BADGE = "/pwa-192.png?v=wmcflix-push-final-2";
+
+function isOldBitzIcon(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const lower = value.toLowerCase();
+  return lower.includes("bitz") || lower.includes("logo-bitz") || lower.includes("bitziptv");
+}
 
 function isImageIcon(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const url = value.trim();
   if (!url) return false;
+  if (isOldBitzIcon(url)) return false;
 
   // Aceita URL/arquivo de imagem. Não aceita emoji/texto em icon do push.
   return (

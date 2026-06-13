@@ -1,20 +1,26 @@
 // PUSH NOTIFICATION HANDLERS
-// WMCFLIX: notificação precisa funcionar mesmo com PWA fechado.
-var DEFAULT_PUSH_ICON = "/pwa-512.png";
-var DEFAULT_PUSH_BADGE = "/pwa-192.png";
+// WMCFLIX: ícone push final fixo, sem logotipo antigo/cache Bitz.
+var DEFAULT_PUSH_ICON = "/pwa-512.png?v=wmcflix-push-final-2";
+var DEFAULT_PUSH_BADGE = "/pwa-192.png?v=wmcflix-push-final-2";
 
 var APP_BRANDING_CACHE = {
   appName: "WMCFLIX",
   appShortName: "WMCFLIX",
-  appDescription: "WMCFLIX - Programa Oficial de Fidelidade",
+  appDescription: "WMCFLIX",
   logoUrl: DEFAULT_PUSH_ICON,
   faviconUrl: DEFAULT_PUSH_ICON,
 };
 
+function isOldBitzIcon(value) {
+  if (!value || typeof value !== "string") return false;
+  var lower = value.toLowerCase();
+  return lower.indexOf("bitz") >= 0 || lower.indexOf("logo-bitz") >= 0 || lower.indexOf("bitziptv") >= 0;
+}
+
 function isUsableNotificationImage(value) {
   if (!value || typeof value !== "string") return false;
   var url = value.trim();
-  if (!url) return false;
+  if (!url || isOldBitzIcon(url)) return false;
 
   return (
     url.indexOf("/") === 0 ||
@@ -25,6 +31,7 @@ function isUsableNotificationImage(value) {
 }
 
 function pickNotificationIcon(data) {
+  // Nunca usa data.icon se vier com logo antigo.
   if (isUsableNotificationImage(data && data.icon)) return data.icon.trim();
   if (isUsableNotificationImage(APP_BRANDING_CACHE.faviconUrl)) return APP_BRANDING_CACHE.faviconUrl.trim();
   if (isUsableNotificationImage(APP_BRANDING_CACHE.logoUrl)) return APP_BRANDING_CACHE.logoUrl.trim();
@@ -59,14 +66,14 @@ self.addEventListener("message", function (event) {
 
   var branding = event.data.branding || {};
   APP_BRANDING_CACHE = Object.assign({}, APP_BRANDING_CACHE, branding, {
-    appName: branding.appName || branding.app_name || APP_BRANDING_CACHE.appName || "WMCFLIX",
-    appShortName: branding.appShortName || branding.app_short_name || APP_BRANDING_CACHE.appShortName || "WMCFLIX",
+    appName: branding.appName || branding.app_name || "WMCFLIX",
+    appShortName: branding.appShortName || branding.app_short_name || "WMCFLIX",
     logoUrl: isUsableNotificationImage(branding.logoUrl || branding.app_logo_url)
       ? branding.logoUrl || branding.app_logo_url
-      : APP_BRANDING_CACHE.logoUrl || DEFAULT_PUSH_ICON,
+      : DEFAULT_PUSH_ICON,
     faviconUrl: isUsableNotificationImage(branding.faviconUrl || branding.app_favicon_url)
       ? branding.faviconUrl || branding.app_favicon_url
-      : APP_BRANDING_CACHE.faviconUrl || DEFAULT_PUSH_ICON,
+      : DEFAULT_PUSH_ICON,
   });
 });
 
