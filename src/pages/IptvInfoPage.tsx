@@ -1,12 +1,13 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tv, Server, Smartphone, Calendar, User, Wifi } from "lucide-react";
+import { Tv, Server, Smartphone, Calendar, User, Wifi, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatDateBRT } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getFhdImageUrl } from "@/lib/imageQuality";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { forcePwaUpdateAndReload } from "@/lib/pwaForceUpdate";
 
 import appAssistPlus from "@/assets/app-assist-plus.webp";
 import appBlessedPlayer from "@/assets/app-blessed-player.png";
@@ -41,6 +42,8 @@ const IptvInfoPage = () => {
   const { appName, logoUrl } = useAppBranding();
   const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
   const [providerInfo, setProviderInfo] = useState({ assist_plus_provider: "", blessed_player_provider: "" });
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState("");
 
   useEffect(() => {
     supabase
@@ -67,8 +70,6 @@ const IptvInfoPage = () => {
   };
 
   const tvProvider = getUserTvProvider();
-  const fixedBillingDay = Number(user?.iptv_due_day || 10);
-  const formattedNextDue = user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-";
 
   const info = [
     { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
@@ -77,11 +78,27 @@ const IptvInfoPage = () => {
     { label: "App TV", value: displayedTvApp, icon: Tv },
     {
       label: "Validade",
-      value: `Todo dia ${fixedBillingDay}`,
-      subValue: `Próximo vencimento: ${formattedNextDue}`,
+      value: user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-",
       icon: Calendar,
     },
   ];
+
+  const handleForceUpdate = async () => {
+    if (checkingUpdate) return;
+
+    setCheckingUpdate(true);
+    setUpdateMessage("Verificando nova versão e limpando cache...");
+
+    try {
+      await forcePwaUpdateAndReload();
+    } catch {
+      setUpdateMessage("Cache limpo. Reabrindo app...");
+      const url = new URL(window.location.href);
+      url.searchParams.set("pwa_update", String(Date.now()));
+      url.searchParams.set("force_update", "1");
+      window.location.replace(url.toString());
+    }
+  };
 
   return (
     <AppLayout>
@@ -90,6 +107,23 @@ const IptvInfoPage = () => {
           <Tv className="text-red-500" /> Meu IPTV
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">Informações da sua assinatura</p>
+
+        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+          <button
+            type="button"
+            onClick={handleForceUpdate}
+            disabled={checkingUpdate}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/15 transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            <RefreshCw size={16} className={checkingUpdate ? "animate-spin" : ""} />
+            {checkingUpdate ? "Verificando atualização..." : "Verificar atualização do app"}
+          </button>
+          <p className="mt-2 text-center text-[10px] text-muted-foreground">
+            {checkingUpdate
+              ? updateMessage || "Limpando cache e forçando nova versão..."
+              : "Use este botão se o app não atualizar sozinho. Ele limpa o cache e reabre na versão nova se houver."}
+          </p>
+        </div>
       </div>
 
       <motion.div
@@ -123,9 +157,6 @@ const IptvInfoPage = () => {
                 <span className="text-xs">{item.label}</span>
               </div>
               <p className="text-sm font-semibold text-foreground">{item.value}</p>
-              {"subValue" in item && item.subValue ? (
-                <p className="mt-0.5 text-[10px] text-muted-foreground">{item.subValue}</p>
-              ) : null}
             </div>
           ))}
         </div>

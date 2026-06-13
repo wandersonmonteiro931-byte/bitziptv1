@@ -67,3 +67,10 @@ self.addEventListener("notificationclick", function (event) {
     }),
   );
 });
+
+self.addEventListener("message", (event) => {
+  const type = event?.data?.type;
+  if (type === "SKIP_WAITING" || type === "FORCE_UPDATE") {
+    self.skipWaiting();
+  }
+});

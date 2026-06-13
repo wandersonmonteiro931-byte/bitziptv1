@@ -68,7 +68,7 @@ export function PWAUpdatePrompt() {
   const showPromptRef = useRef(false);
   const updatingRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz IPTV";
+  const appTitle = appName || "WMCFLIX";
 
   showPromptRef.current = showPrompt;
   updatingRef.current = updating;
@@ -243,7 +243,7 @@ export function PWAUpdatePrompt() {
         <img
           src={logoUrl}
           alt={appTitle}
-          className="mx-auto mb-5 h-20 w-20 rounded-2xl object-contain shadow-lg shadow-red-500/20"
+          className="mx-auto mb-5 h-20 w-20 rounded-2xl object-contain bg-black shadow-lg shadow-red-500/20"
         />
 
         <motion.div
