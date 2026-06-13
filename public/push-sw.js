@@ -1,5 +1,5 @@
 // PUSH NOTIFICATION HANDLERS
-// WMCFLIX: ícone push nunca deve voltar para logotipo antigo.
+// WMCFLIX: notificação precisa funcionar mesmo com PWA fechado.
 var DEFAULT_PUSH_ICON = "/pwa-512.png";
 var DEFAULT_PUSH_BADGE = "/pwa-192.png";
 
@@ -16,7 +16,6 @@ function isUsableNotificationImage(value) {
   var url = value.trim();
   if (!url) return false;
 
-  // Não aceita emoji/texto como ícone de push. Isso fazia o navegador cair no ícone antigo.
   return (
     url.indexOf("/") === 0 ||
     url.indexOf("https://") === 0 ||
@@ -72,28 +71,33 @@ self.addEventListener("message", function (event) {
 });
 
 self.addEventListener("push", function (event) {
-  var data = {};
-  try {
-    data = event.data ? event.data.json() : {};
-  } catch (e) {
-    data = { title: event.data ? event.data.text() : "Nova notificação" };
-  }
+  event.waitUntil(
+    (async function () {
+      var data = {};
+      try {
+        data = event.data ? event.data.json() : {};
+      } catch (e) {
+        data = { title: event.data ? event.data.text() : "Nova notificação" };
+      }
 
-  var title = data.title || APP_BRANDING_CACHE.appName || "WMCFLIX";
-  var icon = pickNotificationIcon(data);
-  var badge = pickNotificationBadge(data);
+      var title = data.title || APP_BRANDING_CACHE.appName || "WMCFLIX";
+      var icon = pickNotificationIcon(data);
+      var badge = pickNotificationBadge(data);
 
-  var options = {
-    body: data.body || "",
-    icon: icon,
-    badge: badge,
-    image: isUsableNotificationImage(data.image) ? data.image.trim() : undefined,
-    data: data.data || { url: data.url || "/" },
-    vibrate: [100, 50, 100],
-    requireInteraction: !!data.requireInteraction,
-  };
+      var options = {
+        body: data.body || "",
+        icon: icon,
+        badge: badge,
+        image: isUsableNotificationImage(data.image) ? data.image.trim() : undefined,
+        data: data.data || { url: data.url || "/" },
+        vibrate: [120, 60, 120],
+        requireInteraction: !!data.requireInteraction,
+        silent: false,
+      };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", function (event) {

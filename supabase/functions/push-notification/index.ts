@@ -231,6 +231,8 @@ async function sendPush(
         "Content-Type": "application/octet-stream",
         "Content-Encoding": "aes128gcm",
         TTL: "2419200",
+        Urgency: "high",
+        Topic: "wmcflix",
         Authorization: `vapid t=${jwt}, k=${vapidPub}`,
       },
       body,

@@ -1,69 +1,121 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const PUSH_VAPID_KEY_STORAGE = "wmcflix_push_vapid_key";
+const PUSH_ENDPOINT_STORAGE = "wmcflix_push_endpoint";
+
 export function usePushNotifications(userId: string | undefined) {
-  const subscribedRef = useRef(false);
+  const runningRef = useRef(false);
 
   useEffect(() => {
-    if (!userId || subscribedRef.current) return;
+    if (!userId) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-    const setup = async () => {
-      try {
-        const registration = await navigator.serviceWorker.ready;
+    let cancelled = false;
 
-        // Get VAPID public key from server
+    const setupPush = async () => {
+      if (cancelled || runningRef.current) return;
+
+      runningRef.current = true;
+
+      try {
+        const registration =
+          (await navigator.serviceWorker.getRegistration("/")) ||
+          (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+
+        await registration.update().catch(() => undefined);
+        await navigator.serviceWorker.ready;
+
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
           body: { action: "get_vapid_public_key" },
         });
+
         if (vapidError || !vapidData?.public_key) {
           console.error("[Push] Failed to get VAPID key:", vapidError);
           return;
         }
 
-        const serverVapidKey = vapidData.public_key;
+        const serverVapidKey = String(vapidData.public_key);
         const applicationServerKey = urlBase64ToUint8Array(serverVapidKey);
 
-        // Check existing subscription
-        let subscription = await (registration as any).pushManager.getSubscription();
+        let subscription = await registration.pushManager.getSubscription();
+        const storedVapid = localStorage.getItem(PUSH_VAPID_KEY_STORAGE);
 
-        // Compare stored VAPID key — if different, must resubscribe
-        const storedVapid = localStorage.getItem("push_vapid_key");
-        if (subscription && storedVapid !== serverVapidKey) {
-          try { await subscription.unsubscribe(); } catch {}
+        // Se a chave mudou ou o navegador rotacionou a inscrição, refaz.
+        if (subscription && storedVapid && storedVapid !== serverVapidKey) {
+          try {
+            await subscription.unsubscribe();
+          } catch {}
           subscription = null;
         }
 
         if (!subscription) {
-          subscription = await (registration as any).pushManager.subscribe({
+          subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey,
           });
         }
 
-        localStorage.setItem("push_vapid_key", serverVapidKey);
-
-        // Send subscription to server
         const subJson = subscription.toJSON();
-        await supabase.functions.invoke("push-notification", {
+        const endpoint = subJson.endpoint || "";
+
+        if (!endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) {
+          console.error("[Push] Subscription incompleta");
+          return;
+        }
+
+        localStorage.setItem(PUSH_VAPID_KEY_STORAGE, serverVapidKey);
+        localStorage.setItem(PUSH_ENDPOINT_STORAGE, endpoint);
+
+        // Atualiza no servidor sempre que abrir/voltar online.
+        // Assim o push chega mesmo com PWA fechado, porque o servidor terá endpoint atual.
+        const { error: subscribeError } = await supabase.functions.invoke("push-notification", {
           body: {
             action: "subscribe",
-            endpoint: subJson.endpoint,
-            p256dh: subJson.keys?.p256dh,
-            auth: subJson.keys?.auth,
+            endpoint,
+            p256dh: subJson.keys.p256dh,
+            auth: subJson.keys.auth,
           },
         });
 
-        subscribedRef.current = true;
-        console.log("[Push] Subscribed successfully");
+        if (subscribeError) {
+          console.error("[Push] Server subscribe error:", subscribeError);
+          return;
+        }
+
+        console.log("[Push] Web Push inscrito/atualizado com sucesso");
       } catch (err) {
         console.error("[Push] Setup error:", err);
+      } finally {
+        runningRef.current = false;
       }
     };
 
-    const timer = setTimeout(setup, 2000);
-    return () => clearTimeout(timer);
+    void setupPush();
+
+    const onFocus = () => void setupPush();
+    const onOnline = () => void setupPush();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void setupPush();
+    };
+    const onControllerChange = () => void setupPush();
+
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisibility);
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    const interval = window.setInterval(() => void setupPush(), 1000 * 60 * 15);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisibility);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      window.clearInterval(interval);
+    };
   }, [userId]);
 }
 
@@ -72,8 +124,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
+
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
+
   return outputArray;
 }
