@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>WMCFLIX</title>
+    <title>WMCPLAYER</title>
     <style>
       html, body, #root {
         margin: 0;
@@ -29,10 +29,10 @@
       (function () {
         try {
           localStorage.removeItem('bitz_app_branding');
-          var stored = localStorage.getItem('wmcflix_app_branding_v2');
+          var stored = localStorage.getItem('wmcplayer_app_branding_v2');
           if (!stored) return;
           var branding = JSON.parse(stored);
-          var appName = (branding.appName || branding.app_name || 'WMCFLIX').trim();
+          var appName = (branding.appName || branding.app_name || 'WMCPLAYER').trim();
           var shortName = (branding.appShortName || branding.app_short_name || appName).trim();
           var description = (branding.appDescription || branding.app_description || (appName + ' - Programa de Fidelidade')).trim();
           var logo = (branding.logoUrl || branding.app_logo_url || '/pwa-512.png').trim();
@@ -45,22 +45,22 @@
         } catch (e) {}
       })();
     </script>
-    <meta name="description" content="WMCFLIX - Programa Oficial de Fidelidade" />
-    <meta name="author" content="WMCFLIX" />
-    <meta name="application-name" content="WMCFLIX" />
-    <meta name="apple-mobile-web-app-title" content="WMCFLIX" />
+    <meta name="description" content="WMCPLAYER - Programa Oficial de Fidelidade" />
+    <meta name="author" content="WMCPLAYER" />
+    <meta name="application-name" content="WMCPLAYER" />
+    <meta name="apple-mobile-web-app-title" content="WMCPLAYER" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" href="/pwa-512.png" type="image/png" />
     <link rel="shortcut icon" href="/pwa-512.png" type="image/png" />
 
-    <meta property="og:title" content="WMCFLIX" />
-    <meta property="og:description" content="WMCFLIX - Programa Oficial de Fidelidade" />
+    <meta property="og:title" content="WMCPLAYER" />
+    <meta property="og:description" content="WMCPLAYER - Programa Oficial de Fidelidade" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/pwa-512.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="WMCFLIX" />
-    <meta name="twitter:description" content="WMCFLIX - Programa Oficial de Fidelidade" />
+    <meta name="twitter:title" content="WMCPLAYER" />
+    <meta name="twitter:description" content="WMCPLAYER - Programa Oficial de Fidelidade" />
     <meta name="twitter:image" content="/pwa-512.png" />
   </head>
   <body>
