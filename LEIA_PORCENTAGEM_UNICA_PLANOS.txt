@@ -1,0 +1,27 @@
+CORREÇÃO: APENAS UM CAMPO DE PORCENTAGEM NOS PLANOS
+
+BASE USADA:
+bitziptv1-planos-cliente-puxa-admin-corrigido.zip
+
+PROBLEMA:
+No admin havia dois campos que pareciam porcentagem:
+1. Badge: ECONOMIZE 15%
+2. Desconto (%): 15
+
+CORRIGIDO:
+1. Removido o campo Badge da tela do admin.
+2. Agora o admin preenche somente Desconto (%).
+3. A faixa ECONOMIZE X% é gerada automaticamente pelo sistema.
+4. O cliente passa a mostrar ECONOMIZE X% usando o mesmo valor do campo Desconto (%).
+5. Continua sem realtime, sem polling e sem consultas automáticas.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase se necessário.
+6. Faça novo login/recarregue o cliente para ver os planos.
+
+IMPORTANTE:
+Para economizar Cloudflare/Supabase, o cliente só consulta ao entrar/logar/recarregar/verificar app.

@@ -1366,11 +1366,17 @@ const ClientDashboard = () => {
           .order("sort_order", { ascending: true })
           .order("day_of_month", { ascending: true }),
         (supabase as any)
-          .from("iptv_renewal_plans")
-          .select("*")
-          .eq("is_active", true)
-          .order("sort_order", { ascending: true })
-          .order("months", { ascending: true }),
+          .rpc("get_active_renewal_plans")
+          .then(async (rpcResult: any) => {
+            if (!rpcResult.error) return rpcResult;
+
+            return (supabase as any)
+              .from("iptv_renewal_plans")
+              .select("*")
+              .eq("is_active", true)
+              .order("sort_order", { ascending: true })
+              .order("months", { ascending: true });
+          }),
       ]);
       setSupportInfo(support.data);
       setTvApps(apps.data || []);
@@ -2007,7 +2013,12 @@ const ClientDashboard = () => {
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;
-              const badgeText = plan.badge_text?.trim() || (premium ? "Maior economia" : "Plano recomendado");
+              const badgeText =
+                financials.discountPercent > 0
+                  ? `ECONOMIZE ${formatDiscountPercent(financials.discountPercent)}%`
+                  : premium
+                    ? "MAIOR ECONOMIA"
+                    : "PLANO RECOMENDADO";
               const description = `${formatDiscountPercent(financials.discountPercent)}% de desconto`;
               const ctaText = plan.cta_text?.trim() || "Assinar agora";
 

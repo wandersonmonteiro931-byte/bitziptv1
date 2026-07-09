@@ -93,10 +93,50 @@ insert into public.iptv_renewal_plans (id, title, description, badge_text, cta_t
 select gen_random_uuid(), v.*
 from (
   values
-    ('Antecipar 3 meses', '5% de desconto', 'Plano recomendado', 'Antecipar agora', 3, 5.00, true, 1),
-    ('Antecipar 6 meses', '10% de desconto', 'Maior economia', 'Antecipar agora', 6, 10.00, true, 2)
+    ('Antecipar 3 meses', '5% de desconto', 'ECONOMIZE 5%', 'Antecipar agora', 3, 5.00, true, 1),
+    ('Antecipar 6 meses', '10% de desconto', 'ECONOMIZE 10%', 'Antecipar agora', 6, 10.00, true, 2)
 ) as v(title, description, badge_text, cta_text, months, discount_percent, is_active, sort_order)
 where not exists (select 1 from public.iptv_renewal_plans);
 
 -- Correção extra para evitar erro: null value in column "id".
 alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();
+
+-- Função segura para o cliente buscar planos ativos sem depender de realtime/polling.
+create or replace function public.get_active_renewal_plans()
+returns table (
+  id uuid,
+  title text,
+  badge_text text,
+  cta_text text,
+  months integer,
+  discount_percent numeric,
+  is_active boolean,
+  sort_order integer
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    p.id,
+    p.title,
+    p.badge_text,
+    p.cta_text,
+    p.months,
+    p.discount_percent,
+    p.is_active,
+    p.sort_order
+  from public.iptv_renewal_plans p
+  where p.is_active = true
+  order by p.sort_order asc, p.months asc;
+$$;
+
+grant execute on function public.get_active_renewal_plans() to anon;
+grant execute on function public.get_active_renewal_plans() to authenticated;
+
+-- Garante leitura direta também para usuário logado, caso o RPC não seja usado.
+drop policy if exists "renewal_plans_select_authenticated" on public.iptv_renewal_plans;
+create policy "renewal_plans_select_authenticated"
+on public.iptv_renewal_plans
+for select
+using (auth.uid() is not null);

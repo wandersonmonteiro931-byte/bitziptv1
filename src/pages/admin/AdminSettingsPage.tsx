@@ -450,7 +450,7 @@ const AdminSettingsPage = () => {
       const cleanedPlans = renewalPlans.map((plan, index) => ({
         id: plan.id && String(plan.id).trim() ? String(plan.id).trim() : createClientUuid(),
         title: String(plan.title || "").trim(),
-        badge_text: String(plan.badge_text || "").trim(),
+        badge_text: `ECONOMIZE ${Math.max(0, Math.min(100, Number(plan.discount_percent || 0)))}%`,
         cta_text: String(plan.cta_text || "Antecipar agora").trim() || "Antecipar agora",
         months: Math.max(1, Number(plan.months || 1)),
         discount_percent: Math.max(0, Math.min(100, Number(plan.discount_percent || 0))),
@@ -849,7 +849,7 @@ const AdminSettingsPage = () => {
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Plano #{index + 1}</p>
-                    <p className="text-[11px] text-muted-foreground">A porcentagem abaixo aparece para o cliente no próximo login/atualização.</p>
+                    <p className="text-[11px] text-muted-foreground">Use apenas o campo Desconto (%). A faixa ECONOMIZE é gerada automaticamente.</p>
                   </div>
                   <button
                     onClick={() => removeRenewalPlan(index)}
@@ -864,10 +864,6 @@ const AdminSettingsPage = () => {
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Título do plano</h4>
                     <input value={plan.title} onChange={(e) => updateRenewalPlan(index, "title", e.target.value)} className={inputCls + " max-w-full"} placeholder="Ex: Antecipar 3 meses" />
-                  </div>
-                  <div>
-                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Badge</h4>
-                    <input value={plan.badge_text} onChange={(e) => updateRenewalPlan(index, "badge_text", e.target.value)} className={inputCls + " max-w-full"} placeholder="Ex: Plano recomendado" />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Meses</h4>
