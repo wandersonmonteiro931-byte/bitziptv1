@@ -1,0 +1,28 @@
+CORREÇÃO: SEM CONSULTAS AUTOMÁTICAS / ECONOMIZAR PLANO GRATUITO
+
+BASE USADA:
+bitziptv1-planos-atualizacao-instantanea.zip
+
+O QUE FOI ALTERADO:
+1. Removido realtime do cliente.
+2. Removido polling automático dos planos.
+3. Removido atualização automática ao focar/voltar para a aba.
+4. Removido atualização automática por localStorage/evento entre abas.
+5. Removido polling automático do histórico de mensalidades.
+6. Removido realtime do aviso de pagamento aguardando ativação.
+7. Cliente agora consulta os planos somente quando entra/loga/carrega a tela.
+8. Para ver alteração do admin, cliente deve fazer novo login ou usar atualizar/verificar app.
+9. Corrigido erro ao salvar plano novo:
+   null value in column "id" violates not-null constraint
+10. SQL não habilita mais realtime para a tabela iptv_renewal_plans.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase se ainda não rodou.
+
+IMPORTANTE:
+Para economizar uso, alterações feitas no admin não serão empurradas sozinhas para o cliente.
+O cliente verá as mudanças ao entrar novamente, recarregar a página ou clicar em atualizar/verificar app.

@@ -1,0 +1,26 @@
+CORREÇÃO: PLANOS DO ADMIN ATUALIZAM INSTANTÂNEO PARA O CLIENTE
+
+BASE USADA:
+bitziptv1-admin-settings-abre-planos-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. Quando o admin salva os planos, o cliente atualiza automaticamente.
+2. Adicionado aviso via localStorage entre abas.
+3. Adicionado evento interno na mesma aba.
+4. Mantido realtime do Supabase.
+5. Adicionado polling leve a cada 2,5 segundos como garantia.
+6. SQL_CRIAR_PLANOS_RENOVACAO.sql agora habilita realtime na tabela iptv_renewal_plans.
+7. Removido qualquer texto/quadrado "CONHEÇA NOSSOS PLANOS".
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Rode novamente o SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase.
+   Pode rodar por cima. Não apaga os planos.
+6. Entre no Admin > Config, altere desconto e clique em Salvar Planos.
+7. Deixe a tela do cliente aberta: os cards devem mudar sozinhos em poucos segundos.
+
+OBSERVAÇÃO:
+Se o cliente estiver com cache/PWA antigo, atualize a página uma vez com CTRL + F5.

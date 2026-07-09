@@ -513,15 +513,7 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
     };
     load();
 
-    const channel = supabase
-      .channel("pending-activation-banner")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
-        load();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => undefined;
   }, [userId]);
 
   if (effectiveStatus !== "awaiting_activation" && !futureExpiry) return null;
@@ -735,27 +727,7 @@ function PaymentHistory() {
     };
     load();
 
-    const reloadOnFocus = () => load();
-    const reloadOnVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    window.addEventListener("focus", reloadOnFocus);
-    document.addEventListener("visibilitychange", reloadOnVisible);
-    const poll = window.setInterval(load, 10000);
-
-    // Realtime: reload when iptv_payments changes
-    const channel = supabase
-      .channel("payment-history-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
-        load();
-      })
-      .subscribe();
-    return () => {
-      window.clearInterval(poll);
-      window.removeEventListener("focus", reloadOnFocus);
-      document.removeEventListener("visibilitychange", reloadOnVisible);
-      supabase.removeChannel(channel);
-    };
+    return () => undefined;
   }, []);
 
   return (
@@ -1429,14 +1401,6 @@ const ClientDashboard = () => {
     };
     loadData();
 
-    const billingDatesChannel = supabase
-      .channel("billing-due-dates-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "billing_due_dates" }, () => {
-        loadData();
-        refreshProfile();
-      })
-      .subscribe();
-
     // Check trust request status
     const checkTrustStatus = async () => {
       if (!user?.id) return;
@@ -1499,37 +1463,9 @@ const ClientDashboard = () => {
     };
     loadPendingExpiry();
 
-    const channel = supabase
-      .channel("iptv-dashboard")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user?.id}` },
-        () => {
-          refreshProfile();
-        },
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
-        loadPendingExpiry();
-        refreshProfile();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "platform_settings" }, (payload) => {
-        const next = payload.new as any;
-        setRenewalDiscount3mPercent(Number(next.renewal_discount_3m_percent ?? 5));
-        setRenewalDiscount6mPercent(Number(next.renewal_discount_6m_percent ?? 10));
-      })
-      .subscribe();
-
-    const renewalPlansChannel = supabase
-      .channel("iptv-renewal-plans-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_renewal_plans" }, () => {
-        loadData();
-      })
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(billingDatesChannel);
-      supabase.removeChannel(renewalPlansChannel);
+      // Sem realtime, sem polling e sem consulta automática.
+      // As informações só são carregadas ao entrar/logar nesta tela.
     };
   }, [user?.id]);
 

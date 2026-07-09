@@ -435,7 +435,7 @@ const AdminSettingsPage = () => {
     setSavingRenewalPlans(true);
     try {
       const cleanedPlans = renewalPlans.map((plan, index) => ({
-        id: plan.id,
+        id: plan.id && String(plan.id).trim() ? String(plan.id).trim() : undefined,
         title: String(plan.title || "").trim(),
         badge_text: String(plan.badge_text || "").trim(),
         cta_text: String(plan.cta_text || "Assinar agora").trim() || "Assinar agora",
@@ -459,23 +459,34 @@ const AdminSettingsPage = () => {
       }
 
       if (cleanedPlans.length > 0) {
-        const payload = cleanedPlans.map((plan) => ({
-          ...(plan.id ? { id: plan.id } : {}),
-          title: plan.title,
+        const payload = cleanedPlans.map((plan) => {
+          const row: any = {
+            title: plan.title,
           badge_text: plan.badge_text || null,
           cta_text: plan.cta_text || "Assinar agora",
           months: plan.months,
           discount_percent: plan.discount_percent,
           sort_order: plan.sort_order,
           is_active: plan.is_active,
-        }));
+          };
+
+          if (plan.id) {
+            row.id = plan.id;
+          }
+
+          return row;
+        });
 
         const { error } = await (supabase as any).from("iptv_renewal_plans").upsert(payload);
         if (error) throw error;
       }
 
       await loadRenewalPlans();
-      toast({ title: "Planos salvos!", description: "Os planos já foram atualizados para os clientes." });
+
+      toast({
+        title: "Planos salvos!",
+        description: "Para economizar o plano gratuito, o cliente verá a alteração no próximo login ou ao atualizar/verificar o app.",
+      });
     } catch (err: any) {
       toast({
         title: "Erro ao salvar planos",
