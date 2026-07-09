@@ -1,0 +1,35 @@
+CORREÇÃO DEFINITIVA: PLANO DO ADMIN NÃO SOME AO RECARREGAR
+
+BASE USADA:
+bitziptv1-planos-admin-persistente-cliente.zip
+
+O QUE FOI CORRIGIDO:
+1. Quando o admin clica em Atualizar / verificar planos, o cliente aberto recebe os planos na hora.
+2. Admin também grava os planos no localStorage do site para a janela do cliente atualizar imediatamente.
+3. Cliente escuta esse envio local e aplica os planos sem precisar consultar em loop.
+4. Admin salva snapshot fixo em platform_settings.
+5. SQL agora atualiza o snapshot em TODAS as linhas de platform_settings, não só em uma.
+6. Cliente, ao recarregar/login, lê o snapshot fixo do admin.
+7. RPC get_active_renewal_plans agora usa a tabela e, se vier vazio, usa o snapshot.
+8. Removido qualquer plano padrão/fallback.
+9. Se não houver plano do admin, aparece aviso. Nunca inventa 5%/10%.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql.
+   Pode rodar por cima.
+6. No Admin > Config:
+   - clique em Salvar Planos
+   - depois clique em Atualizar / verificar planos
+7. Recarregue a tela do cliente.
+   Os planos devem continuar exatamente iguais aos do admin.
+
+IMPORTANTE:
+O cliente não usa plano padrão.
+O cliente não fica em polling.
+O cliente só muda quando:
+- abre/recarrega/login e lê o que o admin salvou
+- ou quando o admin clica em Atualizar / verificar planos com o cliente aberto

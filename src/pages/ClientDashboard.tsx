@@ -1366,11 +1366,25 @@ const ClientDashboard = () => {
 
   const readCachedRenewalPlans = useCallback(() => {
     try {
-      const raw = localStorage.getItem("wmcplayer_renewal_plans_cache");
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed?.plans)) return [];
-      return normalizeRenewalPlans(parsed.plans).filter((plan) => Boolean(plan.is_active));
+      const cacheRaw = localStorage.getItem("wmcplayer_renewal_plans_cache");
+      const pushRaw = localStorage.getItem("wmcplayer_renewal_plans_push");
+
+      const candidates = [cacheRaw, pushRaw]
+        .filter(Boolean)
+        .map((raw) => {
+          try {
+            return JSON.parse(String(raw));
+          } catch {
+            return null;
+          }
+        })
+        .filter((item) => item && Array.isArray(item.plans))
+        .sort((a, b) => Number(b.savedAt || b.sentAt || 0) - Number(a.savedAt || a.sentAt || 0));
+
+      const latest = candidates[0];
+      if (!latest) return [];
+
+      return normalizeRenewalPlans(latest.plans).filter((plan) => Boolean(plan.is_active));
     } catch {
       return [];
     }
@@ -1446,6 +1460,12 @@ const ClientDashboard = () => {
           return cached;
         }
 
+        const cached = useCacheFallback ? readCachedRenewalPlans() : [];
+        if (cached.length > 0) {
+          setRenewalPlans(cached);
+          return cached;
+        }
+
         setRenewalPlans([]);
         if (manual) setPlansRefreshMessage("Nenhum plano novo encontrado. Confira se salvou no admin e rodou o SQL.");
         return [];
@@ -1471,12 +1491,37 @@ const ClientDashboard = () => {
   useEffect(() => {
     if (!user?.id) return;
 
+    const applyPushedPlans = (rows: any[] = []) => {
+      if (Array.isArray(rows) && rows.length > 0) {
+        applyRenewalPlansFromAdmin(rows);
+      }
+    };
+
+    const onStoragePlansUpdate = (event: StorageEvent) => {
+      if (event.key !== "wmcplayer_renewal_plans_push" || !event.newValue) return;
+
+      try {
+        const parsed = JSON.parse(event.newValue);
+        applyPushedPlans(parsed?.plans || []);
+      } catch {
+        // ignora cache inválido
+      }
+    };
+
+    window.addEventListener("storage", onStoragePlansUpdate);
+
     const planUpdateChannel = supabase
       .channel("wmcplayer-renewal-plans-push")
       .on("broadcast", { event: "renewal-plans-updated" }, (event) => {
         const pushedPlans = (event as any)?.payload?.plans;
         if (Array.isArray(pushedPlans) && pushedPlans.length > 0) {
-          applyRenewalPlansFromAdmin(pushedPlans);
+          applyPushedPlans(pushedPlans);
+          return;
+        }
+
+        const cached = readCachedRenewalPlans();
+        if (cached.length > 0) {
+          applyPushedPlans(cached);
           return;
         }
 
@@ -1485,11 +1530,17 @@ const ClientDashboard = () => {
       .subscribe();
 
     return () => {
+      window.removeEventListener("storage", onStoragePlansUpdate);
       supabase.removeChannel(planUpdateChannel);
     };
-  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin]);
+  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
 
   useEffect(() => {
+    const cachedPlansOnOpen = readCachedRenewalPlans();
+    if (cachedPlansOnOpen.length > 0) {
+      setRenewalPlans(cachedPlansOnOpen);
+    }
+
     const loadData = async () => {
       await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
 
@@ -1595,7 +1646,7 @@ const ClientDashboard = () => {
       // Sem realtime, sem polling e sem consulta automática.
       // As informações só são carregadas ao entrar/logar nesta tela.
     };
-  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin]);
+  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
 
   // Handle hash navigation (from push notifications)
   useEffect(() => {

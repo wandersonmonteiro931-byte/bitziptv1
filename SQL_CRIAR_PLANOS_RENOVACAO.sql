@@ -4,7 +4,7 @@
 create extension if not exists pgcrypto;
 
 -- Snapshot fixo dos planos enviados pelo admin.
--- O cliente usa isso para nunca voltar para plano padrão ao recarregar.
+-- O cliente usa este snapshot ao recarregar, para nunca voltar/sumir.
 alter table if exists public.platform_settings
   add column if not exists renewal_plans_snapshot jsonb not null default '[]'::jsonb;
 
@@ -17,26 +17,91 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  v_settings_id uuid;
 begin
-  select id
-    into v_settings_id
-  from public.platform_settings
-  limit 1;
-
-  if v_settings_id is null then
-    raise exception 'platform_settings não possui registro para salvar renewal_plans_snapshot';
-  end if;
-
   update public.platform_settings
      set renewal_plans_snapshot = coalesce(p_plans, '[]'::jsonb),
-         renewal_plans_snapshot_updated_at = now()
-   where id = v_settings_id;
+         renewal_plans_snapshot_updated_at = now();
+
+  if not found then
+    raise exception 'platform_settings não possui registro para salvar renewal_plans_snapshot';
+  end if;
 end;
 $$;
 
 grant execute on function public.set_renewal_plans_snapshot(jsonb) to authenticated;
+
+-- Cliente busca planos ativos.
+-- Primeiro tenta a tabela iptv_renewal_plans.
+-- Se a tabela não retornar nada, usa o snapshot fixo enviado pelo admin.
+create or replace function public.get_active_renewal_plans()
+returns table (
+  id uuid,
+  title text,
+  badge_text text,
+  cta_text text,
+  months integer,
+  discount_percent numeric,
+  is_active boolean,
+  sort_order integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  select
+    p.id,
+    p.title,
+    p.badge_text,
+    p.cta_text,
+    p.months,
+    p.discount_percent,
+    p.is_active,
+    p.sort_order
+  from public.iptv_renewal_plans p
+  where p.is_active = true
+  order by p.sort_order asc, p.months asc;
+
+  if found then
+    return;
+  end if;
+
+  return query
+  select
+    coalesce(nullif(plan->>'id', '')::uuid, gen_random_uuid()) as id,
+    coalesce(plan->>'title', '') as title,
+    nullif(plan->>'badge_text', '') as badge_text,
+    coalesce(nullif(plan->>'cta_text', ''), 'Antecipar agora') as cta_text,
+    greatest(1, coalesce((plan->>'months')::integer, 1)) as months,
+    greatest(0, least(100, coalesce((plan->>'discount_percent')::numeric, 0))) as discount_percent,
+    coalesce((plan->>'is_active')::boolean, true) as is_active,
+    coalesce((plan->>'sort_order')::integer, 0) as sort_order
+  from public.platform_settings ps
+  cross join lateral jsonb_array_elements(coalesce(ps.renewal_plans_snapshot, '[]'::jsonb)) as plan
+  where coalesce((plan->>'is_active')::boolean, true) = true
+  order by sort_order asc, months asc;
+end;
+$$;
+
+grant execute on function public.get_active_renewal_plans() to anon;
+grant execute on function public.get_active_renewal_plans() to authenticated;
+
+drop policy if exists "renewal_plans_select_authenticated" on public.iptv_renewal_plans;
+create policy "renewal_plans_select_authenticated"
+on public.iptv_renewal_plans
+for select
+using (true);
+
+-- Snapshot fixo dos planos enviados pelo admin.
+-- O cliente usa isso para nunca voltar para plano padrão ao recarregar.
+alter table if exists public.platform_settings
+  add column if not exists renewal_plans_snapshot jsonb not null default '[]'::jsonb;
+
+alter table if exists public.platform_settings
+  add column if not exists renewal_plans_snapshot_updated_at timestamptz;
+
+
 
 alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();
 
@@ -126,43 +191,3 @@ using (
 
 -- Correção extra para evitar erro: null value in column "id".
 alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();
-
--- Função segura para o cliente buscar planos ativos sem depender de realtime/polling.
-create or replace function public.get_active_renewal_plans()
-returns table (
-  id uuid,
-  title text,
-  badge_text text,
-  cta_text text,
-  months integer,
-  discount_percent numeric,
-  is_active boolean,
-  sort_order integer
-)
-language sql
-security definer
-set search_path = public
-as $$
-  select
-    p.id,
-    p.title,
-    p.badge_text,
-    p.cta_text,
-    p.months,
-    p.discount_percent,
-    p.is_active,
-    p.sort_order
-  from public.iptv_renewal_plans p
-  where p.is_active = true
-  order by p.sort_order asc, p.months asc;
-$$;
-
-grant execute on function public.get_active_renewal_plans() to anon;
-grant execute on function public.get_active_renewal_plans() to authenticated;
-
--- Garante leitura direta também para usuário logado, caso o RPC não seja usado.
-drop policy if exists "renewal_plans_select_authenticated" on public.iptv_renewal_plans;
-create policy "renewal_plans_select_authenticated"
-on public.iptv_renewal_plans
-for select
-using (auth.uid() is not null);

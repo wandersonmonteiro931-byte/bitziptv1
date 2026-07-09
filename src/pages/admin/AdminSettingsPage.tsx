@@ -537,16 +537,28 @@ const AdminSettingsPage = () => {
       await saveRenewalPlansSnapshot(cleanedPlans);
       await loadRenewalPlans();
 
+      const updateStamp = Date.now();
+
       try {
         localStorage.setItem(
           "wmcplayer_renewal_plans_cache",
           JSON.stringify({
-            savedAt: Date.now(),
+            savedAt: updateStamp,
             plans: cleanedPlans,
           }),
         );
+
+        if (sendUpdate) {
+          localStorage.setItem(
+            "wmcplayer_renewal_plans_push",
+            JSON.stringify({
+              sentAt: updateStamp,
+              plans: cleanedPlans,
+            }),
+          );
+        }
       } catch {
-        // Cache local é opcional e não dispara consulta automática.
+        // Cache local é opcional e não faz consulta automática.
       }
 
       if (sendUpdate) {
