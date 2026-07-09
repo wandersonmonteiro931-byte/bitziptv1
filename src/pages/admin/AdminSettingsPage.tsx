@@ -444,7 +444,7 @@ const AdminSettingsPage = () => {
     setRenewalPlans((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const saveRenewalPlans = async () => {
+  const saveRenewalPlans = async (sendUpdate = false) => {
     setSavingRenewalPlans(true);
     try {
       const cleanedPlans = renewalPlans.map((plan, index) => ({
@@ -509,8 +509,10 @@ const AdminSettingsPage = () => {
       }
 
       toast({
-        title: "Planos salvos!",
-        description: "Para economizar o plano gratuito, o cliente verá a alteração no próximo login, recarregando ou clicando em atualizar/verificar planos.",
+        title: sendUpdate ? "Atualização de planos enviada!" : "Planos salvos!",
+        description: sendUpdate
+          ? "Os clientes verão os novos planos no próximo login ou quando reabrirem/recarregarem o app."
+          : "Planos salvos. Para economizar o plano gratuito, nada é consultado automaticamente no cliente.",
       });
     } catch (err: any) {
       toast({
@@ -522,6 +524,11 @@ const AdminSettingsPage = () => {
       setSavingRenewalPlans(false);
     }
   };
+
+  const sendRenewalPlansUpdate = async () => {
+    await saveRenewalPlans(true);
+  };
+
 
   if (!settings)
     return (
@@ -907,14 +914,24 @@ const AdminSettingsPage = () => {
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
-            onClick={saveRenewalPlans}
+            onClick={() => saveRenewalPlans(false)}
             disabled={savingRenewalPlans}
             className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-6 py-2.5 text-sm font-medium text-white transition-all hover:brightness-110 disabled:opacity-50"
           >
             {savingRenewalPlans && <Loader2 size={16} className="animate-spin" />}
             Salvar Planos
           </button>
-          <p className="text-xs text-muted-foreground">O cliente verá as alterações no próximo login, recarregando ou clicando em atualizar/verificar planos.</p>
+          <button
+            onClick={sendRenewalPlansUpdate}
+            disabled={savingRenewalPlans}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-500/35 bg-red-500/10 px-6 py-2.5 text-sm font-semibold text-red-100 transition-all hover:bg-red-500/20 disabled:opacity-50"
+          >
+            {savingRenewalPlans && <Loader2 size={16} className="animate-spin" />}
+            Atualizar / verificar planos
+          </button>
+          <p className="text-xs text-muted-foreground">
+            O botão de atualização fica só no admin. O cliente vê os novos planos no próximo login ou quando reabrir/recarregar o app.
+          </p>
         </div>
       </div>
 

@@ -1409,7 +1409,7 @@ const ClientDashboard = () => {
           const plans = normalizeRenewalPlans(direct.data);
           setRenewalPlans(plans);
           saveCachedRenewalPlans(plans);
-          if (manual) setPlansRefreshMessage("Planos atualizados.");
+          if (manual) setPlansRefreshMessage("");
           return plans;
         }
 
@@ -1419,7 +1419,7 @@ const ClientDashboard = () => {
           const plans = normalizeRenewalPlans(rpc.data);
           setRenewalPlans(plans);
           saveCachedRenewalPlans(plans);
-          if (manual) setPlansRefreshMessage("Planos atualizados.");
+          if (manual) setPlansRefreshMessage("");
           return plans;
         }
 
@@ -2086,25 +2086,7 @@ const ClientDashboard = () => {
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
           className="space-y-4"
         >
-<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-500/10 bg-black/70 px-4 py-3">
-            <div>
-              <p className="text-xs font-semibold text-white">Planos de renovação</p>
-              <p className="text-[10px] text-muted-foreground">
-                Para economizar o plano gratuito, os planos só são consultados ao entrar ou ao clicar no botão abaixo.
-              </p>
-              {plansRefreshMessage && <p className="mt-1 text-[10px] text-red-300">{plansRefreshMessage}</p>}
-            </div>
-            <button
-              type="button"
-              onClick={() => loadRenewalPlansOnce({ useCacheFallback: false, manual: true })}
-              disabled={plansRefreshing}
-              className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-500/20 disabled:opacity-60"
-            >
-              {plansRefreshing ? "Atualizando..." : "Atualizar / verificar planos"}
-            </button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;

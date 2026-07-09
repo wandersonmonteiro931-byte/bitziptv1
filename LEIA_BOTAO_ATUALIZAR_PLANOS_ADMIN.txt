@@ -1,0 +1,24 @@
+BOTÃO DE ATUALIZAR PLANOS MOVIDO PARA O ADMIN
+
+BASE USADA:
+bitziptv1-planos-cliente-atualizacao-manual-corrigido.zip
+
+O QUE FOI ALTERADO:
+1. Removido o botão "Atualizar / verificar planos" da tela do cliente.
+2. Adicionado o botão "Atualizar / verificar planos" na tela Admin > Config.
+3. O admin agora salva/envia a atualização dos planos.
+4. O cliente continua sem realtime, sem polling e sem consulta automática.
+5. O cliente vê os novos planos no próximo login ou quando reabrir/recarregar o app.
+6. Mantido apenas um campo de porcentagem: Desconto (%).
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No admin, vá em Config > Planos de Renovação.
+6. Clique em "Atualizar / verificar planos".
+
+IMPORTANTE:
+Como foi pedido para economizar Cloudflare/Supabase, o botão do admin não força consulta automática no cliente.
+O cliente só vai ver a alteração ao fazer novo login ou reabrir/recarregar o app.
