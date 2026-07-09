@@ -984,17 +984,42 @@ function PixModal({
 
         setPaymentId(payment.id);
 
-        const { data, error: fnError } = await supabase.functions.invoke("pix-efi/create-charge", {
-          body: {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) {
+          throw new Error("Sessão expirada. Saia e entre novamente.");
+        }
+
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/create-charge`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
             payment_id: payment.id,
             amount: pixModal.value,
             devedor_nome: user.name || undefined,
-            descricao: `${appName} - ${pixModal.months} mês(es)`,
-          },
+            descricao: `RENOVAÇÃO WMCPLAYER - ${pixModal.months} MÊS(S) - CLIENTE ${user.iptv_client_code || user.username || user.name || user.id}`,
+          }),
         });
 
-        if (fnError || data?.error) {
-          throw new Error(data?.error || fnError?.message || "Erro ao gerar PIX");
+        let data: any = null;
+        try {
+          data = await resp.json();
+        } catch {
+          data = null;
+        }
+
+        if (!resp.ok || data?.error) {
+          throw new Error(
+            data?.detail ||
+              data?.error ||
+              `Erro ao gerar PIX. Código HTTP ${resp.status}`
+          );
         }
 
         setPixData(data);

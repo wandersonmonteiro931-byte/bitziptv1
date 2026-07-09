@@ -1,0 +1,19 @@
+MENSAGEM PADRÃO DO PIX ALTERADA
+
+Alterado somente o necessário.
+
+A mensagem enviada para a Efí no PIX de renovação agora fica assim:
+
+RENOVAÇÃO WMCPLAYER - X MÊS(S) - CLIENTE XXXX
+
+Onde:
+- X = quantidade de meses da renovação
+- XXXX = código do cliente, ou usuário/nome se não houver código
+
+Arquivo alterado:
+src/pages/ClientDashboard.tsx
+
+Depois de extrair:
+1. Clique em ATUALIZAR_GITHUB_AGORA.bat
+2. Aguarde o Cloudflare publicar
+3. Teste gerar PIX novamente

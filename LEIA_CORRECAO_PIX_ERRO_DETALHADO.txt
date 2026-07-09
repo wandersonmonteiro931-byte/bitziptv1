@@ -1,0 +1,23 @@
+BITZIPTV1 / WMCPLAYER - PIX COM ERRO DETALHADO
+
+ALTERADO SOMENTE O NECESSÁRIO:
+1. supabase/functions/pix-efi/index.ts
+   - adiciona logs detalhados da ação create-charge
+   - retorna o detalhe real do erro da Efí/Supabase
+
+2. src/pages/ClientDashboard.tsx
+   - troca supabase.functions.invoke por fetch direto
+   - mostra no modal o erro real retornado pela função
+   - evita mostrar apenas "Edge Function returned a non-2xx status code"
+
+COMO USAR:
+1. Extraia este ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat para republicar a função pix-efi atualizada.
+6. Teste gerar PIX novamente.
+7. Se der erro, agora o modal/log vai mostrar o motivo real, como OAuth failed, certificado, chave Pix ou permissão.
+
+IMPORTANTE:
+Não coloque SECRETS_SUPABASE_PIX.env no GitHub.

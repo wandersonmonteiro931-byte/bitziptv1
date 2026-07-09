@@ -300,6 +300,11 @@ serve(async (req) => {
     const url = new URL(req.url);
     const pathSegments = url.pathname.split("/").filter(Boolean);
     const path = pathSegments[pathSegments.length - 1];
+    console.log("pix-efi request:", JSON.stringify({
+      method: req.method,
+      pathname: url.pathname,
+      action: path,
+    }));
     
     // Efí appends /pix to webhook URL, so match both "webhook" and "pix"
     const isWebhook = path === "webhook" || path === "pix" || 
@@ -356,8 +361,17 @@ serve(async (req) => {
 
     return jsonResp({ error: "Unknown action" }, 400);
   } catch (err) {
-    console.error("pix-efi error:", err);
-    return jsonResp({ error: err.message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("pix-efi detailed error:", JSON.stringify({
+      message,
+      stack,
+    }));
+    return jsonResp({
+      error: message,
+      detail: message,
+      hint: "Erro interno da função pix-efi. Veja Supabase > Edge Functions > pix-efi > Logs.",
+    }, 500);
   }
 });
 
@@ -366,13 +380,27 @@ serve(async (req) => {
 async function handleCreateCharge(userId: string, body: any) {
   const { payment_id, amount, devedor_nome, devedor_cpf, descricao } = body;
 
+  console.log("create-charge received:", JSON.stringify({
+    userId,
+    payment_id,
+    amount,
+    has_devedor_nome: Boolean(devedor_nome),
+    has_devedor_cpf: Boolean(devedor_cpf),
+  }));
+
   if (!payment_id || !amount) {
     return jsonResp({ error: "payment_id and amount required" }, 400);
   }
 
   const pixKey = getEnv("EFI_PIX_KEY");
+  console.log("EFI_PIX_KEY loaded:", JSON.stringify({
+    length: pixKey.length,
+    preview: pixKey.slice(0, 4) + "..." + pixKey.slice(-4),
+  }));
 
+  console.log("Requesting Efí OAuth token...");
   const accessToken = await getAccessToken();
+  console.log("Efí OAuth token OK.");
 
   const cobPayload: CobPayload = {
     calendario: { expiracao: 3600 },
@@ -385,10 +413,18 @@ async function handleCreateCharge(userId: string, body: any) {
     cobPayload.devedor = { cpf: devedor_cpf, nome: devedor_nome };
   }
 
+  console.log("Creating Efí PIX charge...");
   const cob = await createPixCharge(accessToken, cobPayload);
+  console.log("Efí charge created:", JSON.stringify({
+    txid: cob.txid,
+    loc_id: cob.loc?.id,
+    status: cob.status,
+  }));
 
   // Get QR code
+  console.log("Getting Efí QR Code...");
   const qr = await getQrCode(accessToken, cob.loc.id);
+  console.log("Efí QR Code OK.");
 
   // Update payment record with PIX data
   const adminSupa = getAdminSupabase();

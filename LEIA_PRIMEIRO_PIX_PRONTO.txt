@@ -1,0 +1,19 @@
+PIX EFI PRONTO PARA PUBLICAR
+
+Este ZIP já está com:
+- SECRETS_SUPABASE_PIX.env preenchido
+- EFI_CERTIFICATE_BASE64.txt preenchido
+- função pix-efi com log detalhado
+- arquivo CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat
+
+COMO USAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Clique em CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+4. Aguarde publicar as Edge Functions no Supabase.
+5. Depois teste o PIX no site Cloudflare.
+
+IMPORTANTE:
+Não envie SECRETS_SUPABASE_PIX.env para o GitHub.
+Não envie EFI_CERTIFICATE_BASE64.txt para o GitHub.
+Esses arquivos estão no .gitignore.
