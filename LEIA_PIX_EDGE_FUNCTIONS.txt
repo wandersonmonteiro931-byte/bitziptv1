@@ -1,0 +1,38 @@
+BITZIPTV1 / WMCPLAYER - CORREÇÃO DO PIX NO SUPABASE NOVO
+
+PROBLEMA:
+O site já está no Cloudflare e o login funciona, mas ao gerar PIX aparece:
+"Failed to send a request to the Edge Function"
+
+CAUSA:
+O banco foi migrado, mas as Edge Functions do Supabase e os secrets da Efí/PIX não são migrados pelo backup do Lovable.
+O PIX depende da função:
+supabase/functions/pix-efi
+
+O QUE FOI ALTERADO:
+1. Adicionado CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat
+2. Adicionado SECRETS_SUPABASE_PIX_MODELO.env
+3. Adicionado CERTIFICADO_EFI_P12_PARA_BASE64.bat
+4. Protegido .gitignore para não enviar secrets/certificados ao GitHub
+5. Pequena correção na função pix-efi para aceitar senha opcional no certificado .p12
+
+COMO USAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Clique em CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+4. Na primeira execução ele vai criar SECRETS_SUPABASE_PIX.env e mandar você preencher.
+5. Preencha os dados reais da Efí e do Supabase.
+6. Rode o BAT novamente.
+7. Ele vai fazer login no Supabase, enviar os secrets e publicar as funções.
+8. Depois teste o PIX novamente no Cloudflare.
+
+DADOS QUE VOCÊ PRECISA TER:
+- Secret Key do Supabase novo
+- Client ID da Efí
+- Client Secret da Efí
+- Chave Pix cadastrada na Efí
+- Certificado .p12 da Efí convertido para Base64
+
+IMPORTANTE:
+Não envie SECRETS_SUPABASE_PIX.env para o GitHub.
+Não coloque certificado .p12 no GitHub.

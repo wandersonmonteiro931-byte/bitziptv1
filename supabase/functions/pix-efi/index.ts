@@ -27,7 +27,8 @@ function getPemCredentials(): { cert: string; key: string } {
   
   const derBytes = forge.util.decode64(b64);
   const asn1 = forge.asn1.fromDer(derBytes);
-  const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, "");
+  const p12Password = Deno.env.get("EFI_CERTIFICATE_PASSWORD") || "";
+  const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, p12Password);
 
   // Extract certificate
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
