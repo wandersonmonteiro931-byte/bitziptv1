@@ -1,0 +1,27 @@
+CORREÇÃO: CLIENTE NÃO MOSTRAVA PLANOS DO ADMIN
+
+BASE USADA:
+bitziptv1-planos-porcentagem-unica-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. Cliente agora tem botão manual "Atualizar / verificar planos".
+2. Não tem realtime.
+3. Não tem polling.
+4. Não consulta sozinho em segundo plano.
+5. Consulta os planos ao entrar/carregar a tela ou quando clicar no botão manual.
+6. Admin salva um cache local dos planos, sem disparar atualização automática.
+7. Cliente tenta buscar primeiro na tabela iptv_renewal_plans e depois pelo RPC get_active_renewal_plans.
+8. Se não conseguir consultar, usa o cache local do aparelho como reserva.
+9. A faixa ECONOMIZE X% usa somente o campo Desconto (%).
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql.
+   Pode rodar por cima. Não apaga seus planos.
+6. No cliente, faça novo login/recarregue ou clique em "Atualizar / verificar planos".
+
+IMPORTANTE:
+Para economizar Cloudflare/Supabase, o cliente NÃO fica consultando automaticamente.

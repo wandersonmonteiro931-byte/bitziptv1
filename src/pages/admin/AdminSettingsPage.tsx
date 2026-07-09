@@ -496,9 +496,21 @@ const AdminSettingsPage = () => {
 
       await loadRenewalPlans();
 
+      try {
+        localStorage.setItem(
+          "wmcplayer_renewal_plans_cache",
+          JSON.stringify({
+            savedAt: Date.now(),
+            plans: cleanedPlans,
+          }),
+        );
+      } catch {
+        // Cache local é opcional e não dispara consulta automática.
+      }
+
       toast({
         title: "Planos salvos!",
-        description: "Para economizar o plano gratuito, o cliente verá a alteração no próximo login ou ao atualizar/verificar o app.",
+        description: "Para economizar o plano gratuito, o cliente verá a alteração no próximo login, recarregando ou clicando em atualizar/verificar planos.",
       });
     } catch (err: any) {
       toast({
@@ -902,7 +914,7 @@ const AdminSettingsPage = () => {
             {savingRenewalPlans && <Loader2 size={16} className="animate-spin" />}
             Salvar Planos
           </button>
-          <p className="text-xs text-muted-foreground">O cliente verá as alterações no próximo login ou ao atualizar/verificar app.</p>
+          <p className="text-xs text-muted-foreground">O cliente verá as alterações no próximo login, recarregando ou clicando em atualizar/verificar planos.</p>
         </div>
       </div>
 

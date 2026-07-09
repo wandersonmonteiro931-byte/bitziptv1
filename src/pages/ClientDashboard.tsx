@@ -1311,6 +1311,8 @@ const ClientDashboard = () => {
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
   const [renewalPlans, setRenewalPlans] = useState<RenewalPlanCard[]>([]);
+  const [plansRefreshing, setPlansRefreshing] = useState(false);
+  const [plansRefreshMessage, setPlansRefreshMessage] = useState("");
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
 
@@ -1347,11 +1349,114 @@ const ClientDashboard = () => {
       setTimeout(done, timeoutMs);
     });
   }, []);
+
+  const normalizeRenewalPlans = useCallback((rows: any[] = []) => {
+    return rows.map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      description: plan.description,
+      badge_text: plan.badge_text,
+      cta_text: plan.cta_text,
+      months: Number(plan.months || 1),
+      discount_percent: Number(plan.discount_percent || 0),
+      is_active: Boolean(plan.is_active ?? true),
+      sort_order: Number(plan.sort_order || 0),
+    }));
+  }, []);
+
+  const readCachedRenewalPlans = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("wmcplayer_renewal_plans_cache");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed?.plans)) return [];
+      return normalizeRenewalPlans(parsed.plans).filter((plan) => Boolean(plan.is_active));
+    } catch {
+      return [];
+    }
+  }, [normalizeRenewalPlans]);
+
+  const saveCachedRenewalPlans = useCallback((plans: RenewalPlanCard[]) => {
+    try {
+      localStorage.setItem(
+        "wmcplayer_renewal_plans_cache",
+        JSON.stringify({
+          savedAt: Date.now(),
+          plans,
+        }),
+      );
+    } catch {
+      // Cache local é opcional. Não consulta nada automaticamente.
+    }
+  }, []);
+
+  const loadRenewalPlansOnce = useCallback(
+    async ({ useCacheFallback = true, manual = false }: { useCacheFallback?: boolean; manual?: boolean } = {}) => {
+      if (manual) {
+        setPlansRefreshing(true);
+        setPlansRefreshMessage("Consultando planos do admin...");
+      }
+
+      try {
+        const direct = await (supabase as any)
+          .from("iptv_renewal_plans")
+          .select("id,title,badge_text,cta_text,months,discount_percent,is_active,sort_order")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("months", { ascending: true });
+
+        if (!direct.error && Array.isArray(direct.data) && direct.data.length > 0) {
+          const plans = normalizeRenewalPlans(direct.data);
+          setRenewalPlans(plans);
+          saveCachedRenewalPlans(plans);
+          if (manual) setPlansRefreshMessage("Planos atualizados.");
+          return plans;
+        }
+
+        const rpc = await (supabase as any).rpc("get_active_renewal_plans");
+
+        if (!rpc.error && Array.isArray(rpc.data) && rpc.data.length > 0) {
+          const plans = normalizeRenewalPlans(rpc.data);
+          setRenewalPlans(plans);
+          saveCachedRenewalPlans(plans);
+          if (manual) setPlansRefreshMessage("Planos atualizados.");
+          return plans;
+        }
+
+        const cached = useCacheFallback ? readCachedRenewalPlans() : [];
+        if (cached.length > 0) {
+          setRenewalPlans(cached);
+          if (manual) setPlansRefreshMessage("Usando planos salvos neste aparelho.");
+          return cached;
+        }
+
+        setRenewalPlans([]);
+        if (manual) setPlansRefreshMessage("Nenhum plano novo encontrado. Confira se salvou no admin e rodou o SQL.");
+        return [];
+      } catch {
+        const cached = useCacheFallback ? readCachedRenewalPlans() : [];
+        if (cached.length > 0) {
+          setRenewalPlans(cached);
+          if (manual) setPlansRefreshMessage("Usando planos salvos neste aparelho.");
+          return cached;
+        }
+
+        if (manual) setPlansRefreshMessage("Não foi possível consultar agora. Tente novo login ou verifique o SQL.");
+        return [];
+      } finally {
+        if (manual) {
+          setTimeout(() => setPlansRefreshing(false), 600);
+        }
+      }
+    },
+    [normalizeRenewalPlans, readCachedRenewalPlans, saveCachedRenewalPlans],
+  );
+
   useEffect(() => {
     const loadData = async () => {
       await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
 
-      const [support, apps, platform, billingDates, plans] = await Promise.all([
+      const [support, apps, platform, billingDates] = await Promise.all([
         supabase.from("support_settings").select("*").limit(1).maybeSingle(),
         supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
         supabase
@@ -1365,18 +1470,6 @@ const ClientDashboard = () => {
           .eq("is_active", true)
           .order("sort_order", { ascending: true })
           .order("day_of_month", { ascending: true }),
-        (supabase as any)
-          .rpc("get_active_renewal_plans")
-          .then(async (rpcResult: any) => {
-            if (!rpcResult.error) return rpcResult;
-
-            return (supabase as any)
-              .from("iptv_renewal_plans")
-              .select("*")
-              .eq("is_active", true)
-              .order("sort_order", { ascending: true })
-              .order("months", { ascending: true });
-          }),
       ]);
       setSupportInfo(support.data);
       setTvApps(apps.data || []);
@@ -1387,23 +1480,7 @@ const ClientDashboard = () => {
         setRenewalDiscount6mPercent(Number((platform.data as any).renewal_discount_6m_percent ?? 10));
       }
 
-      if (!plans.error && Array.isArray(plans.data) && plans.data.length > 0) {
-        setRenewalPlans(
-          (plans.data as any[]).map((plan) => ({
-            id: plan.id,
-            title: plan.title,
-            description: plan.description,
-            badge_text: plan.badge_text,
-            cta_text: plan.cta_text,
-            months: Number(plan.months || 1),
-            discount_percent: Number(plan.discount_percent || 0),
-            is_active: Boolean(plan.is_active),
-            sort_order: Number(plan.sort_order || 0),
-          })),
-        );
-      } else {
-        setRenewalPlans([]);
-      }
+      await loadRenewalPlansOnce({ useCacheFallback: true });
     };
     loadData();
 
@@ -1473,7 +1550,7 @@ const ClientDashboard = () => {
       // Sem realtime, sem polling e sem consulta automática.
       // As informações só são carregadas ao entrar/logar nesta tela.
     };
-  }, [user?.id]);
+  }, [user?.id, loadRenewalPlansOnce]);
 
   // Handle hash navigation (from push notifications)
   useEffect(() => {
@@ -2009,7 +2086,25 @@ const ClientDashboard = () => {
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
           className="space-y-4"
         >
-<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-500/10 bg-black/70 px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold text-white">Planos de renovação</p>
+              <p className="text-[10px] text-muted-foreground">
+                Para economizar o plano gratuito, os planos só são consultados ao entrar ou ao clicar no botão abaixo.
+              </p>
+              {plansRefreshMessage && <p className="mt-1 text-[10px] text-red-300">{plansRefreshMessage}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={() => loadRenewalPlansOnce({ useCacheFallback: false, manual: true })}
+              disabled={plansRefreshing}
+              className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-100 transition hover:bg-red-500/20 disabled:opacity-60"
+            >
+              {plansRefreshing ? "Atualizando..." : "Atualizar / verificar planos"}
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;
@@ -2044,7 +2139,7 @@ const ClientDashboard = () => {
                   />
                   <div className={`relative rounded-[27px] p-5 ${premium ? "bg-[linear-gradient(180deg,rgba(21,10,10,0.97),rgba(10,8,8,0.99))]" : "bg-[linear-gradient(180deg,rgba(16,16,18,0.96),rgba(8,8,10,0.98))]"}`}>
                     <div className="flex items-start justify-between gap-3">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
                         {badgeText}
                       </span>
                       <div className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-right shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]">
