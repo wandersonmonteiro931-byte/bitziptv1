@@ -2067,31 +2067,18 @@ const ClientDashboard = () => {
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
           className="space-y-4"
         >
-          <div className="relative overflow-hidden rounded-[28px] border border-red-500/18 bg-gradient-to-br from-[#170707] via-[#100507] to-black px-5 py-5 shadow-[0_14px_40px_rgba(0,0,0,0.32)]">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-90"
-              style={{
-                background:
-                  "radial-gradient(circle at 14% 14%, rgba(255,255,255,0.05), transparent 28%), radial-gradient(circle at 90% 18%, rgba(255,0,0,0.20), transparent 30%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 40%)",
-              }}
-            />
-            <div className="relative z-10 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-300/90">Conheça nossos planos</p>
-                <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">{mainRenewalLabel}</h3>
-                <p className="mt-1 text-sm text-white/70">Escolha uma oferta configurada pelo admin e gere o PIX em segundos.</p>
-              </div>
-              <div className="hidden h-14 w-14 items-center justify-center rounded-full border border-red-500/25 bg-red-500/10 text-2xl shadow-[0_0_30px_rgba(255,0,0,0.2)] sm:flex">✨</div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;
               const badgeText = plan.badge_text?.trim() || (premium ? "Maior economia" : "Plano recomendado");
-              const description = plan.description?.trim() || `${formatDiscountPercent(financials.discountPercent)}% de desconto`;
+              const rawDescription = plan.description?.trim() || "";
+              const description =
+                !rawDescription ||
+                rawDescription.toLowerCase().includes("renovação com desconto") ||
+                rawDescription.toLowerCase().includes("maior economia para sua assinatura")
+                  ? `${formatDiscountPercent(financials.discountPercent)}% de desconto`
+                  : rawDescription;
               const ctaText = plan.cta_text?.trim() || "Assinar agora";
 
               return (

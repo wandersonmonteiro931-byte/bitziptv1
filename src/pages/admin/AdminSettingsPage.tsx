@@ -42,6 +42,21 @@ const createEmptyRenewalPlan = (sortOrder = 1): RenewalPlanForm => ({
   is_active: true,
 });
 
+const DEFAULT_PLATFORM_SETTINGS = {
+  id: "default",
+  app_name: "WMCFLIX",
+  app_short_name: "WMCFLIX",
+  app_description: "WMCFLIX - Programa de Fidelidade",
+  app_logo_url: "",
+  app_favicon_url: "",
+  min_withdrawal: 10,
+  referral_value: 5,
+  monthly_limit: 100,
+  renewal_discount_3m_percent: 5,
+  renewal_discount_6m_percent: 10,
+};
+
+
 const AdminSettingsPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -120,13 +135,17 @@ const AdminSettingsPage = () => {
     loadBillingDueDates();
     loadRenewalPlans();
 
-    Promise.all([
-      supabase.from("platform_settings").select("*").limit(1).single(),
-      supabase.from("support_settings").select("*").limit(1).single(),
-    ]).then(([ps, ss]) => {
-      if (ps.data) {
-        setSettings(ps.data);
-        const branding = normalizeAppBranding(ps.data);
+    const loadSettings = async () => {
+      try {
+        const [ps, ss] = await Promise.all([
+          supabase.from("platform_settings").select("*").limit(1).maybeSingle(),
+          supabase.from("support_settings").select("*").limit(1).maybeSingle(),
+        ]);
+
+        const platformData = ps.data || DEFAULT_PLATFORM_SETTINGS;
+        setSettings(platformData);
+
+        const branding = normalizeAppBranding(platformData);
         setAppName(branding.appName);
         setAppShortName(branding.appShortName);
         setAppDescription(branding.appDescription);
@@ -134,13 +153,20 @@ const AdminSettingsPage = () => {
         setAppFaviconUrl(branding.faviconUrl);
         saveStoredAppBranding(branding);
         setBrandingLoaded(true);
+
+        if (ss.data) {
+          setSupportSettings(ss.data);
+          setAssistProvider((ss.data as any).assist_plus_provider || "");
+          setBlessedProvider((ss.data as any).blessed_player_provider || "");
+        }
+      } catch (err: any) {
+        console.error("Erro ao carregar configurações:", err);
+        setSettings(DEFAULT_PLATFORM_SETTINGS);
+        setBrandingLoaded(true);
       }
-      if (ss.data) {
-        setSupportSettings(ss.data);
-        setAssistProvider((ss.data as any).assist_plus_provider || "");
-        setBlessedProvider((ss.data as any).blessed_player_provider || "");
-      }
-    });
+    };
+
+    loadSettings();
   }, []);
 
   useEffect(() => {
@@ -158,18 +184,35 @@ const AdminSettingsPage = () => {
   const save = async () => {
     if (!settings) return;
     setSaving(true);
-    await supabase
-      .from("platform_settings")
-      .update({
+    try {
+      const payload = {
         min_withdrawal: parseFloat(settings.min_withdrawal),
         referral_value: parseFloat(settings.referral_value),
         monthly_limit: parseFloat(settings.monthly_limit),
         renewal_discount_3m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_3m_percent || 0))),
         renewal_discount_6m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_6m_percent || 0))),
-      } as any)
-      .eq("id", settings.id);
-    setSaving(false);
-    toast({ title: "Configurações salvas!" });
+      };
+
+      if (!settings.id || settings.id === "default") {
+        const { data, error } = await supabase
+          .from("platform_settings")
+          .insert(payload as any)
+          .select("*")
+          .single();
+        if (error) throw error;
+        if (data) setSettings(data);
+      } else {
+        const { error } = await supabase.from("platform_settings").update(payload as any).eq("id", settings.id);
+        if (error) throw error;
+        setSettings({ ...settings, ...payload });
+      }
+
+      toast({ title: "Configurações salvas!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar configurações", description: err.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const uploadBrandingImage = async (file: File, type: "logo" | "favicon") => {
@@ -709,7 +752,7 @@ const AdminSettingsPage = () => {
         </div>
 
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] text-muted-foreground">
-          Dica: se você ainda não criou a tabela de planos no Supabase, rode uma única vez o arquivo <strong>SQL_CRIAR_PLANOS_RENOVACAO.sql</strong> que está na raiz do ZIP.
+          Planos cadastrados aqui aparecem para o cliente. Rode uma única vez o SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase para liberar esta função.
         </div>
 
         <div className="mt-4 space-y-4">

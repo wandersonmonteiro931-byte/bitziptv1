@@ -1,0 +1,28 @@
+CORREÇÃO DOS PLANOS E CONFIGURAÇÕES ADMIN
+
+O QUE FOI CORRIGIDO:
+1. Removido o bloco/quadrado "CONHEÇA NOSSOS PLANOS" da tela do cliente.
+2. Mantidos apenas os cards dos planos.
+3. Configurações admin agora não fica travada em tela preta caso platform_settings venha vazio.
+4. Planos continuam editáveis pelo admin em Configurações.
+5. Percentual do desconto vem do plano cadastrado pelo admin.
+6. Descrição padrão do card agora mostra a porcentagem real do desconto.
+7. Mantido padrão do PIX:
+   RENOVAÇÃO WMCPLAYER - X MÊS(S) - CLIENTE XXXX
+
+PASSO OBRIGATÓRIO 1 VEZ NO SUPABASE:
+Rode o arquivo:
+SQL_CRIAR_PLANOS_RENOVACAO.sql
+
+COMO ATUALIZAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Acesse Admin > Config.
+6. Edite os planos em "Planos de Renovação do Cliente".
+
+IMPORTANTE:
+Se o Cloudflare falhar no npm, mantenha as variáveis:
+NODE_VERSION=20.19.0
+NPM_VERSION=10.8.2
