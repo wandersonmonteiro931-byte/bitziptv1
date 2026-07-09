@@ -1,0 +1,28 @@
+CORREÇÃO DO BUILD NO CLOUDFLARE
+
+ERRO CORRIGIDO:
+npm error Exit handler never called!
+Failed: build command exited with code: 1
+
+O QUE FOI FEITO:
+1. Removido package-lock.json do ZIP para o Cloudflare parar de usar npm clean-install / npm ci.
+2. Adicionado .npmrc para estabilizar npm install no Cloudflare.
+3. Adicionado .nvmrc e .node-version com Node 20.19.0.
+4. Adicionado engines no package.json.
+5. Removidos dist e node_modules do ZIP.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar novamente.
+
+SE AINDA FALHAR:
+No Cloudflare Pages, abra:
+Settings > Environment variables
+
+Adicione:
+NODE_VERSION = 20.19.0
+NPM_VERSION = 10.8.2
+
+Depois clique em Retry deployment.

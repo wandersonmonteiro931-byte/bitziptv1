@@ -913,6 +913,19 @@ type PixModalData = {
   billingDueDay?: number;
 };
 
+
+type RenewalPlanCard = {
+  id?: string;
+  title: string;
+  description?: string | null;
+  badge_text?: string | null;
+  cta_text?: string | null;
+  months: number;
+  discount_percent: number;
+  is_active?: boolean;
+  sort_order?: number;
+};
+
 function PixModal({
   pixModal,
   onClose,
@@ -1325,6 +1338,7 @@ const ClientDashboard = () => {
   } | null>(null);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
+  const [renewalPlans, setRenewalPlans] = useState<RenewalPlanCard[]>([]);
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
 
@@ -1365,7 +1379,7 @@ const ClientDashboard = () => {
     const loadData = async () => {
       await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
 
-      const [support, apps, platform, billingDates] = await Promise.all([
+      const [support, apps, platform, billingDates, plans] = await Promise.all([
         supabase.from("support_settings").select("*").limit(1).maybeSingle(),
         supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
         supabase
@@ -1379,6 +1393,12 @@ const ClientDashboard = () => {
           .eq("is_active", true)
           .order("sort_order", { ascending: true })
           .order("day_of_month", { ascending: true }),
+        (supabase as any)
+          .from("iptv_renewal_plans")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("months", { ascending: true }),
       ]);
       setSupportInfo(support.data);
       setTvApps(apps.data || []);
@@ -1387,6 +1407,24 @@ const ClientDashboard = () => {
       if (platform.data) {
         setRenewalDiscount3mPercent(Number((platform.data as any).renewal_discount_3m_percent ?? 5));
         setRenewalDiscount6mPercent(Number((platform.data as any).renewal_discount_6m_percent ?? 10));
+      }
+
+      if (!plans.error && Array.isArray(plans.data) && plans.data.length > 0) {
+        setRenewalPlans(
+          (plans.data as any[]).map((plan) => ({
+            id: plan.id,
+            title: plan.title,
+            description: plan.description,
+            badge_text: plan.badge_text,
+            cta_text: plan.cta_text,
+            months: Number(plan.months || 1),
+            discount_percent: Number(plan.discount_percent || 0),
+            is_active: Boolean(plan.is_active),
+            sort_order: Number(plan.sort_order || 0),
+          })),
+        );
+      } else {
+        setRenewalPlans([]);
       }
     };
     loadData();
@@ -1481,9 +1519,17 @@ const ClientDashboard = () => {
       })
       .subscribe();
 
+    const renewalPlansChannel = supabase
+      .channel("iptv-renewal-plans-dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_renewal_plans" }, () => {
+        loadData();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
       supabase.removeChannel(billingDatesChannel);
+      supabase.removeChannel(renewalPlansChannel);
     };
   }, [user?.id]);
 
@@ -1661,15 +1707,64 @@ const ClientDashboard = () => {
   // Progress bar: 30 days cycle
   const progressValue = Math.max(0, Math.min(100, ((30 - daysUntilDue) / 30) * 100));
 
-  const value3m = totalValue * 3;
-  const discount3m = value3m * (renewalDiscount3mPercent / 100);
-  const final3m = value3m - discount3m;
-  const value6m = totalValue * 6;
-  const discount6m = value6m * (renewalDiscount6mPercent / 100);
-  const final6m = value6m - discount6m;
-
   const isNearDueNotice = !isOverdue && !isDueToday && daysUntilDue >= 1 && daysUntilDue <= 4;
   const isRenewPlanWindow = isOverdue || isDueToday || (daysUntilDue >= 1 && daysUntilDue <= 5);
+
+  const fallbackPlan3m: RenewalPlanCard = {
+    id: "fallback-3m",
+    title: isRenewPlanWindow ? "Renovar 3 meses" : "Antecipar 3 meses",
+    description: "Renovação com desconto especial",
+    badge_text: "Plano recomendado",
+    cta_text: "Assinar agora",
+    months: 3,
+    discount_percent: renewalDiscount3mPercent,
+    is_active: true,
+    sort_order: 1,
+  };
+  const fallbackPlan6m: RenewalPlanCard = {
+    id: "fallback-6m",
+    title: isRenewPlanWindow ? "Renovar 6 meses" : "Antecipar 6 meses",
+    description: "Maior economia para sua assinatura",
+    badge_text: "Maior economia",
+    cta_text: "Assinar agora",
+    months: 6,
+    discount_percent: renewalDiscount6mPercent,
+    is_active: true,
+    sort_order: 2,
+  };
+  const displayedRenewalPlans =
+    renewalPlans.length > 0
+      ? [...renewalPlans]
+          .filter((plan) => Boolean(plan?.is_active ?? true))
+          .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.months || 0) - Number(b.months || 0))
+      : [fallbackPlan3m, fallbackPlan6m];
+
+  const getPlanFinancials = (plan: RenewalPlanCard) => {
+    const months = Math.max(1, Number(plan.months || 1));
+    const baseValue = totalValue * months;
+    const discountPercent = Math.max(0, Math.min(100, Number(plan.discount_percent || 0)));
+    const discountValue = baseValue * (discountPercent / 100);
+    const finalValue = Math.max(0, baseValue - discountValue);
+
+    return {
+      months,
+      baseValue,
+      discountPercent,
+      discountValue,
+      finalValue,
+    };
+  };
+
+  const openRenewalPlan = (plan: RenewalPlanCard) => {
+    const financials = getPlanFinancials(plan);
+    setPixModal({
+      months: financials.months,
+      value: financials.finalValue,
+      discount: financials.discountValue,
+      billingDueDay,
+    });
+  };
+
   const planSubtitle = isPastGraceLimit
     ? "Você está bloqueado por atraso!"
     : isOverdue
@@ -1680,8 +1775,6 @@ const ClientDashboard = () => {
           ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
           : "Você está em dias!";
   const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
-  const renewal3mLabel = isRenewPlanWindow ? "Renovar 3 meses" : "Antecipar 3 meses";
-  const renewal6mLabel = isRenewPlanWindow ? "Renovar 6 meses" : "Antecipar 6 meses";
   const renewalButtonMotion = {
     initial: { scale: 1 },
     animate: {
@@ -1727,10 +1820,11 @@ const ClientDashboard = () => {
     if (!renew) return;
 
     const timer = setTimeout(() => {
-      if (renew === "3") {
-        setPixModal({ months: 3, value: final3m, discount: discount3m });
-      } else if (renew === "6") {
-        setPixModal({ months: 6, value: final6m, discount: discount6m });
+      const renewMonths = Number(renew);
+      const matchedPlan = displayedRenewalPlans.find((plan) => Number(plan.months || 0) === renewMonths);
+
+      if (matchedPlan) {
+        openRenewalPlan(matchedPlan);
       } else {
         setPixModal({ months: 1, value: firstCycleRenewalValue, discount: 0, billingDueDay });
       }
@@ -1744,10 +1838,8 @@ const ClientDashboard = () => {
     location.pathname,
     location.hash,
     firstCycleRenewalValue,
-    final3m,
-    final6m,
-    discount3m,
-    discount6m,
+    billingDueDay,
+    displayedRenewalPlans,
   ]);
 
   return (
@@ -1968,103 +2060,102 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
-        {/* RENEWAL OPTIONS (3m, 6m) — visual mais premium e profissional */}
+        {/* RENEWAL OPTIONS */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
-          className="grid gap-4 sm:grid-cols-2"
+          className="space-y-4"
         >
-          <motion.button
-            type="button"
-            {...renewalOptionMotion}
-            onClick={() => setPixModal({ months: 3, value: final3m, discount: discount3m, billingDueDay })}
-            className="group relative overflow-hidden rounded-3xl border border-white/8 bg-gradient-to-br from-[#111111] via-[#141414] to-[#0c0c0c] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/25 hover:shadow-[0_18px_40px_rgba(255,0,0,0.08)]"
-          >
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500/80 to-red-600/0" />
-            <motion.div
+          <div className="relative overflow-hidden rounded-[28px] border border-red-500/18 bg-gradient-to-br from-[#170707] via-[#100507] to-black px-5 py-5 shadow-[0_14px_40px_rgba(0,0,0,0.32)]">
+            <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-              animate={{ opacity: [0.04, 0.08, 0.04] }}
-              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-              style={{ background: "radial-gradient(circle at top right, rgba(255,0,0,0.16), transparent 42%)" }}
+              className="pointer-events-none absolute inset-0 opacity-90"
+              style={{
+                background:
+                  "radial-gradient(circle at 14% 14%, rgba(255,255,255,0.05), transparent 28%), radial-gradient(circle at 90% 18%, rgba(255,0,0,0.20), transparent 30%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 40%)",
+              }}
             />
-
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <span className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-medium tracking-wide text-muted-foreground">
-                    Plano recomendado
-                  </span>
-                  <p className="mt-3 text-xl font-bold tracking-tight text-white">{renewal3mLabel}</p>
-                  <p className="mt-1 text-sm text-white/80">
-                    {formatDiscountPercent(renewalDiscount3mPercent)}% de desconto
-                  </p>
-                </div>
-
-                <div className="min-w-[94px] rounded-2xl border border-white/10 bg-black/30 px-3 py-3 text-right backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</p>
-                  <span className="mt-1 block text-lg font-bold text-white">R$ {final3m.toFixed(2)}</span>
-                </div>
+            <div className="relative z-10 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-red-300/90">Conheça nossos planos</p>
+                <h3 className="mt-1 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">{mainRenewalLabel}</h3>
+                <p className="mt-1 text-sm text-white/70">Escolha uma oferta configurada pelo admin e gere o PIX em segundos.</p>
               </div>
-
-              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/6 pt-4">
-                <div className="space-y-1">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Economia</p>
-                  <p className="text-sm font-semibold text-red-400">R$ {discount3m.toFixed(2)}</p>
-                </div>
-                <div className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[11px] font-medium text-red-300 transition-colors duration-300 group-hover:bg-red-500/14">
-                  Selecionar oferta
-                </div>
-              </div>
+              <div className="hidden h-14 w-14 items-center justify-center rounded-full border border-red-500/25 bg-red-500/10 text-2xl shadow-[0_0_30px_rgba(255,0,0,0.2)] sm:flex">✨</div>
             </div>
-          </motion.button>
+          </div>
 
-          <motion.button
-            type="button"
-            {...renewalOptionMotion}
-            transition={{ ...renewalOptionMotion.transition, delay: 0.4 }}
-            onClick={() => setPixModal({ months: 6, value: final6m, discount: discount6m, billingDueDay })}
-            className="group relative overflow-hidden rounded-3xl border border-red-500/22 bg-gradient-to-br from-[#120b0b] via-[#151111] to-[#0d0d0d] p-5 text-left shadow-[0_10px_30px_rgba(0,0,0,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-red-500/35 hover:shadow-[0_20px_44px_rgba(255,0,0,0.12)]"
-          >
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b from-red-600/0 via-red-500 to-red-600/0" />
-            <motion.div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-              animate={{ opacity: [0.05, 0.1, 0.05] }}
-              transition={{ duration: 5.4, repeat: Infinity, ease: "easeInOut" }}
-              style={{ background: "radial-gradient(circle at top right, rgba(255,0,0,0.2), transparent 44%)" }}
-            />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {displayedRenewalPlans.map((plan, index) => {
+              const financials = getPlanFinancials(plan);
+              const premium = index % 2 === 1;
+              const badgeText = plan.badge_text?.trim() || (premium ? "Maior economia" : "Plano recomendado");
+              const description = plan.description?.trim() || `${formatDiscountPercent(financials.discountPercent)}% de desconto`;
+              const ctaText = plan.cta_text?.trim() || "Assinar agora";
 
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <span className="inline-flex rounded-full border border-red-500/18 bg-red-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-red-300">
-                    Maior economia
-                  </span>
-                  <p className="mt-3 text-xl font-bold tracking-tight text-white">{renewal6mLabel}</p>
-                  <p className="mt-1 text-sm text-white/80">
-                    {formatDiscountPercent(renewalDiscount6mPercent)}% de desconto
-                  </p>
-                </div>
+              return (
+                <motion.button
+                  key={plan.id || `${plan.months}-${index}`}
+                  type="button"
+                  {...renewalOptionMotion}
+                  transition={{ ...renewalOptionMotion.transition, delay: 0.35 + index * 0.05 }}
+                  onClick={() => openRenewalPlan(plan)}
+                  className={`group relative overflow-hidden rounded-[28px] border p-[1px] text-left transition-all duration-300 hover:-translate-y-1 ${
+                    premium
+                      ? "border-red-500/32 bg-gradient-to-br from-[#1a0707] via-[#120607] to-[#090909] hover:shadow-[0_22px_50px_rgba(255,0,0,0.18)]"
+                      : "border-red-500/22 bg-gradient-to-br from-[#140707] via-[#0e0a12] to-[#090909] hover:shadow-[0_18px_44px_rgba(255,0,0,0.14)]"
+                  }`}
+                >
+                  <div
+                    className={`absolute inset-0 ${
+                      premium
+                        ? "bg-[radial-gradient(circle_at_top_right,rgba(255,0,0,0.3),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.05),transparent_26%)]"
+                        : "bg-[radial-gradient(circle_at_top_right,rgba(255,0,0,0.22),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.04),transparent_26%)]"
+                    } opacity-95`}
+                  />
+                  <div className={`relative rounded-[27px] p-5 ${premium ? "bg-[linear-gradient(180deg,rgba(21,10,10,0.97),rgba(10,8,8,0.99))]" : "bg-[linear-gradient(180deg,rgba(16,16,18,0.96),rgba(8,8,10,0.98))]"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
+                        {badgeText}
+                      </span>
+                      <div className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-right shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/45">Total</p>
+                        <p className="mt-1 text-2xl font-extrabold leading-none text-white">
+                          R$ {financials.finalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="min-w-[94px] rounded-2xl border border-red-500/18 bg-black/32 px-3 py-3 text-right backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total</p>
-                  <span className="mt-1 block text-lg font-bold text-white">R$ {final6m.toFixed(2)}</span>
-                </div>
-              </div>
+                    <div className="mt-5">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{financials.months} mês(es)</p>
+                      <h4 className="mt-1 text-[28px] font-extrabold leading-none tracking-tight text-white">{plan.title}</h4>
+                      <p className="mt-2 text-base font-medium text-white/80">{description}</p>
+                    </div>
 
-              <div className="mt-5 flex items-center justify-between gap-3 border-t border-red-500/10 pt-4">
-                <div className="space-y-1">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Economia</p>
-                  <p className="text-sm font-semibold text-red-400">R$ {discount6m.toFixed(2)}</p>
-                </div>
-                <div className="rounded-full border border-red-500/28 bg-red-500/12 px-3 py-1.5 text-[11px] font-medium text-red-200 transition-colors duration-300 group-hover:bg-red-500/16">
-                  Melhor custo-benefício
-                </div>
-              </div>
-            </div>
-          </motion.button>
+                    <div className={`mt-6 flex items-end justify-between gap-3 border-t pt-4 ${premium ? "border-red-500/10" : "border-white/8"}`}>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">Economia</p>
+                        <p className="mt-1 text-2xl font-extrabold text-red-400">
+                          R$ {financials.discountValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] ${premium ? "border border-red-500/32 bg-red-500/14 text-red-100" : "border border-red-500/25 bg-red-500/12 text-red-200"}`}>
+                        {formatDiscountPercent(financials.discountPercent)}% OFF
+                      </div>
+                    </div>
+
+                    <div className={`mt-5 flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-300 ${premium ? "border border-red-500/24 bg-gradient-to-r from-red-600/25 to-red-500/10 group-hover:from-red-600/32 group-hover:to-red-500/14" : "border border-red-500/18 bg-red-500/8 group-hover:bg-red-500/12"}`}>
+                      <span className="text-sm font-semibold text-white">{ctaText}</span>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/40 ${premium ? "border border-red-300/20 text-red-100" : "border border-red-400/20 text-red-300"}`}>
+                        <ChevronRight className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
         </motion.div>
 
         {/* PAYMENT HISTORY (collapsible) */}

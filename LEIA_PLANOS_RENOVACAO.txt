@@ -1,0 +1,27 @@
+ALTERAÇÃO DOS PLANOS DE RENOVAÇÃO
+
+O QUE FOI ALTERADO:
+1. Visual dos planos do cliente redesenhado no estilo mais premium, nas cores do sistema.
+2. Cliente agora lê os planos da tabela iptv_renewal_plans.
+3. Admin agora pode criar, editar, ativar, desativar e excluir planos em Configurações.
+4. Os descontos exibidos ao cliente vêm do cadastro dos planos do admin.
+5. Se não houver tabela/planos, o sistema usa fallback com 3 e 6 meses.
+6. Mensagem do PIX mantida como:
+   RENOVAÇÃO WMCPLAYER - X MÊS(S) - CLIENTE XXXX
+
+ARQUIVOS PRINCIPAIS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/pages/admin/AdminSettingsPage.tsx
+- SQL_CRIAR_PLANOS_RENOVACAO.sql
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Rode ATUALIZAR_GITHUB_AGORA.bat.
+3. Aguarde o Cloudflare publicar.
+4. No Supabase, abra SQL Editor.
+5. Rode o arquivo SQL_CRIAR_PLANOS_RENOVACAO.sql uma única vez.
+6. Entre no admin > Config > Planos de Renovação do Cliente.
+7. Crie/edite/exclua os planos e salve.
+
+OBSERVAÇÃO:
+O ZIP continua com SECRETS_SUPABASE_PIX.env e EFI_CERTIFICATE_BASE64.txt prontos para uso e protegidos no .gitignore.

@@ -19,6 +19,29 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { normalizeAppBranding, previewAppBranding, saveStoredAppBranding } from "@/hooks/useAppBranding";
 
+type RenewalPlanForm = {
+  id?: string;
+  title: string;
+  description: string;
+  badge_text: string;
+  cta_text: string;
+  months: string;
+  discount_percent: string;
+  sort_order: string;
+  is_active: boolean;
+};
+
+const createEmptyRenewalPlan = (sortOrder = 1): RenewalPlanForm => ({
+  title: "",
+  description: "",
+  badge_text: "",
+  cta_text: "Assinar agora",
+  months: "1",
+  discount_percent: "0",
+  sort_order: String(sortOrder),
+  is_active: true,
+});
+
 const AdminSettingsPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -48,6 +71,9 @@ const AdminSettingsPage = () => {
   const [newDueDay, setNewDueDay] = useState("10");
   const [newGraceDays, setNewGraceDays] = useState("5");
   const [savingBilling, setSavingBilling] = useState(false);
+  const [renewalPlans, setRenewalPlans] = useState<RenewalPlanForm[]>([]);
+  const [loadedRenewalPlanIds, setLoadedRenewalPlanIds] = useState<string[]>([]);
+  const [savingRenewalPlans, setSavingRenewalPlans] = useState(false);
 
   const loadBillingDueDates = async () => {
     const { data } = await (supabase as any)
@@ -59,8 +85,40 @@ const AdminSettingsPage = () => {
     setBillingDueDates(data || []);
   };
 
+
+  const loadRenewalPlans = async () => {
+    const { data, error } = await (supabase as any)
+      .from("iptv_renewal_plans")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("months", { ascending: true });
+
+    if (error) {
+      console.warn("iptv_renewal_plans not available yet:", error.message);
+      setRenewalPlans([]);
+      setLoadedRenewalPlanIds([]);
+      return;
+    }
+
+    const rows = (data || []).map((plan: any) => ({
+      id: plan.id,
+      title: plan.title || "",
+      description: plan.description || "",
+      badge_text: plan.badge_text || "",
+      cta_text: plan.cta_text || "Assinar agora",
+      months: String(plan.months ?? 1),
+      discount_percent: String(plan.discount_percent ?? 0),
+      sort_order: String(plan.sort_order ?? 0),
+      is_active: Boolean(plan.is_active),
+    }));
+
+    setRenewalPlans(rows);
+    setLoadedRenewalPlanIds(rows.map((plan: RenewalPlanForm) => plan.id).filter(Boolean) as string[]);
+  };
+
   useEffect(() => {
     loadBillingDueDates();
+    loadRenewalPlans();
 
     Promise.all([
       supabase.from("platform_settings").select("*").limit(1).single(),
@@ -627,6 +685,109 @@ const AdminSettingsPage = () => {
         </div>
       </div>
 
+      {/* Renewal Plans */}
+      <div className="glass-card rounded-xl p-6 mt-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/15">
+              <Percent size={18} className="text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">Planos de Renovação do Cliente</h2>
+              <p className="text-xs text-muted-foreground">
+                O admin pode criar, editar, ativar, desativar e excluir planos. O cliente vê exatamente o que estiver cadastrado aqui.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={addRenewalPlan}
+            type="button"
+            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110"
+          >
+            <PlusCircle size={16} /> Novo plano
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] text-muted-foreground">
+          Dica: se você ainda não criou a tabela de planos no Supabase, rode uma única vez o arquivo <strong>SQL_CRIAR_PLANOS_RENOVACAO.sql</strong> que está na raiz do ZIP.
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {renewalPlans.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Nenhum plano cadastrado. Clique em <strong>Novo plano</strong> para criar.
+            </div>
+          ) : (
+            renewalPlans.map((plan, index) => (
+              <div key={plan.id || `new-${index}`} className="rounded-2xl border border-border/60 bg-black/40 p-4">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Plano #{index + 1}</p>
+                    <p className="text-[11px] text-muted-foreground">Aparece para o cliente na vitrine de planos.</p>
+                  </div>
+                  <button
+                    onClick={() => removeRenewalPlan(index)}
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 transition-all hover:bg-red-500/15"
+                  >
+                    <Trash2 size={14} /> Excluir
+                  </button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Título do plano</h4>
+                    <input value={plan.title} onChange={(e) => updateRenewalPlan(index, "title", e.target.value)} className={inputCls} placeholder="Ex: Antecipar 3 meses" />
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Badge</h4>
+                    <input value={plan.badge_text} onChange={(e) => updateRenewalPlan(index, "badge_text", e.target.value)} className={inputCls} placeholder="Ex: Plano recomendado" />
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Meses</h4>
+                    <input value={plan.months} onChange={(e) => updateRenewalPlan(index, "months", e.target.value)} type="number" min="1" className={inputCls} />
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto (%)</h4>
+                    <input value={plan.discount_percent} onChange={(e) => updateRenewalPlan(index, "discount_percent", e.target.value)} type="number" min="0" max="100" step="0.01" className={inputCls} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Descrição</h4>
+                    <input value={plan.description} onChange={(e) => updateRenewalPlan(index, "description", e.target.value)} className={inputCls} placeholder="Ex: 10% de desconto" />
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Texto do botão</h4>
+                    <input value={plan.cta_text} onChange={(e) => updateRenewalPlan(index, "cta_text", e.target.value)} className={inputCls} placeholder="Ex: Assinar agora" />
+                  </div>
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Ordem</h4>
+                    <input value={plan.sort_order} onChange={(e) => updateRenewalPlan(index, "sort_order", e.target.value)} type="number" min="0" className={inputCls} />
+                  </div>
+                </div>
+
+                <label className="mt-4 inline-flex items-center gap-2 text-sm text-foreground">
+                  <input type="checkbox" checked={plan.is_active} onChange={(e) => updateRenewalPlan(index, "is_active", e.target.checked)} className="h-4 w-4 rounded border-border bg-transparent" />
+                  Plano ativo
+                </label>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={saveRenewalPlans}
+            disabled={savingRenewalPlans}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-6 py-2.5 text-sm font-medium text-white transition-all hover:brightness-110 disabled:opacity-50"
+          >
+            {savingRenewalPlans && <Loader2 size={16} className="animate-spin" />}
+            Salvar Planos
+          </button>
+          <p className="text-xs text-muted-foreground">Os clientes recebem os novos planos automaticamente após salvar.</p>
+        </div>
+      </div>
+
+
       {/* Platform Settings */}
       <div className="glass-card rounded-xl p-6">
         <div className="space-y-6">
@@ -666,14 +827,14 @@ const AdminSettingsPage = () => {
               <div>
                 <h3 className="text-sm font-bold text-foreground">Descontos de Renovação</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Altere as porcentagens dos botões de 3 e 6 meses. Atualiza instantaneamente para todos.
+                  Esses percentuais funcionam como fallback quando não houver planos cadastrados na seção acima.
                 </p>
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto para renovar 3 meses (%)</h4>
+                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Fallback: desconto para 3 meses (%)</h4>
                 <input
                   value={settings.renewal_discount_3m_percent ?? 5}
                   onChange={(e) => setSettings({ ...settings, renewal_discount_3m_percent: e.target.value })}
@@ -685,7 +846,7 @@ const AdminSettingsPage = () => {
                 />
               </div>
               <div>
-                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto para renovar 6 meses (%)</h4>
+                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Fallback: desconto para 6 meses (%)</h4>
                 <input
                   value={settings.renewal_discount_6m_percent ?? 10}
                   onChange={(e) => setSettings({ ...settings, renewal_discount_6m_percent: e.target.value })}

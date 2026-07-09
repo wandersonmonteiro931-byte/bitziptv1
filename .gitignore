@@ -27,3 +27,6 @@ SECRETS_SUPABASE_PIX.env
 EFI_CERTIFICATE_BASE64.txt
 *.p12
 *.pem
+
+.env
+.env.local

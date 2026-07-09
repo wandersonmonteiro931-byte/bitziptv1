@@ -41,6 +41,7 @@ const BACKUP_TABLES: BackupTable[] = [
   { name: "iptv_cancellation_requests", label: "Pedidos de cancelamento", priority: true },
   { name: "iptv_trust_requests", label: "Pedidos de confiança", priority: true },
   { name: "platform_settings", label: "Configurações da plataforma", priority: true },
+  { name: "iptv_renewal_plans", label: "Planos de renovação", priority: true },
   { name: "support_settings", label: "Configurações de suporte", priority: true },
   { name: "custom_variables", label: "Variáveis personalizadas", priority: true },
   { name: "banners", label: "Banners", priority: true },
