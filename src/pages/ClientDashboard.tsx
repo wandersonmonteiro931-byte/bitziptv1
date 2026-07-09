@@ -1390,6 +1390,22 @@ const ClientDashboard = () => {
     }
   }, []);
 
+  const applyRenewalPlansFromAdmin = useCallback(
+    (rows: any[] = []) => {
+      const plans = normalizeRenewalPlans(rows).filter((plan) => Boolean(plan.is_active ?? true));
+
+      if (plans.length > 0) {
+        setRenewalPlans(plans);
+        saveCachedRenewalPlans(plans);
+        return plans;
+      }
+
+      setRenewalPlans([]);
+      return [];
+    },
+    [normalizeRenewalPlans, saveCachedRenewalPlans],
+  );
+
   const loadRenewalPlansOnce = useCallback(
     async ({ useCacheFallback = true, manual = false }: { useCacheFallback?: boolean; manual?: boolean } = {}) => {
       if (manual) {
@@ -1457,15 +1473,21 @@ const ClientDashboard = () => {
 
     const planUpdateChannel = supabase
       .channel("wmcplayer-renewal-plans-push")
-      .on("broadcast", { event: "renewal-plans-updated" }, () => {
-        loadRenewalPlansOnce({ useCacheFallback: false });
+      .on("broadcast", { event: "renewal-plans-updated" }, (event) => {
+        const pushedPlans = (event as any)?.payload?.plans;
+        if (Array.isArray(pushedPlans) && pushedPlans.length > 0) {
+          applyRenewalPlansFromAdmin(pushedPlans);
+          return;
+        }
+
+        loadRenewalPlansOnce({ useCacheFallback: true });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(planUpdateChannel);
     };
-  }, [user?.id, loadRenewalPlansOnce]);
+  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -1476,7 +1498,7 @@ const ClientDashboard = () => {
         supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
         supabase
           .from("platform_settings")
-          .select("renewal_discount_3m_percent, renewal_discount_6m_percent")
+          .select("renewal_discount_3m_percent, renewal_discount_6m_percent, renewal_plans_snapshot, renewal_plans_snapshot_updated_at")
           .limit(1)
           .maybeSingle(),
         (supabase as any)
@@ -1490,12 +1512,20 @@ const ClientDashboard = () => {
       setTvApps(apps.data || []);
       setBillingDueDates(billingDates.data || []);
 
+      const snapshotPlans = Array.isArray((platform.data as any)?.renewal_plans_snapshot)
+        ? ((platform.data as any).renewal_plans_snapshot as any[])
+        : [];
+
       if (platform.data) {
-        setRenewalDiscount3mPercent(Number((platform.data as any).renewal_discount_3m_percent ?? 5));
-        setRenewalDiscount6mPercent(Number((platform.data as any).renewal_discount_6m_percent ?? 10));
+        setRenewalDiscount3mPercent(Number((platform.data as any).renewal_discount_3m_percent ?? 0));
+        setRenewalDiscount6mPercent(Number((platform.data as any).renewal_discount_6m_percent ?? 0));
       }
 
-      await loadRenewalPlansOnce({ useCacheFallback: true });
+      if (snapshotPlans.length > 0) {
+        applyRenewalPlansFromAdmin(snapshotPlans);
+      } else {
+        await loadRenewalPlansOnce({ useCacheFallback: true });
+      }
     };
     loadData();
 
@@ -1565,7 +1595,7 @@ const ClientDashboard = () => {
       // Sem realtime, sem polling e sem consulta automática.
       // As informações só são carregadas ao entrar/logar nesta tela.
     };
-  }, [user?.id, loadRenewalPlansOnce]);
+  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin]);
 
   // Handle hash navigation (from push notifications)
   useEffect(() => {

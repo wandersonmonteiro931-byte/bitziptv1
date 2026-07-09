@@ -1,0 +1,33 @@
+CORREÇÃO DEFINITIVA: PLANOS DO ADMIN FICAM FIXOS NO CLIENTE
+
+BASE USADA:
+bitziptv1-planos-sem-padrao-fixo-admin.zip
+
+PROBLEMA:
+O admin enviava os planos, o cliente atualizava na hora, mas ao recarregar a tela voltava/sumia porque o cliente não tinha uma fonte fixa persistida.
+
+O QUE FOI CORRIGIDO:
+1. Admin agora salva os planos em dois lugares:
+   - tabela iptv_renewal_plans
+   - snapshot fixo renewal_plans_snapshot dentro de platform_settings
+2. Cliente, ao recarregar/login, lê primeiro o snapshot fixo enviado pelo admin.
+3. Cliente aberto recebe atualização imediata via broadcast com os planos no próprio payload.
+4. Ao receber atualização do admin, cliente salva cache local também.
+5. Removido fallback/padrão. O cliente nunca inventa plano.
+6. Se o admin não enviar plano, aparece aviso em vez de 5%/10% padrão.
+7. Mantido sem polling/loop automático.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente o arquivo:
+   SQL_CRIAR_PLANOS_RENOVACAO.sql
+6. No admin, clique em Salvar Planos.
+7. Depois clique em Atualizar / verificar planos.
+8. Recarregue o cliente. Os planos devem continuar iguais aos do admin.
+
+IMPORTANTE:
+A partir desta versão, o que aparece no cliente vem do snapshot do admin.
+Nunca volta para plano padrão.

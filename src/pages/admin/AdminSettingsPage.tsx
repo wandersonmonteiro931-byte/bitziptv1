@@ -444,7 +444,7 @@ const AdminSettingsPage = () => {
     setRenewalPlans((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const sendRenewalPlansUpdateSignal = async () => {
+  const sendRenewalPlansUpdateSignal = async (plans: RenewalPlanForm[]) => {
     const channel = supabase.channel("wmcplayer-renewal-plans-push");
 
     try {
@@ -464,12 +464,23 @@ const AdminSettingsPage = () => {
         event: "renewal-plans-updated",
         payload: {
           sentAt: Date.now(),
+          plans,
         },
       });
     } finally {
       window.setTimeout(() => {
         supabase.removeChannel(channel);
       }, 500);
+    }
+  };
+
+  const saveRenewalPlansSnapshot = async (plans: RenewalPlanForm[]) => {
+    const { error } = await (supabase as any).rpc("set_renewal_plans_snapshot", {
+      p_plans: plans,
+    });
+
+    if (error) {
+      throw error;
     }
   };
 
@@ -523,6 +534,7 @@ const AdminSettingsPage = () => {
         if (error) throw error;
       }
 
+      await saveRenewalPlansSnapshot(cleanedPlans);
       await loadRenewalPlans();
 
       try {
@@ -538,14 +550,14 @@ const AdminSettingsPage = () => {
       }
 
       if (sendUpdate) {
-        await sendRenewalPlansUpdateSignal();
+        await sendRenewalPlansUpdateSignal(cleanedPlans);
       }
 
       toast({
         title: sendUpdate ? "Atualização de planos enviada!" : "Planos salvos!",
         description: sendUpdate
-          ? "Clientes com o painel aberto receberam a atualização agora. Quem estiver fechado verá no próximo login."
-          : "Planos salvos. Para economizar o plano gratuito, nada é consultado automaticamente no cliente.",
+          ? "Clientes com o painel aberto receberam a atualização agora. Ao recarregar, os planos continuam fixos."
+          : "Planos salvos. Eles ficam gravados para o cliente carregar no próximo login/recarregamento.",
       });
     } catch (err: any) {
       toast({

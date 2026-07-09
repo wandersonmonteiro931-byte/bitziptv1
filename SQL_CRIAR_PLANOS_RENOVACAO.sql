@@ -3,6 +3,41 @@
 
 create extension if not exists pgcrypto;
 
+-- Snapshot fixo dos planos enviados pelo admin.
+-- O cliente usa isso para nunca voltar para plano padrão ao recarregar.
+alter table if exists public.platform_settings
+  add column if not exists renewal_plans_snapshot jsonb not null default '[]'::jsonb;
+
+alter table if exists public.platform_settings
+  add column if not exists renewal_plans_snapshot_updated_at timestamptz;
+
+create or replace function public.set_renewal_plans_snapshot(p_plans jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settings_id uuid;
+begin
+  select id
+    into v_settings_id
+  from public.platform_settings
+  limit 1;
+
+  if v_settings_id is null then
+    raise exception 'platform_settings não possui registro para salvar renewal_plans_snapshot';
+  end if;
+
+  update public.platform_settings
+     set renewal_plans_snapshot = coalesce(p_plans, '[]'::jsonb),
+         renewal_plans_snapshot_updated_at = now()
+   where id = v_settings_id;
+end;
+$$;
+
+grant execute on function public.set_renewal_plans_snapshot(jsonb) to authenticated;
+
 alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();
 
 create table if not exists public.iptv_renewal_plans (
