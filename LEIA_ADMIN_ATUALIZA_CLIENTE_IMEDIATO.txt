@@ -1,0 +1,27 @@
+PLANOS: ADMIN ENVIA ATUALIZAÇÃO IMEDIATA PARA CLIENTES ABERTOS
+
+BASE USADA:
+bitziptv1-planos-botao-atualizar-no-admin.zip
+
+O QUE FOI ALTERADO:
+1. O botão "Atualizar / verificar planos" continua somente no Admin > Config.
+2. O botão foi removido da tela do cliente.
+3. Quando o admin clica em "Atualizar / verificar planos", os clientes com o painel aberto recebem o comando e atualizam os cards na hora.
+4. Clientes com o app fechado continuam vendo a alteração no próximo login/reabertura.
+5. Removida a seção "Descontos de Renovação".
+6. Continua sem polling automático.
+7. Continua sem consulta em loop.
+8. Foi usado apenas um canal leve de broadcast para receber o comando do admin.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Se necessário, rode SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase.
+6. Abra o cliente em uma janela e o admin em outra.
+7. Altere os planos no admin e clique em "Atualizar / verificar planos".
+8. O cliente aberto deve atualizar os cards na hora.
+
+OBSERVAÇÃO:
+Para atualizar cliente fechado, não existe como sem ele abrir o app. Quando abrir/logar, ele carrega os planos novos.

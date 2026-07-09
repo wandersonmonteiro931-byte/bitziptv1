@@ -444,6 +444,35 @@ const AdminSettingsPage = () => {
     setRenewalPlans((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const sendRenewalPlansUpdateSignal = async () => {
+    const channel = supabase.channel("wmcplayer-renewal-plans-push");
+
+    try {
+      await new Promise<void>((resolve) => {
+        const timeout = window.setTimeout(() => resolve(), 1200);
+
+        channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            window.clearTimeout(timeout);
+            resolve();
+          }
+        });
+      });
+
+      await channel.send({
+        type: "broadcast",
+        event: "renewal-plans-updated",
+        payload: {
+          sentAt: Date.now(),
+        },
+      });
+    } finally {
+      window.setTimeout(() => {
+        supabase.removeChannel(channel);
+      }, 500);
+    }
+  };
+
   const saveRenewalPlans = async (sendUpdate = false) => {
     setSavingRenewalPlans(true);
     try {
@@ -508,10 +537,14 @@ const AdminSettingsPage = () => {
         // Cache local é opcional e não dispara consulta automática.
       }
 
+      if (sendUpdate) {
+        await sendRenewalPlansUpdateSignal();
+      }
+
       toast({
         title: sendUpdate ? "Atualização de planos enviada!" : "Planos salvos!",
         description: sendUpdate
-          ? "Os clientes verão os novos planos no próximo login ou quando reabrirem/recarregarem o app."
+          ? "Clientes com o painel aberto receberam a atualização agora. Quem estiver fechado verá no próximo login."
           : "Planos salvos. Para economizar o plano gratuito, nada é consultado automaticamente no cliente.",
       });
     } catch (err: any) {
@@ -930,7 +963,7 @@ const AdminSettingsPage = () => {
             Atualizar / verificar planos
           </button>
           <p className="text-xs text-muted-foreground">
-            O botão de atualização fica só no admin. O cliente vê os novos planos no próximo login ou quando reabrir/recarregar o app.
+            Ao clicar em atualizar/verificar, os clientes com a tela aberta recebem a atualização na hora.
           </p>
         </div>
       </div>
@@ -966,49 +999,7 @@ const AdminSettingsPage = () => {
               className={inputCls}
             />
           </div>
-
-          <div className="rounded-xl border border-red-500/25 bg-red-500/5 p-4">
-            <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15">
-                <Percent size={16} className="text-red-500" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Descontos de Renovação</h3>
-                <p className="text-[11px] text-muted-foreground">
-                  Esses percentuais ficam como reserva caso nenhum plano esteja cadastrado acima.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Fallback: desconto para 3 meses (%)</h4>
-                <input
-                  value={settings.renewal_discount_3m_percent ?? 5}
-                  onChange={(e) => setSettings({ ...settings, renewal_discount_3m_percent: e.target.value })}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className={inputCls + " max-w-full"}
-                />
-              </div>
-              <div>
-                <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Fallback: desconto para 6 meses (%)</h4>
-                <input
-                  value={settings.renewal_discount_6m_percent ?? 10}
-                  onChange={(e) => setSettings({ ...settings, renewal_discount_6m_percent: e.target.value })}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className={inputCls + " max-w-full"}
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
+<button
             onClick={save}
             disabled={saving}
             className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-all hover:brightness-110 disabled:opacity-50"

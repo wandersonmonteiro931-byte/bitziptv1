@@ -1453,6 +1453,21 @@ const ClientDashboard = () => {
   );
 
   useEffect(() => {
+    if (!user?.id) return;
+
+    const planUpdateChannel = supabase
+      .channel("wmcplayer-renewal-plans-push")
+      .on("broadcast", { event: "renewal-plans-updated" }, () => {
+        loadRenewalPlansOnce({ useCacheFallback: false });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(planUpdateChannel);
+    };
+  }, [user?.id, loadRenewalPlansOnce]);
+
+  useEffect(() => {
     const loadData = async () => {
       await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
 
