@@ -1,0 +1,30 @@
+CORREÇÃO: PLANOS NUNCA VOLTAM PARA PADRÃO
+
+BASE USADA:
+bitziptv1-planos-admin-atualiza-cliente-imediato.zip
+
+PROBLEMA:
+Quando o cliente atualizava/recarregava a tela, os planos voltavam para o padrão 5% e 10%.
+
+CORRIGIDO:
+1. Removido totalmente o fallback/padrão 3 meses e 6 meses do cliente.
+2. Cliente só mostra planos vindos do admin/tabela iptv_renewal_plans.
+3. Se não houver plano enviado pelo admin, mostra aviso em vez de criar plano padrão.
+4. SQL não cria mais planos padrão automaticamente.
+5. Mantido botão "Atualizar / verificar planos" somente no admin.
+6. Mantido envio imediato do admin para clientes com tela aberta.
+7. Mantido sem polling/loop automático.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql.
+   Pode rodar por cima. Não apaga planos já cadastrados.
+6. No admin, salve os planos e clique em Atualizar / verificar planos.
+7. No cliente, recarregue/entre novamente se estava com versão antiga em cache.
+
+IMPORTANTE:
+Agora nunca existe plano padrão no cliente.
+Tudo que aparecer para o cliente vem do que o admin cadastrou.

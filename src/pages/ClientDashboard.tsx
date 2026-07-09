@@ -1744,34 +1744,9 @@ const ClientDashboard = () => {
   const isNearDueNotice = !isOverdue && !isDueToday && daysUntilDue >= 1 && daysUntilDue <= 4;
   const isRenewPlanWindow = isOverdue || isDueToday || (daysUntilDue >= 1 && daysUntilDue <= 5);
 
-  const fallbackPlan3m: RenewalPlanCard = {
-    id: "fallback-3m",
-    title: isRenewPlanWindow ? "Renovar 3 meses" : "Antecipar 3 meses",
-    description: "Renovação com desconto especial",
-    badge_text: "Plano recomendado",
-    cta_text: "Assinar agora",
-    months: 3,
-    discount_percent: renewalDiscount3mPercent,
-    is_active: true,
-    sort_order: 1,
-  };
-  const fallbackPlan6m: RenewalPlanCard = {
-    id: "fallback-6m",
-    title: isRenewPlanWindow ? "Renovar 6 meses" : "Antecipar 6 meses",
-    description: "Maior economia para sua assinatura",
-    badge_text: "Maior economia",
-    cta_text: "Assinar agora",
-    months: 6,
-    discount_percent: renewalDiscount6mPercent,
-    is_active: true,
-    sort_order: 2,
-  };
-  const displayedRenewalPlans =
-    renewalPlans.length > 0
-      ? [...renewalPlans]
-          .filter((plan) => Boolean(plan?.is_active ?? true))
-          .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.months || 0) - Number(b.months || 0))
-      : [fallbackPlan3m, fallbackPlan6m];
+  const displayedRenewalPlans = [...renewalPlans]
+    .filter((plan) => Boolean(plan?.is_active ?? true))
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.months || 0) - Number(b.months || 0));
 
   const getPlanFinancials = (plan: RenewalPlanCard) => {
     const months = Math.max(1, Number(plan.months || 1));
@@ -1859,8 +1834,6 @@ const ClientDashboard = () => {
 
       if (matchedPlan) {
         openRenewalPlan(matchedPlan);
-      } else {
-        setPixModal({ months: 1, value: firstCycleRenewalValue, discount: 0, billingDueDay });
       }
 
       window.history.replaceState(null, "", `${location.pathname}${location.hash || ""}`);
@@ -2101,7 +2074,12 @@ const ClientDashboard = () => {
           transition={{ delay: 0.35, duration: 0.35, ease: "easeOut" }}
           className="space-y-4"
         >
-<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+{displayedRenewalPlans.length === 0 ? (
+            <div className="rounded-2xl border border-red-500/20 bg-black/70 px-5 py-5 text-sm text-muted-foreground">
+              Nenhum plano de renovação enviado pelo admin ainda.
+            </div>
+          ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;
@@ -2176,6 +2154,7 @@ const ClientDashboard = () => {
               );
             })}
           </div>
+          )}
         </motion.div>
 
         {/* PAYMENT HISTORY (collapsible) */}
