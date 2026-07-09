@@ -29,6 +29,7 @@ import {
   MonitorPlay,
   Bell,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
@@ -79,6 +80,7 @@ const adminLinks = [
   { to: "/admin/announcements", label: "Avisos", icon: AlertCircle },
   { to: "/admin/reports", label: "Relatórios", icon: BarChart3 },
   { to: "/admin/settings", label: "Config", icon: Settings },
+  { to: "/admin/backup", label: "Backup", icon: Download },
 ];
 
 // Mobile: somente as 5 seções principais, sem botão "Menu".

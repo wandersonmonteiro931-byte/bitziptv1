@@ -5,13 +5,41 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isRetryableFetchError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /abort|aborted|signal|failed to fetch|network|load failed/i.test(message);
+}
+
+const fetchWithRetry: typeof fetch = async (input, init) => {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (!isRetryableFetchError(error)) throw error;
+
+    // Alguns celulares/PWA podem abortar uma chamada do Supabase sem motivo.
+    // Retenta uma vez sem reaproveitar o signal antigo, que pode vir abortado.
+    await sleep(450);
+    const retryInit = init ? { ...init } : undefined;
+    if (retryInit && "signal" in retryInit) {
+      delete (retryInit as RequestInit).signal;
+    }
+    return fetch(input, retryInit);
+  }
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: fetchWithRetry,
+  },
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+    detectSessionInUrl: true,
+  },
 });

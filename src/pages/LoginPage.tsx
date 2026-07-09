@@ -9,6 +9,13 @@ import { Eye, EyeOff, Lock, User, Loader2, MessageCircle, Shield, AlertTriangle 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 120;
 
+function getFriendlyLoginMessage(message: string) {
+  if (/abort|aborted|signal|failed to fetch|network|load failed/i.test(message)) {
+    return "Conexão interrompida. Toque em ACESSAR MINHA CONTA novamente.";
+  }
+  return message || "Erro ao conectar. Tente novamente.";
+}
+
 const LoginPage = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -126,7 +133,7 @@ const LoginPage = () => {
           } else if (result.error.toLowerCase().includes("invalid")) {
             setError("Usuário ou senha inválidos.");
           } else {
-            setError(result.error || "Erro ao conectar. Tente novamente.");
+            setError(getFriendlyLoginMessage(result.error));
           }
           setSubmitting(false);
           return;
@@ -146,7 +153,8 @@ const LoginPage = () => {
         setSubmitting(false);
         navigate(result.role === "admin" ? "/admin" : "/dashboard", { replace: true });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Erro ao conectar. Tente novamente.");
+        const message = err instanceof Error ? err.message : "Erro ao conectar. Tente novamente.";
+        setError(getFriendlyLoginMessage(message));
         setSubmitting(false);
       }
     },

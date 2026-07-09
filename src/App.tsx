@@ -41,6 +41,7 @@ import TvGuidePage from "./pages/TvGuidePage";
 import AdminTvGuidePage from "./pages/admin/AdminTvGuidePage";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import AdminAnnouncementsPage from "./pages/admin/AdminAnnouncementsPage";
+import AdminBackupPage from "./pages/admin/AdminBackupPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -100,6 +101,7 @@ const App = () => (
             <Route path="/admin/tv-guide" element={<ProtectedRoute requireAdmin><AdminTvGuidePage /></ProtectedRoute>} />
             <Route path="/admin/notifications" element={<ProtectedRoute requireAdmin><AdminNotificationsPage /></ProtectedRoute>} />
             <Route path="/admin/announcements" element={<ProtectedRoute requireAdmin><AdminAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="/admin/backup" element={<ProtectedRoute requireAdmin><AdminBackupPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

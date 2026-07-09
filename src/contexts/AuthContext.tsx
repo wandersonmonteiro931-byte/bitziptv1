@@ -65,6 +65,48 @@ type FetchProfileResult = {
   error: string | null;
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function getErrorMessage(error: unknown, fallback = "Erro ao conectar. Tente novamente.") {
+  if (!error) return fallback;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || fallback);
+  }
+  return String(error || fallback);
+}
+
+function isAbortLikeError(error: unknown) {
+  const message = getErrorMessage(error, "");
+  return /abort|aborted|signal|failed to fetch|network|load failed/i.test(message);
+}
+
+function friendlyAuthError(error: unknown) {
+  const message = getErrorMessage(error);
+
+  if (isAbortLikeError(message)) {
+    return "Conexão interrompida. Toque em ACESSAR MINHA CONTA novamente.";
+  }
+
+  return message;
+}
+
+async function retryQuery<T>(operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isAbortLikeError(error) || attempt === 2) throw error;
+      await sleep(450 + attempt * 350);
+    }
+  }
+
+  throw lastError;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
@@ -72,16 +114,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string): Promise<FetchProfileResult> => {
     try {
-      const [{ data: profile, error: profileError }, { data: roleData, error: roleError }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-      ]);
+      let profileResponse: any = null;
+      let roleResponse: any = null;
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        profileResponse = await retryQuery(() => supabase.from("profiles").select("*").eq("id", userId).maybeSingle());
+
+        if (!profileResponse.error || !isAbortLikeError(profileResponse.error) || attempt === 2) break;
+        await sleep(450 + attempt * 350);
+      }
+
+      const profile = profileResponse?.data;
+      const profileError = profileResponse?.error;
 
       if (profileError) {
         console.error("fetchProfile profile error:", profileError);
-        setUser(null);
-        setRole(null);
-        return { profile: null, role: null, error: profileError.message };
+        if (!isAbortLikeError(profileError)) {
+          setUser(null);
+          setRole(null);
+        }
+        return { profile: null, role: null, error: friendlyAuthError(profileError) };
       }
 
       if (!profile) {
@@ -98,6 +150,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { profile: null, role: null, error: "Seu acesso está arquivado. Entre em contato com o suporte." };
       }
 
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        roleResponse = await retryQuery(() => supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle());
+
+        if (!roleResponse.error || !isAbortLikeError(roleResponse.error) || attempt === 2) break;
+        await sleep(450 + attempt * 350);
+      }
+
+      const roleData = roleResponse?.data;
+      const roleError = roleResponse?.error;
+
       if (roleError) {
         console.warn("fetchProfile role warning:", roleError);
       }
@@ -109,12 +171,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { profile: nextProfile, role: nextRole, error: null };
     } catch (err) {
       console.error("fetchProfile error:", err);
-      setUser(null);
-      setRole(null);
+      if (!isAbortLikeError(err)) {
+        setUser(null);
+        setRole(null);
+      }
       return {
         profile: null,
         role: null,
-        error: err instanceof Error ? err.message : "Erro ao carregar perfil do usuário.",
+        error: friendlyAuthError(err),
       };
     }
   };
@@ -138,7 +202,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
       if (session?.user) {
-        // Dispatch after callback completes to avoid deadlock
+        // No evento SIGNED_IN, o próprio login já carrega o perfil.
+        // Isso evita duas consultas ao mesmo tempo e evita erro de signal abortado em alguns PWAs.
+        if (event === "SIGNED_IN") return;
+
         setTimeout(() => {
           fetchProfile(session.user.id).then(() => {
             if (isMounted && !initialLoad) {
@@ -185,69 +252,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const signInWithRetry = async (email: string, password: string) => {
+    let lastResult: any = null;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        lastResult = result;
+
+        if (result.error && isAbortLikeError(result.error) && attempt < 2) {
+          await sleep(500 + attempt * 400);
+          continue;
+        }
+
+        return result;
+      } catch (error) {
+        lastError = error;
+        if (!isAbortLikeError(error) || attempt === 2) throw error;
+        await sleep(500 + attempt * 400);
+      }
+    }
+
+    if (lastResult) return lastResult;
+    throw lastError;
+  };
+
   const login = async (email: string, password: string): Promise<LoginResult> => {
     setLoading(true);
     setUser(null);
     setRole(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setLoading(false);
-      return { error: error.message, profile: null, role: null };
-    }
-
-    if (!data.session?.user) {
-      setLoading(false);
-      return { error: "Sessão não iniciada. Tente novamente.", profile: null, role: null };
-    }
-
-    const profileResult = await fetchProfile(data.session.user.id);
-    setLoading(false);
-
-    if (!profileResult.profile) {
-      await supabase.auth.signOut({ scope: "local" });
-      return {
-        error: profileResult.error || "Login realizado, mas o perfil não foi carregado.",
-        profile: null,
-        role: null,
-      };
-    }
-
-    // Log login event with device info (fire-and-forget)
     try {
-      const ua = navigator.userAgent;
-      const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
-      const browser = /Firefox/i.test(ua)
-        ? "Firefox"
-        : /Edg/i.test(ua)
-          ? "Edge"
-          : /Chrome/i.test(ua)
-            ? "Chrome"
-            : /Safari/i.test(ua)
-              ? "Safari"
-              : "Outro";
-      const os = /Android/i.test(ua)
-        ? "Android"
-        : /iPhone|iPad|Mac/i.test(ua)
-          ? "iOS/macOS"
-          : /Windows/i.test(ua)
-            ? "Windows"
-            : /Linux/i.test(ua)
-              ? "Linux"
-              : "Outro";
-      supabase
-        .from("login_logs")
-        .insert({
-          user_id: data.session.user.id,
-          user_agent: ua,
-          device_type: deviceType,
-          browser,
-          os,
-        })
-        .then(() => {});
-    } catch {}
+      const { data, error } = await signInWithRetry(email, password);
+      if (error) {
+        setLoading(false);
+        return { error: friendlyAuthError(error), profile: null, role: null };
+      }
 
-    return { error: null, profile: profileResult.profile, role: profileResult.role || "client" };
+      if (!data.session?.user) {
+        setLoading(false);
+        return { error: "Sessão não iniciada. Tente novamente.", profile: null, role: null };
+      }
+
+      const profileResult = await fetchProfile(data.session.user.id);
+      setLoading(false);
+
+      if (!profileResult.profile) {
+        if (!isAbortLikeError(profileResult.error)) {
+          await supabase.auth.signOut({ scope: "local" });
+        }
+        return {
+          error: profileResult.error || "Login realizado, mas o perfil não foi carregado.",
+          profile: null,
+          role: null,
+        };
+      }
+
+      // Log login event with device info (fire-and-forget)
+      try {
+        const ua = navigator.userAgent;
+        const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+        const browser = /Firefox/i.test(ua)
+          ? "Firefox"
+          : /Edg/i.test(ua)
+            ? "Edge"
+            : /Chrome/i.test(ua)
+              ? "Chrome"
+              : /Safari/i.test(ua)
+                ? "Safari"
+                : "Outro";
+        const os = /Android/i.test(ua)
+          ? "Android"
+          : /iPhone|iPad|Mac/i.test(ua)
+            ? "iOS/macOS"
+            : /Windows/i.test(ua)
+              ? "Windows"
+              : /Linux/i.test(ua)
+                ? "Linux"
+                : "Outro";
+        supabase
+          .from("login_logs")
+          .insert({
+            user_id: data.session.user.id,
+            user_agent: ua,
+            device_type: deviceType,
+            browser,
+            os,
+          })
+          .then(() => {});
+      } catch {}
+
+      return { error: null, profile: profileResult.profile, role: profileResult.role || "client" };
+    } catch (err) {
+      setLoading(false);
+      return { error: friendlyAuthError(err), profile: null, role: null };
+    }
   };
 
   const logout = async () => {
