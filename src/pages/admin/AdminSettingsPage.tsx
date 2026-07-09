@@ -22,7 +22,6 @@ import { normalizeAppBranding, previewAppBranding, saveStoredAppBranding } from 
 type RenewalPlanForm = {
   id?: string;
   title: string;
-  description: string;
   badge_text: string;
   cta_text: string;
   months: string;
@@ -33,7 +32,6 @@ type RenewalPlanForm = {
 
 const createEmptyRenewalPlan = (sortOrder = 1): RenewalPlanForm => ({
   title: "",
-  description: "",
   badge_text: "",
   cta_text: "Assinar agora",
   months: "1",
@@ -55,7 +53,6 @@ const DEFAULT_PLATFORM_SETTINGS = {
   renewal_discount_3m_percent: 5,
   renewal_discount_6m_percent: 10,
 };
-
 
 const AdminSettingsPage = () => {
   const { toast } = useToast();
@@ -109,7 +106,7 @@ const AdminSettingsPage = () => {
       .order("months", { ascending: true });
 
     if (error) {
-      console.warn("iptv_renewal_plans not available yet:", error.message);
+      console.warn("iptv_renewal_plans ainda não disponível:", error.message);
       setRenewalPlans([]);
       setLoadedRenewalPlanIds([]);
       return;
@@ -118,7 +115,6 @@ const AdminSettingsPage = () => {
     const rows = (data || []).map((plan: any) => ({
       id: plan.id,
       title: plan.title || "",
-      description: plan.description || "",
       badge_text: plan.badge_text || "",
       cta_text: plan.cta_text || "Assinar agora",
       months: String(plan.months ?? 1),
@@ -144,7 +140,6 @@ const AdminSettingsPage = () => {
 
         const platformData = ps.data || DEFAULT_PLATFORM_SETTINGS;
         setSettings(platformData);
-
         const branding = normalizeAppBranding(platformData);
         setAppName(branding.appName);
         setAppShortName(branding.appShortName);
@@ -159,7 +154,7 @@ const AdminSettingsPage = () => {
           setAssistProvider((ss.data as any).assist_plus_provider || "");
           setBlessedProvider((ss.data as any).blessed_player_provider || "");
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Erro ao carregar configurações:", err);
         setSettings(DEFAULT_PLATFORM_SETTINGS);
         setBrandingLoaded(true);
@@ -186,19 +181,15 @@ const AdminSettingsPage = () => {
     setSaving(true);
     try {
       const payload = {
-        min_withdrawal: parseFloat(settings.min_withdrawal),
-        referral_value: parseFloat(settings.referral_value),
-        monthly_limit: parseFloat(settings.monthly_limit),
+        min_withdrawal: parseFloat(settings.min_withdrawal || 0),
+        referral_value: parseFloat(settings.referral_value || 0),
+        monthly_limit: parseFloat(settings.monthly_limit || 0),
         renewal_discount_3m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_3m_percent || 0))),
         renewal_discount_6m_percent: Math.max(0, Math.min(100, parseFloat(settings.renewal_discount_6m_percent || 0))),
       };
 
       if (!settings.id || settings.id === "default") {
-        const { data, error } = await supabase
-          .from("platform_settings")
-          .insert(payload as any)
-          .select("*")
-          .single();
+        const { data, error } = await supabase.from("platform_settings").insert(payload as any).select("*").single();
         if (error) throw error;
         if (data) setSettings(data);
       } else {
@@ -425,6 +416,74 @@ const AdminSettingsPage = () => {
     } finally {
       setSavingProviders(false);
       setSendingNotification(false);
+    }
+  };
+
+  const addRenewalPlan = () => {
+    setRenewalPlans((prev) => [...prev, createEmptyRenewalPlan(prev.length + 1)]);
+  };
+
+  const updateRenewalPlan = (index: number, field: keyof RenewalPlanForm, value: string | boolean) => {
+    setRenewalPlans((prev) => prev.map((plan, i) => (i === index ? { ...plan, [field]: value } : plan)));
+  };
+
+  const removeRenewalPlan = (index: number) => {
+    setRenewalPlans((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const saveRenewalPlans = async () => {
+    setSavingRenewalPlans(true);
+    try {
+      const cleanedPlans = renewalPlans.map((plan, index) => ({
+        id: plan.id,
+        title: String(plan.title || "").trim(),
+        badge_text: String(plan.badge_text || "").trim(),
+        cta_text: String(plan.cta_text || "Assinar agora").trim() || "Assinar agora",
+        months: Math.max(1, Number(plan.months || 1)),
+        discount_percent: Math.max(0, Math.min(100, Number(plan.discount_percent || 0))),
+        sort_order: Math.max(0, Number(plan.sort_order || index + 1)),
+        is_active: Boolean(plan.is_active),
+      }));
+
+      if (cleanedPlans.some((plan) => !plan.title)) {
+        toast({ title: "Preencha o título de todos os planos", variant: "destructive" });
+        return;
+      }
+
+      const idsToKeep = cleanedPlans.map((plan) => plan.id).filter(Boolean) as string[];
+      const idsToDelete = loadedRenewalPlanIds.filter((id) => !idsToKeep.includes(id));
+
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await (supabase as any).from("iptv_renewal_plans").delete().in("id", idsToDelete);
+        if (deleteError) throw deleteError;
+      }
+
+      if (cleanedPlans.length > 0) {
+        const payload = cleanedPlans.map((plan) => ({
+          ...(plan.id ? { id: plan.id } : {}),
+          title: plan.title,
+          badge_text: plan.badge_text || null,
+          cta_text: plan.cta_text || "Assinar agora",
+          months: plan.months,
+          discount_percent: plan.discount_percent,
+          sort_order: plan.sort_order,
+          is_active: plan.is_active,
+        }));
+
+        const { error } = await (supabase as any).from("iptv_renewal_plans").upsert(payload);
+        if (error) throw error;
+      }
+
+      await loadRenewalPlans();
+      toast({ title: "Planos salvos!", description: "Os planos já foram atualizados para os clientes." });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao salvar planos",
+        description: err.message || "Rode o arquivo SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase e tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingRenewalPlans(false);
     }
   };
 
@@ -738,7 +797,7 @@ const AdminSettingsPage = () => {
             <div>
               <h2 className="text-base font-bold text-foreground">Planos de Renovação do Cliente</h2>
               <p className="text-xs text-muted-foreground">
-                O admin pode criar, editar, ativar, desativar e excluir planos. O cliente vê exatamente o que estiver cadastrado aqui.
+                Crie, edite, ative, desative ou exclua os planos que aparecem para o cliente.
               </p>
             </div>
           </div>
@@ -752,7 +811,7 @@ const AdminSettingsPage = () => {
         </div>
 
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[11px] text-muted-foreground">
-          Planos cadastrados aqui aparecem para o cliente. Rode uma única vez o SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase para liberar esta função.
+          Se essa seção não salvar, rode uma única vez o arquivo <strong>SQL_CRIAR_PLANOS_RENOVACAO.sql</strong> no Supabase.
         </div>
 
         <div className="mt-4 space-y-4">
@@ -766,7 +825,7 @@ const AdminSettingsPage = () => {
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Plano #{index + 1}</p>
-                    <p className="text-[11px] text-muted-foreground">Aparece para o cliente na vitrine de planos.</p>
+                    <p className="text-[11px] text-muted-foreground">A porcentagem abaixo é a que aparece para o cliente.</p>
                   </div>
                   <button
                     onClick={() => removeRenewalPlan(index)}
@@ -780,38 +839,35 @@ const AdminSettingsPage = () => {
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Título do plano</h4>
-                    <input value={plan.title} onChange={(e) => updateRenewalPlan(index, "title", e.target.value)} className={inputCls} placeholder="Ex: Antecipar 3 meses" />
+                    <input value={plan.title} onChange={(e) => updateRenewalPlan(index, "title", e.target.value)} className={inputCls + " max-w-full"} placeholder="Ex: Antecipar 3 meses" />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Badge</h4>
-                    <input value={plan.badge_text} onChange={(e) => updateRenewalPlan(index, "badge_text", e.target.value)} className={inputCls} placeholder="Ex: Plano recomendado" />
+                    <input value={plan.badge_text} onChange={(e) => updateRenewalPlan(index, "badge_text", e.target.value)} className={inputCls + " max-w-full"} placeholder="Ex: Plano recomendado" />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Meses</h4>
-                    <input value={plan.months} onChange={(e) => updateRenewalPlan(index, "months", e.target.value)} type="number" min="1" className={inputCls} />
+                    <input value={plan.months} onChange={(e) => updateRenewalPlan(index, "months", e.target.value)} type="number" min="1" className={inputCls + " max-w-full"} />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Desconto (%)</h4>
-                    <input value={plan.discount_percent} onChange={(e) => updateRenewalPlan(index, "discount_percent", e.target.value)} type="number" min="0" max="100" step="0.01" className={inputCls} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Descrição</h4>
-                    <input value={plan.description} onChange={(e) => updateRenewalPlan(index, "description", e.target.value)} className={inputCls} placeholder="Ex: 10% de desconto" />
+                    <input value={plan.discount_percent} onChange={(e) => updateRenewalPlan(index, "discount_percent", e.target.value)} type="number" min="0" max="100" step="0.01" className={inputCls + " max-w-full"} />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Texto do botão</h4>
-                    <input value={plan.cta_text} onChange={(e) => updateRenewalPlan(index, "cta_text", e.target.value)} className={inputCls} placeholder="Ex: Assinar agora" />
+                    <input value={plan.cta_text} onChange={(e) => updateRenewalPlan(index, "cta_text", e.target.value)} className={inputCls + " max-w-full"} placeholder="Ex: Assinar agora" />
                   </div>
                   <div>
                     <h4 className="mb-2 text-xs font-semibold text-muted-foreground">Ordem</h4>
-                    <input value={plan.sort_order} onChange={(e) => updateRenewalPlan(index, "sort_order", e.target.value)} type="number" min="0" className={inputCls} />
+                    <input value={plan.sort_order} onChange={(e) => updateRenewalPlan(index, "sort_order", e.target.value)} type="number" min="0" className={inputCls + " max-w-full"} />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input type="checkbox" checked={plan.is_active} onChange={(e) => updateRenewalPlan(index, "is_active", e.target.checked)} className="h-4 w-4 rounded border-border bg-transparent" />
+                      Plano ativo
+                    </label>
                   </div>
                 </div>
-
-                <label className="mt-4 inline-flex items-center gap-2 text-sm text-foreground">
-                  <input type="checkbox" checked={plan.is_active} onChange={(e) => updateRenewalPlan(index, "is_active", e.target.checked)} className="h-4 w-4 rounded border-border bg-transparent" />
-                  Plano ativo
-                </label>
               </div>
             ))
           )}
@@ -870,7 +926,7 @@ const AdminSettingsPage = () => {
               <div>
                 <h3 className="text-sm font-bold text-foreground">Descontos de Renovação</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Esses percentuais funcionam como fallback quando não houver planos cadastrados na seção acima.
+                  Esses percentuais ficam como reserva caso nenhum plano esteja cadastrado acima.
                 </p>
               </div>
             </div>

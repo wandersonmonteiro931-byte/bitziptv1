@@ -2072,13 +2072,7 @@ const ClientDashboard = () => {
               const financials = getPlanFinancials(plan);
               const premium = index % 2 === 1;
               const badgeText = plan.badge_text?.trim() || (premium ? "Maior economia" : "Plano recomendado");
-              const rawDescription = plan.description?.trim() || "";
-              const description =
-                !rawDescription ||
-                rawDescription.toLowerCase().includes("renovação com desconto") ||
-                rawDescription.toLowerCase().includes("maior economia para sua assinatura")
-                  ? `${formatDiscountPercent(financials.discountPercent)}% de desconto`
-                  : rawDescription;
+              const description = `${formatDiscountPercent(financials.discountPercent)}% de desconto`;
               const ctaText = plan.cta_text?.trim() || "Assinar agora";
 
               return (
