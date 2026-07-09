@@ -1460,12 +1460,6 @@ const ClientDashboard = () => {
           return cached;
         }
 
-        const cached = useCacheFallback ? readCachedRenewalPlans() : [];
-        if (cached.length > 0) {
-          setRenewalPlans(cached);
-          return cached;
-        }
-
         setRenewalPlans([]);
         if (manual) setPlansRefreshMessage("Nenhum plano novo encontrado. Confira se salvou no admin e rodou o SQL.");
         return [];

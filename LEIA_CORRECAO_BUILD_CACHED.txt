@@ -1,0 +1,22 @@
+CORREÇÃO DO BUILD CLOUDFLARE
+
+BASE USADA:
+bitziptv1-planos-fixo-admin-nao-some.zip
+
+ERRO CORRIGIDO:
+The symbol "cached" has already been declared
+src/pages/ClientDashboard.tsx:1463:14
+
+O QUE FOI CORRIGIDO:
+1. Removida declaração duplicada de const cached no ClientDashboard.tsx.
+2. Mantida a correção dos planos fixos do admin.
+3. Mantido cliente lendo snapshot/cache do admin.
+4. Mantido sem fallback padrão 5%/10%.
+5. Mantido sem polling de planos.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Rode SQL_CRIAR_PLANOS_RENOVACAO.sql no Supabase se ainda não rodou a versão mais recente.
