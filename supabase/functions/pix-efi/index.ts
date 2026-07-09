@@ -279,11 +279,11 @@ async function getQrCode(token: string, locId: number): Promise<{ qrcode: string
 // ── Supabase helpers ─────────────────────────────────────────────────────
 
 function getAdminSupabase() {
-  return createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"));
+  return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY")));
 }
 
 function getUserSupabase(authHeader: string) {
-  return createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_ANON_KEY"), {
+  return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || getEnv("SUPABASE_ANON_KEY")), {
     global: { headers: { Authorization: authHeader } },
   });
 }
@@ -695,7 +695,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
   // 5. Send automatic push notifications based on DB rules
   try {
     const supabaseUrl = getEnv("SUPABASE_URL");
-    const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY"));
 
     // Get user profile for template variables
     const { data: userProfile } = await adminSupa.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", payment.user_id).single();

@@ -1,0 +1,40 @@
+BITZIPTV1 / WMCPLAYER - MIGRACAO SUPABASE NOVO
+
+CORRECAO DESTA VERSAO:
+O PASSO_2_IMPORTAR_HISTORICO.sql foi dividido porque o SQL Editor do Supabase recusou o arquivo grande.
+
+NAO PROCURE MAIS O ARQUIVO GRANDE DO PASSO 2.
+Use os arquivos pequenos abaixo, em ordem.
+
+ORDEM CERTA NO SUPABASE > SQL EDITOR > NEW QUERY:
+
+1) Rode:
+PASSO_1_CRIAR_ESTRUTURA.sql
+
+2) Depois rode, um por um, nesta ordem:
+PASSO_2_01_CRIAR_LOGINS_E_LIMPAR.sql
+PASSO_2_02_IMPORTAR_DADOS.sql
+PASSO_2_03_IMPORTAR_DADOS.sql
+PASSO_2_04_IMPORTAR_DADOS.sql
+PASSO_2_05_IMPORTAR_DADOS.sql
+PASSO_2_06_IMPORTAR_DADOS.sql
+PASSO_2_07_IMPORTAR_DADOS.sql
+PASSO_2_08_IMPORTAR_DADOS.sql
+PASSO_2_09_IMPORTAR_DADOS.sql
+PASSO_2_10_IMPORTAR_DADOS.sql
+PASSO_2_11_IMPORTAR_DADOS.sql
+PASSO_2_12_IMPORTAR_DADOS.sql
+
+3) No final rode:
+PASSO_3_TESTAR_IMPORTACAO.sql
+
+IMPORTANTE:
+- Nao rode todos juntos.
+- Abra um arquivo por vez, copie tudo, cole no SQL Editor e clique em RUN.
+- Se der erro, pare exatamente naquele arquivo e envie a mensagem do erro.
+- O arquivo PASSO_2_01 limpa as tabelas antes de importar. So rode ele novamente se for recomecar tudo do zero.
+
+LOGIN ADMIN APOS IMPORTAR:
+Usuario: admin
+Senha: 123456
+

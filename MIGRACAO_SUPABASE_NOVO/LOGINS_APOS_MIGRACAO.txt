@@ -1,0 +1,17 @@
+LOGINS APÓS MIGRAÇÃO
+
+Admin principal:
+Usuário: admin
+Senha: 123456
+
+Clientes:
+Verônica Cavalcante | usuário: 674879 | senha: 622094 | status: active | IPTV: active
+Patrick Amaral | usuário: 674879* | senha: 622094 | status: archived | IPTV: disabled
+Patrick Amaral | usuário: 8263381 | senha: 9876441 | status: active | IPTV: active
+Alexandra | usuário: 587591 | senha: 345122 | status: active | IPTV: active
+Marcelo Cambuir | usuário: 908216 | senha: 327492 | status: active | IPTV: blocked
+Wanderson Monteiro de Camargo | usuário: wandersonmontc | senha: wandersonmontc | status: active | IPTV: blocked
+Ueslaine | usuário: admin@bitziptv.com | senha: 123456 | status: active | IPTV: active
+Claudete Gonçalves | usuário: 826338 | senha: 987644 | status: active | IPTV: active
+Patrick Amaral | usuário: 6748791 | senha: 6220941 | status: archived | IPTV: disabled
+Yasmin Pereira Barbosa | usuário: 123456 | senha: 123456 | status: active | IPTV: awaiting_activation

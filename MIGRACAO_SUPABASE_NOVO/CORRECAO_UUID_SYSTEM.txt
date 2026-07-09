@@ -1,0 +1,6 @@
+Correção aplicada:
+- Campos UUID com valor inválido, como "" ou "system", foram convertidos para NULL.
+- Corrige o erro do Supabase: invalid input syntax for type uuid: "system".
+- Principal caso corrigido: admin_audit_logs.target_id.
+
+PASSO_2_02_IMPORTAR_DADOS.sql | tabela admin_audit_logs | 8 campo(s) UUID corrigido(s)
