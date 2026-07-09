@@ -3,6 +3,8 @@
 
 create extension if not exists pgcrypto;
 
+alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();
+
 create table if not exists public.iptv_renewal_plans (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -87,10 +89,14 @@ using (
   )
 );
 
-insert into public.iptv_renewal_plans (title, description, badge_text, cta_text, months, discount_percent, is_active, sort_order)
-select * from (
+insert into public.iptv_renewal_plans (id, title, description, badge_text, cta_text, months, discount_percent, is_active, sort_order)
+select gen_random_uuid(), v.*
+from (
   values
-    ('Antecipar 3 meses', '5% de desconto', 'Plano recomendado', 'Assinar agora', 3, 5.00, true, 1),
-    ('Antecipar 6 meses', '10% de desconto', 'Maior economia', 'Assinar agora', 6, 10.00, true, 2)
+    ('Antecipar 3 meses', '5% de desconto', 'Plano recomendado', 'Antecipar agora', 3, 5.00, true, 1),
+    ('Antecipar 6 meses', '10% de desconto', 'Maior economia', 'Antecipar agora', 6, 10.00, true, 2)
 ) as v(title, description, badge_text, cta_text, months, discount_percent, is_active, sort_order)
 where not exists (select 1 from public.iptv_renewal_plans);
+
+-- Correção extra para evitar erro: null value in column "id".
+alter table if exists public.iptv_renewal_plans alter column id set default gen_random_uuid();

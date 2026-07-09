@@ -1,0 +1,27 @@
+CORREÇÃO DO ERRO AO SALVAR PLANOS
+
+BASE USADA:
+bitziptv1-sem-consultas-automaticas-planos-corrigido.zip
+
+ERRO CORRIGIDO:
+null value in column "id" of relation "iptv_renewal_plans" violates not-null constraint
+
+O QUE FOI CORRIGIDO:
+1. Todo plano novo agora já nasce com ID UUID válido no painel admin.
+2. O salvamento nunca envia id vazio/null.
+3. O SQL agora garante DEFAULT gen_random_uuid() na coluna id.
+4. Mantido sem realtime, sem polling e sem consultas automáticas.
+5. Texto do painel ajustado: cliente verá alterações no próximo login ou ao atualizar/verificar app.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente SQL_CRIAR_PLANOS_RENOVACAO.sql.
+   Pode rodar por cima. Não apaga seus planos.
+6. Volte no Admin > Config e clique em Salvar Planos.
+
+IMPORTANTE:
+Como foi pedido para economizar o plano gratuito, o cliente não atualiza sozinho.
+Ele vê a mudança no novo login, recarregando a página, ou clicando em atualizar/verificar app.

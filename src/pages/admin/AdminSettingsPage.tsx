@@ -30,7 +30,20 @@ type RenewalPlanForm = {
   is_active: boolean;
 };
 
+const createClientUuid = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = (Math.random() * 16) | 0;
+    const value = char === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+};
+
 const createEmptyRenewalPlan = (sortOrder = 1): RenewalPlanForm => ({
+  id: createClientUuid(),
   title: "",
   badge_text: "",
   cta_text: "Assinar agora",
@@ -435,10 +448,10 @@ const AdminSettingsPage = () => {
     setSavingRenewalPlans(true);
     try {
       const cleanedPlans = renewalPlans.map((plan, index) => ({
-        id: plan.id && String(plan.id).trim() ? String(plan.id).trim() : undefined,
+        id: plan.id && String(plan.id).trim() ? String(plan.id).trim() : createClientUuid(),
         title: String(plan.title || "").trim(),
         badge_text: String(plan.badge_text || "").trim(),
-        cta_text: String(plan.cta_text || "Assinar agora").trim() || "Assinar agora",
+        cta_text: String(plan.cta_text || "Antecipar agora").trim() || "Antecipar agora",
         months: Math.max(1, Number(plan.months || 1)),
         discount_percent: Math.max(0, Math.min(100, Number(plan.discount_percent || 0))),
         sort_order: Math.max(0, Number(plan.sort_order || index + 1)),
@@ -454,30 +467,30 @@ const AdminSettingsPage = () => {
       const idsToDelete = loadedRenewalPlanIds.filter((id) => !idsToKeep.includes(id));
 
       if (idsToDelete.length > 0) {
-        const { error: deleteError } = await (supabase as any).from("iptv_renewal_plans").delete().in("id", idsToDelete);
+        const { error: deleteError } = await (supabase as any)
+          .from("iptv_renewal_plans")
+          .delete()
+          .in("id", idsToDelete);
+
         if (deleteError) throw deleteError;
       }
 
       if (cleanedPlans.length > 0) {
-        const payload = cleanedPlans.map((plan) => {
-          const row: any = {
-            title: plan.title,
+        const payload = cleanedPlans.map((plan) => ({
+          id: plan.id,
+          title: plan.title,
           badge_text: plan.badge_text || null,
-          cta_text: plan.cta_text || "Assinar agora",
+          cta_text: plan.cta_text || "Antecipar agora",
           months: plan.months,
           discount_percent: plan.discount_percent,
           sort_order: plan.sort_order,
           is_active: plan.is_active,
-          };
+        }));
 
-          if (plan.id) {
-            row.id = plan.id;
-          }
-
-          return row;
+        const { error } = await (supabase as any).from("iptv_renewal_plans").upsert(payload, {
+          onConflict: "id",
         });
 
-        const { error } = await (supabase as any).from("iptv_renewal_plans").upsert(payload);
         if (error) throw error;
       }
 
@@ -836,7 +849,7 @@ const AdminSettingsPage = () => {
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Plano #{index + 1}</p>
-                    <p className="text-[11px] text-muted-foreground">A porcentagem abaixo é a que aparece para o cliente.</p>
+                    <p className="text-[11px] text-muted-foreground">A porcentagem abaixo aparece para o cliente no próximo login/atualização.</p>
                   </div>
                   <button
                     onClick={() => removeRenewalPlan(index)}
@@ -893,7 +906,7 @@ const AdminSettingsPage = () => {
             {savingRenewalPlans && <Loader2 size={16} className="animate-spin" />}
             Salvar Planos
           </button>
-          <p className="text-xs text-muted-foreground">Os clientes recebem os novos planos automaticamente após salvar.</p>
+          <p className="text-xs text-muted-foreground">O cliente verá as alterações no próximo login ou ao atualizar/verificar app.</p>
         </div>
       </div>
 
