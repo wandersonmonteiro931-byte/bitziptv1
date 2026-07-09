@@ -190,7 +190,7 @@ const AdminIptvPage = () => {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: "✅ Ativação confirmada!" });
-      loadData();
+      await loadData();
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {

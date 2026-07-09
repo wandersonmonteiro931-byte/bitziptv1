@@ -397,7 +397,7 @@ async function handleCreateCharge(userId: string, body: any) {
       pix_txid: cob.txid,
       pix_location: cob.loc.location,
       pix_copia_cola: qr.qrcode,
-      status: "pending",
+      status: "pix_pending",
     })
     .eq("id", payment_id);
 
@@ -475,7 +475,7 @@ async function handleCheckStatus(userId: string, body: any) {
     .single();
 
   if (!payment) return jsonResp({ error: "Payment not found" }, 404);
-  if (payment.status !== "pending") {
+  if (!["pending", "pix_pending"].includes(payment.status)) {
     return jsonResp({ status: payment.status, confirmed: true });
   }
 
@@ -661,12 +661,12 @@ async function confirmCreditPurchase(adminSupa: any, purchase: any) {
 
 // Shared function: confirm payment, update expiry, set awaiting_activation
 async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
-  // ATOMIC GUARD: Only update if status is still "pending" to prevent duplicate processing
+  // ATOMIC GUARD: Only update if the PIX charge is still waiting to prevent duplicate processing
   const { data: updated, error: updateErr } = await adminSupa
     .from("iptv_payments")
     .update({ status: "paid_pending_activation", payment_date: new Date().toISOString() })
     .eq("id", payment.id)
-    .eq("status", "pending")
+    .in("status", ["pending", "pix_pending"])
     .select("id");
 
   // If no rows were updated, another process already handled this payment
@@ -800,7 +800,7 @@ async function handleWebhook(req: Request) {
         .single();
 
       if (payment) {
-        if (payment.status !== "pending") {
+        if (!["pending", "pix_pending"].includes(payment.status)) {
           console.log(`Payment ${payment.id} already processed (status: ${payment.status})`);
           continue;
         }
@@ -850,7 +850,7 @@ function scheduleBackgroundCheck(adminSupa: any, recordId: string, txid: string,
         // First check if still pending in DB (avoid unnecessary API calls)
         if (type === "iptv") {
           const { data: p } = await adminSupa.from("iptv_payments").select("status").eq("id", recordId).single();
-          if (!p || p.status !== "pending") {
+          if (!p || !["pending", "pix_pending"].includes(p.status)) {
             console.log(`[BG-CHECK] IPTV payment ${recordId} already processed (${p?.status}), stopping.`);
             return;
           }
@@ -875,7 +875,7 @@ function scheduleBackgroundCheck(adminSupa: any, recordId: string, txid: string,
 
           if (cobData.status === "CONCLUIDA") {
             if (type === "iptv") {
-              const { data: payment } = await adminSupa.from("iptv_payments").select("*").eq("id", recordId).eq("status", "pending").single();
+              const { data: payment } = await adminSupa.from("iptv_payments").select("*").eq("id", recordId).in("status", ["pending", "pix_pending"]).single();
               if (payment) await confirmPaymentAndUpdateExpiry(adminSupa, payment);
             } else {
               const { data: purchase } = await adminSupa.from("credit_purchases").select("*").eq("id", recordId).eq("status", "pending").single();

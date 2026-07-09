@@ -735,6 +735,14 @@ function PaymentHistory() {
     };
     load();
 
+    const reloadOnFocus = () => load();
+    const reloadOnVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    window.addEventListener("focus", reloadOnFocus);
+    document.addEventListener("visibilitychange", reloadOnVisible);
+    const poll = window.setInterval(load, 10000);
+
     // Realtime: reload when iptv_payments changes
     const channel = supabase
       .channel("payment-history-rt")
@@ -743,6 +751,9 @@ function PaymentHistory() {
       })
       .subscribe();
     return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", reloadOnFocus);
+      document.removeEventListener("visibilitychange", reloadOnVisible);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -960,7 +971,7 @@ function PixModal({
             months: pixModal.months,
             period_start: periodStart.toISOString().split("T")[0],
             period_end: periodEndStr,
-            status: "pending",
+            status: "pix_pending",
             payment_method: "pix",
             notes: pixModal.notes || `Renovação ${pixModal.months} mês(es) via PIX automático`,
           })
@@ -1011,7 +1022,7 @@ function PixModal({
       // 1. Always check DB first (fastest, most reliable)
       try {
         const { data } = await supabase.from("iptv_payments").select("status").eq("id", paymentId).maybeSingle();
-        if (data?.status && data.status !== "pending") {
+        if (data?.status && !["pending", "pix_pending"].includes(data.status)) {
           if (active) setPaymentConfirmed(true);
           return;
         }
@@ -1083,7 +1094,7 @@ function PixModal({
   const handleClose = async () => {
     if (!paymentConfirmed && paymentId) {
       try {
-        await supabase.from("iptv_payments").delete().eq("id", paymentId).eq("status", "pending");
+        await supabase.from("iptv_payments").delete().eq("id", paymentId).in("status", ["pending", "pix_pending"]);
       } catch (err) {
         // ignore
       }
@@ -1436,6 +1447,7 @@ const ClientDashboard = () => {
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => {
         loadPendingExpiry();
+        refreshProfile();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "platform_settings" }, (payload) => {
         const next = payload.new as any;

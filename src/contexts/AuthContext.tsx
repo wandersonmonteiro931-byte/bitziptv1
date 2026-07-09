@@ -41,11 +41,17 @@ export interface Profile {
   admin_notes_urgent: boolean;
 }
 
+export interface LoginResult {
+  error: string | null;
+  profile: Profile | null;
+  role: UserRole | null;
+}
+
 interface AuthContextType {
   user: Profile | null;
   role: UserRole | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   refreshProfile: () => Promise<void>;
@@ -53,32 +59,63 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+type FetchProfileResult = {
+  profile: Profile | null;
+  role: UserRole | null;
+  error: string | null;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string): Promise<FetchProfileResult> => {
     try {
-      const [{ data: profile, error: profileError }, { data: roleData }] = await Promise.all([
+      const [{ data: profile, error: profileError }, { data: roleData, error: roleError }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
       ]);
 
-      if (profile) {
-        // If user is archived, force logout
-        if (profile.status === "archived") {
-          setUser(null);
-          setRole(null);
-          await supabase.auth.signOut({ scope: "local" });
-          return;
-        }
-        setUser(profile as unknown as Profile);
+      if (profileError) {
+        console.error("fetchProfile profile error:", profileError);
+        setUser(null);
+        setRole(null);
+        return { profile: null, role: null, error: profileError.message };
       }
-      setRole((roleData?.role as UserRole) || "client");
+
+      if (!profile) {
+        setUser(null);
+        setRole(null);
+        return { profile: null, role: null, error: "Perfil do usuário não encontrado." };
+      }
+
+      // If user is archived, force logout
+      if (profile.status === "archived") {
+        setUser(null);
+        setRole(null);
+        await supabase.auth.signOut({ scope: "local" });
+        return { profile: null, role: null, error: "Seu acesso está arquivado. Entre em contato com o suporte." };
+      }
+
+      if (roleError) {
+        console.warn("fetchProfile role warning:", roleError);
+      }
+
+      const nextProfile = profile as unknown as Profile;
+      const nextRole = (roleData?.role as UserRole) || "client";
+      setUser(nextProfile);
+      setRole(nextRole);
+      return { profile: nextProfile, role: nextRole, error: null };
     } catch (err) {
       console.error("fetchProfile error:", err);
-      setRole("client");
+      setUser(null);
+      setRole(null);
+      return {
+        profile: null,
+        role: null,
+        error: err instanceof Error ? err.message : "Erro ao carregar perfil do usuário.",
+      };
     }
   };
 
@@ -105,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           fetchProfile(session.user.id).then(() => {
             if (isMounted && !initialLoad) {
-              // only needed for subsequent changes, not initial
+              setLoading(false);
             }
           });
         }, 0);
@@ -148,47 +185,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<string | null> => {
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    setLoading(true);
+    setUser(null);
+    setRole(null);
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return error.message;
-    // Immediately fetch profile instead of relying on onAuthStateChange
-    if (data.session?.user) {
-      await fetchProfile(data.session.user.id);
-      // Log login event with device info (fire-and-forget)
-      try {
-        const ua = navigator.userAgent;
-        const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
-        const browser = /Firefox/i.test(ua)
-          ? "Firefox"
-          : /Edg/i.test(ua)
-            ? "Edge"
-            : /Chrome/i.test(ua)
-              ? "Chrome"
-              : /Safari/i.test(ua)
-                ? "Safari"
-                : "Outro";
-        const os = /Android/i.test(ua)
-          ? "Android"
-          : /iPhone|iPad|Mac/i.test(ua)
-            ? "iOS/macOS"
-            : /Windows/i.test(ua)
-              ? "Windows"
-              : /Linux/i.test(ua)
-                ? "Linux"
-                : "Outro";
-        supabase
-          .from("login_logs")
-          .insert({
-            user_id: data.session.user.id,
-            user_agent: ua,
-            device_type: deviceType,
-            browser,
-            os,
-          })
-          .then(() => {});
-      } catch {}
+    if (error) {
+      setLoading(false);
+      return { error: error.message, profile: null, role: null };
     }
-    return null;
+
+    if (!data.session?.user) {
+      setLoading(false);
+      return { error: "Sessão não iniciada. Tente novamente.", profile: null, role: null };
+    }
+
+    const profileResult = await fetchProfile(data.session.user.id);
+    setLoading(false);
+
+    if (!profileResult.profile) {
+      await supabase.auth.signOut({ scope: "local" });
+      return {
+        error: profileResult.error || "Login realizado, mas o perfil não foi carregado.",
+        profile: null,
+        role: null,
+      };
+    }
+
+    // Log login event with device info (fire-and-forget)
+    try {
+      const ua = navigator.userAgent;
+      const deviceType = /Mobile|Android|iPhone|iPad/i.test(ua) ? "mobile" : "desktop";
+      const browser = /Firefox/i.test(ua)
+        ? "Firefox"
+        : /Edg/i.test(ua)
+          ? "Edge"
+          : /Chrome/i.test(ua)
+            ? "Chrome"
+            : /Safari/i.test(ua)
+              ? "Safari"
+              : "Outro";
+      const os = /Android/i.test(ua)
+        ? "Android"
+        : /iPhone|iPad|Mac/i.test(ua)
+          ? "iOS/macOS"
+          : /Windows/i.test(ua)
+            ? "Windows"
+            : /Linux/i.test(ua)
+              ? "Linux"
+              : "Outro";
+      supabase
+        .from("login_logs")
+        .insert({
+          user_id: data.session.user.id,
+          user_agent: ua,
+          device_type: deviceType,
+          browser,
+          os,
+        })
+        .then(() => {});
+    } catch {}
+
+    return { error: null, profile: profileResult.profile, role: profileResult.role || "client" };
   };
 
   const logout = async () => {

@@ -62,57 +62,95 @@ const LoginPage = () => {
 
       try {
         const cleanUser = username.trim();
-        const candidates = new Set<string>();
+        const baseCandidates = new Set<string>();
 
         if (cleanUser.includes("@")) {
-          candidates.add(cleanUser);
+          baseCandidates.add(cleanUser);
         } else {
           // Padrão principal dos clientes criados pelo painel.
-          candidates.add(`${cleanUser}@iptv.bitz`);
+          baseCandidates.add(`${cleanUser}@iptv.bitz`);
           // Compatibilidade com contas antigas.
-          candidates.add(`${cleanUser}@bitziptv.local`);
+          baseCandidates.add(`${cleanUser}@bitziptv.local`);
+        }
 
-          // Resolve login por Usuário IPTV, Username ou Código Cliente.
-          const { data: resolvedLogin } = await (supabase as any).rpc("resolve_login_identifier", {
-            p_identifier: cleanUser,
-          });
+        const tryLoginCandidates = async (candidateList: string[]) => {
+          let lastResult: Awaited<ReturnType<typeof login>> = {
+            error: "Usuário ou senha inválidos.",
+            profile: null,
+            role: null,
+          };
 
-          if (Array.isArray(resolvedLogin)) {
-            resolvedLogin.forEach((item: any) => {
-              if (item?.login_email) candidates.add(String(item.login_email));
-            });
+          for (const emailCandidate of candidateList) {
+            lastResult = await login(emailCandidate, password);
+            if (!lastResult.error) return lastResult;
+          }
+
+          return lastResult;
+        };
+
+        let result = await tryLoginCandidates(Array.from(baseCandidates));
+
+        // Só consulta o resolvedor antigo se o login direto não funcionou.
+        // Assim o botão não fica preso caso o RPC demore ou falhe.
+        if (result.error && !cleanUser.includes("@")) {
+          try {
+            const rpcPromise = (supabase as any).rpc("resolve_login_identifier", {
+              p_identifier: cleanUser,
+            }) as Promise<{ data?: Array<{ login_email?: string }> | null; error?: unknown }>;
+            const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+            const resolved = await Promise.race([rpcPromise, timeoutPromise]);
+            const extraCandidates = new Set<string>();
+
+            if (resolved && Array.isArray(resolved.data)) {
+              resolved.data.forEach((item) => {
+                const email = String(item?.login_email || "").trim();
+                if (email && !baseCandidates.has(email)) extraCandidates.add(email);
+              });
+            }
+
+            if (extraCandidates.size > 0) {
+              result = await tryLoginCandidates(Array.from(extraCandidates));
+            }
+          } catch {
+            // O login direto já foi tentado; se o resolvedor antigo falhar, mostra erro normal.
           }
         }
 
-        let err: string | null = "Usuário ou senha inválidos.";
-        for (const emailCandidate of candidates) {
-          err = await login(emailCandidate, password);
-          if (!err) break;
-        }
-
-        if (err) {
+        if (result.error) {
           const newAttempts = attempts + 1;
           setAttempts(newAttempts);
 
           if (newAttempts >= MAX_ATTEMPTS) {
             setLockoutEnd(Date.now() + LOCKOUT_SECONDS * 1000);
             setError(`Muitas tentativas. Aguarde ${LOCKOUT_SECONDS}s.`);
-          } else if (err.toLowerCase().includes("invalid")) {
+          } else if (result.error.toLowerCase().includes("invalid")) {
             setError("Usuário ou senha inválidos.");
           } else {
-            setError("Usuário ou senha inválidos.");
+            setError(result.error || "Erro ao conectar. Tente novamente.");
           }
           setSubmitting(false);
           return;
         }
-        // Success — useEffect handles redirect, but add safety timeout
-        setTimeout(() => setSubmitting(false), 8000);
-      } catch {
-        setError("Erro ao conectar. Tente novamente.");
+
+        if (result.profile?.status === "blocked") {
+          setError("Seu acesso está bloqueado. Entre em contato com o suporte.");
+          setSubmitting(false);
+          return;
+        }
+        if (result.profile?.status === "pending") {
+          setError("Seu pagamento foi identificado. Aguarde liberação do sistema.");
+          setSubmitting(false);
+          return;
+        }
+
+        setSubmitting(false);
+        navigate(result.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao conectar. Tente novamente.");
         setSubmitting(false);
       }
     },
-    [username, password, attempts, isLockedOut, submitting, login],
+    [username, password, attempts, isLockedOut, submitting, login, navigate],
   );
 
   // Redirect when authenticated

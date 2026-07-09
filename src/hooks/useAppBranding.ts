@@ -9,16 +9,17 @@ export type AppBranding = {
   faviconUrl: string;
 };
 
-export const APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
+export const APP_BRANDING_STORAGE_KEY = "wmcplayer_app_branding_v2";
+const LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
 const LEGACY_APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
 export const APP_BRANDING_EVENT = "app-branding-updated";
 
 const DEFAULT_LOGO = "/pwa-512.png";
 
 const DEFAULT_BRANDING: AppBranding = {
-  appName: "WMCFLIX",
-  appShortName: "WMCFLIX",
-  appDescription: "WMCFLIX - Programa Oficial de Fidelidade",
+  appName: "WMCPLAYER",
+  appShortName: "WMCPLAYER",
+  appDescription: "WMCPLAYER - Programa Oficial de Fidelidade",
   logoUrl: DEFAULT_LOGO,
   faviconUrl: DEFAULT_LOGO,
 };
@@ -68,10 +69,21 @@ export const readStoredAppBranding = (): AppBranding => {
     const stored = safeParseBranding(localStorage.getItem(APP_BRANDING_STORAGE_KEY));
     if (stored) return stored;
 
+    // Migra branding salvo na chave antiga para não quebrar o PWA instalado.
+    const legacyWmcflix = safeParseBranding(localStorage.getItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY));
+    localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
+    if (legacyWmcflix) {
+      localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(legacyWmcflix));
+      return legacyWmcflix;
+    }
+
     // Remove cache antigo do Bitz para não contaminar novas instalações PWA.
     const legacy = safeParseBranding(localStorage.getItem(LEGACY_APP_BRANDING_STORAGE_KEY));
     localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
-    if (legacy) return legacy;
+    if (legacy) {
+      localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(legacy));
+      return legacy;
+    }
 
     const bootBranding = (window as any).__APP_BRANDING_BOOT__;
     if (bootBranding) {
@@ -80,6 +92,7 @@ export const readStoredAppBranding = (): AppBranding => {
     }
   } catch {
     localStorage.removeItem(APP_BRANDING_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
     localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
   }
 
@@ -147,10 +160,10 @@ export const buildDynamicManifest = (brandingInput: AppBranding) => {
   const mainLogo = isUsableIconUrl(branding.logoUrl) ? branding.logoUrl : iconUrl;
 
   return {
-    id: "/wmcflix-pwa",
-    name: branding.appName || "WMCFLIX",
-    short_name: branding.appShortName || branding.appName || "WMCFLIX",
-    description: branding.appDescription || "WMCFLIX - Programa Oficial de Fidelidade",
+    id: "/wmcplayer-pwa",
+    name: branding.appName || "WMCPLAYER",
+    short_name: branding.appShortName || branding.appName || "WMCPLAYER",
+    description: branding.appDescription || "WMCPLAYER - Programa Oficial de Fidelidade",
     theme_color: "#000000",
     background_color: "#000000",
     display: "standalone",
@@ -190,33 +203,24 @@ export const updateManifest = (brandingInput: AppBranding) => {
 
   const branding = normalizeAppBranding(brandingInput);
 
-  // O PWA precisa receber o nome/ícone atuais do admin antes de instalar.
-  // Por isso usamos manifest dinâmico, mas sempre completo e instalável.
-  document
-    .querySelectorAll('link[rel="manifest"]:not([data-dynamic-branding="true"])')
-    .forEach((link) => link.remove());
+  // Mantém o manifest oficial gerado pelo VitePWA.
+  // Usar blob/dynamic manifest pode impedir o Chrome/Android de reconhecer o app como PWA instalável.
+  document.querySelectorAll('link[rel="manifest"][data-dynamic-branding="true"]').forEach((link) => link.remove());
 
   if (dynamicManifestUrl) {
     URL.revokeObjectURL(dynamicManifestUrl);
     dynamicManifestUrl = null;
   }
 
-  const manifestJson = JSON.stringify(buildDynamicManifest(branding));
-  const blob = new Blob([manifestJson], { type: "application/manifest+json" });
-  dynamicManifestUrl = URL.createObjectURL(blob);
-
-  let manifestLink = document.querySelector(
-    'link[rel="manifest"][data-dynamic-branding="true"]',
-  ) as HTMLLinkElement | null;
+  let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
 
   if (!manifestLink) {
     manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";
-    manifestLink.setAttribute("data-dynamic-branding", "true");
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.href = dynamicManifestUrl;
+  manifestLink.href = "/manifest.webmanifest";
   manifestLink.dataset.appName = branding.appName;
 };
 
@@ -279,6 +283,7 @@ export const saveStoredAppBranding = (brandingInput: AppBranding) => {
 
   const branding = normalizeAppBranding(brandingInput);
   localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(branding));
+  localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
   localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
   applyAppBranding(branding);
   window.dispatchEvent(new CustomEvent(APP_BRANDING_EVENT, { detail: branding }));
@@ -306,6 +311,7 @@ export const prepareBrandingForPwaInstall = async (): Promise<AppBranding> => {
 
   if (typeof window !== "undefined") {
     localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(branding));
+    localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
     localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
   }
 
@@ -326,6 +332,7 @@ export const useAppBranding = () => {
       setBranding(normalized);
       if (persist) {
         localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(normalized));
+        localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
         localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
       }
       applyAppBranding(normalized);

@@ -845,7 +845,7 @@ Deno.serve(async (req) => {
           .from("iptv_payments")
           .select("period_end")
           .eq("user_id", user_id)
-          .neq("status", "reversed")
+          .not("status", "in", "(reversed,removed,pix_pending)")
           .order("period_end", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -900,7 +900,7 @@ Deno.serve(async (req) => {
           .from("iptv_payments")
           .select("period_start, period_end")
           .eq("user_id", user_id)
-          .neq("status", "reversed");
+          .not("status", "in", "(reversed,removed,pix_pending)");
 
         const existingPeriods = (existing || []).map((e: any) => `${e.period_start}_${e.period_end}`);
         const newInvoices = invoices.filter(
@@ -955,18 +955,17 @@ Deno.serve(async (req) => {
           })
           .eq("id", payment_id);
 
-        // Update expiry to this payment's period_end if it's further than current
+        // Update profile every time the admin gives baixa, so admin/client panels refresh immediately.
         const { data: profile } = await supabaseAdmin.from("profiles").select("iptv_expiry").eq("id", user_id).single();
         const currentExpiry = profile?.iptv_expiry || "1970-01-01";
-        if (invoice.period_end > currentExpiry) {
-          await supabaseAdmin
-            .from("profiles")
-            .update({
-              iptv_expiry: invoice.period_end,
-              iptv_status: "active",
-            })
-            .eq("id", user_id);
-        }
+        const nextExpiry = invoice.period_end > currentExpiry ? invoice.period_end : currentExpiry;
+        await supabaseAdmin
+          .from("profiles")
+          .update({
+            iptv_expiry: nextExpiry,
+            iptv_status: "active",
+          })
+          .eq("id", user_id);
 
         // Log in balance_history
         await supabaseAdmin.from("balance_history").insert({
@@ -1137,9 +1136,16 @@ Deno.serve(async (req) => {
           throw new Error("payment_ids é obrigatório");
         }
 
-        // Only delete pending invoices
-        await supabaseAdmin.from("iptv_payments").delete().in("id", payment_ids).eq("status", "pending");
-        result = { success: true, deleted: payment_ids.length };
+        // Only delete real pending invoices for this user (not hidden PIX charges)
+        const { data: deletedRows, error: deleteError } = await supabaseAdmin
+          .from("iptv_payments")
+          .delete()
+          .eq("user_id", user_id)
+          .in("id", payment_ids)
+          .eq("status", "pending")
+          .select("id");
+        if (deleteError) throw deleteError;
+        result = { success: true, deleted: deletedRows?.length || 0 };
         break;
       }
       case "bulk_update_invoices": {
@@ -1152,8 +1158,15 @@ Deno.serve(async (req) => {
         if (invoiceUpdates.notes !== undefined) allowed.notes = invoiceUpdates.notes;
         if (invoiceUpdates.status !== undefined) allowed.status = invoiceUpdates.status;
 
-        await supabaseAdmin.from("iptv_payments").update(allowed).in("id", payment_ids).eq("status", "pending");
-        result = { success: true, updated: payment_ids.length };
+        const { data: updatedRows, error: updateError } = await supabaseAdmin
+          .from("iptv_payments")
+          .update(allowed)
+          .eq("user_id", user_id)
+          .in("id", payment_ids)
+          .eq("status", "pending")
+          .select("id");
+        if (updateError) throw updateError;
+        result = { success: true, updated: updatedRows?.length || 0 };
         break;
       }
       case "bulk_add_scheduled_rates": {

@@ -140,11 +140,11 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   };
 
   const loadPayments = async () => {
-    if (paymentsLoaded) return;
     const { data } = await (supabase as any)
       .from("iptv_payments")
       .select("*")
       .eq("user_id", user.id)
+      .neq("status", "pix_pending")
       .order("period_start", { ascending: true })
       .limit(50);
     setPayments(data || []);
@@ -276,14 +276,20 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const bulkDeleteInvoices = async () => {
     if (selectedInvoices.length === 0) return;
     setSaving(true);
-    await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "bulk_delete_invoices", user_id: user.id, data: { payment_ids: selectedInvoices } },
-    });
-    toast({ title: `🗑️ ${selectedInvoices.length} fatura(s) excluída(s)` });
-    setSelectedInvoices([]);
-    setPaymentsLoaded(false);
-    await loadPayments();
-    setSaving(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "bulk_delete_invoices", user_id: user.id, data: { payment_ids: selectedInvoices } },
+      });
+      if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message);
+      const deletedCount = Number((data as any)?.deleted ?? selectedInvoices.length);
+      toast({ title: `🗑️ ${deletedCount} fatura(s) excluída(s)` });
+      setSelectedInvoices([]);
+      await loadPayments();
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir faturas", description: err.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const bulkUpdateInvoices = async () => {
