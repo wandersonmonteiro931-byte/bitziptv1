@@ -184,7 +184,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       .order("day_of_month", { ascending: true })
       .then(({ data }: any) => setBillingDueDates(data || []));
   }, []);
-  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const appTitle = (appName || "WMCPLAYER").trim().toUpperCase();
   const tvAppOptions = useMemo(() => {
     const normalizedTitle = appTitle.toLowerCase();
     const existingApps = Array.isArray(tvApps) ? tvApps : [];

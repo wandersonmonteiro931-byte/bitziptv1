@@ -145,6 +145,7 @@ echo [5/7] Publicando Edge Functions no Supabase...
 echo.
 
 for %%F in (
+    app-manifest
     admin-create-user
     admin-manage-user
     credit-system

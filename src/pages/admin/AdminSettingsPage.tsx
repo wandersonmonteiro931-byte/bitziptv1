@@ -58,7 +58,7 @@ const DEFAULT_PLATFORM_SETTINGS = {
   id: "default",
   app_name: "WMCPLAYER",
   app_short_name: "WMCPLAYER",
-  app_description: "WMCPLAYER - Programa de Fidelidade",
+  app_description: "WMCPLAYER - Programa Oficial de Fidelidade",
   app_logo_url: "",
   app_favicon_url: "",
   min_withdrawal: 10,
@@ -184,7 +184,7 @@ const AdminSettingsPage = () => {
     previewAppBranding({
       appName: appName.trim() || "WMCPLAYER",
       appShortName: appShortName.trim() || appName.trim() || "WMCPLAYER",
-      appDescription: appDescription.trim() || `${appName.trim() || "WMCPLAYER"} - Programa de Fidelidade`,
+      appDescription: appDescription.trim() || `${appName.trim() || "WMCPLAYER"} - Programa Oficial de Fidelidade`,
       logoUrl: appLogoUrl.trim(),
       faviconUrl: appFaviconUrl.trim() || appLogoUrl.trim(),
     });
@@ -267,7 +267,7 @@ const AdminSettingsPage = () => {
       const payload = {
         app_name: trimmedName,
         app_short_name: appShortName.trim() || trimmedName,
-        app_description: appDescription.trim() || `${trimmedName} - Programa de Fidelidade`,
+        app_description: appDescription.trim() || `${trimmedName} - Programa Oficial de Fidelidade`,
         app_logo_url: appLogoUrl.trim(),
         app_favicon_url: appFaviconUrl.trim() || appLogoUrl.trim(),
       };

@@ -1035,7 +1035,7 @@ async function handleCreateCreditCharge(userId: string, body: any) {
     calendario: { expiracao: 3600 },
     valor: { original: Number(amount).toFixed(2) },
     chave: pixKey,
-    solicitacaoPagador: descricao || "Compra de Créditos - Bitz TV",
+    solicitacaoPagador: descricao || "Compra de Créditos - WMCPLAYER",
   };
 
   const cob = await createPixCharge(accessToken, cobPayload);

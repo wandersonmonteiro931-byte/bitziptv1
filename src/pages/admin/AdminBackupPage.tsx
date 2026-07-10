@@ -287,7 +287,7 @@ const AdminBackupPage = () => {
     }
 
     const payload = {
-      backupName: "WMCPLAYER_WMCFLIX_LOVABLE_SUPABASE_BACKUP",
+      backupName: "WMCPLAYER_LOVABLE_SUPABASE_BACKUP",
       exportedAt: new Date().toISOString(),
       exportedFrom: window.location.origin,
       supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -322,7 +322,7 @@ const AdminBackupPage = () => {
       ],
     };
 
-    downloadJson(`backup-completo-bitziptv1-lovable-${nowForFile()}.json`, payload);
+    downloadJson(`backup-completo-wmcplayer-lovable-${nowForFile()}.json`, payload);
 
     setRunning(false);
     setProgress("");
@@ -349,7 +349,7 @@ const AdminBackupPage = () => {
       setStorageResults([...bucketResults]);
     }
 
-    downloadJson(`backup-storage-bitziptv1-${nowForFile()}.json`, {
+    downloadJson(`backup-storage-wmcplayer-${nowForFile()}.json`, {
       exportedAt: new Date().toISOString(),
       buckets: bucketResults,
     });
@@ -526,7 +526,7 @@ const AdminBackupPage = () => {
                 <div className="text-sm">
                   <p className="font-bold text-foreground">Depois de baixar</p>
                   <p className="mt-1 text-muted-foreground">
-                    Guarde o arquivo <span className="font-mono text-red-300">backup-completo-bitziptv1-lovable.json</span> e me envie ele na próxima etapa para montar o Supabase novo.
+                    Guarde o arquivo <span className="font-mono text-red-300">backup-completo-wmcplayer-lovable.json</span> e me envie ele na próxima etapa para montar o Supabase novo.
                   </p>
                 </div>
               </div>

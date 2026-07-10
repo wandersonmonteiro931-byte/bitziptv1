@@ -6,8 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const DEFAULT_PUSH_ICON = "/pwa-512.png?v=wmcflix-push-final-2";
-const DEFAULT_PUSH_BADGE = "/pwa-192.png?v=wmcflix-push-final-2";
+const DEFAULT_PUSH_ICON = "/wmcplayer-icon-512-v3.png";
+const DEFAULT_PUSH_BADGE = "/wmcplayer-icon-192-v3.png";
 
 function isOldBitzIcon(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -44,13 +44,13 @@ async function getPushBranding(supabaseAdmin: any) {
     const badge = isImageIcon(data?.app_favicon_url) ? data.app_favicon_url.trim() : DEFAULT_PUSH_BADGE;
 
     return {
-      appName: String(data?.app_name || data?.app_short_name || "WMCFLIX"),
+      appName: String(data?.app_name || data?.app_short_name || "WMCPLAYER"),
       icon,
       badge,
     };
   } catch {
     return {
-      appName: "WMCFLIX",
+      appName: "WMCPLAYER",
       icon: DEFAULT_PUSH_ICON,
       badge: DEFAULT_PUSH_BADGE,
     };
@@ -69,7 +69,7 @@ function buildPushPayload(input: {
   const badge = isImageIcon(input.badge) ? input.badge.trim() : input.branding.badge || DEFAULT_PUSH_BADGE;
 
   return JSON.stringify({
-    title: input.title || input.branding.appName || "WMCFLIX",
+    title: input.title || input.branding.appName || "WMCPLAYER",
     body: input.body || "",
     icon,
     badge,
@@ -111,7 +111,7 @@ async function createVapidJwt(audience: string, vapidPub: string, vapidPriv: str
       JSON.stringify({
         aud: audience,
         exp: now + 12 * 3600,
-        sub: "mailto:push@bitziptv.app",
+        sub: "mailto:push@wmcplayer.app",
       }),
     ),
   );

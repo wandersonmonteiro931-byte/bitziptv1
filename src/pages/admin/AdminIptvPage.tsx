@@ -134,7 +134,7 @@ const AdminIptvPage = () => {
     filterExpiryFrom,
     filterExpiryTo,
   ].filter(Boolean).length;
-  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const appTitle = (appName || "WMCPLAYER").trim().toUpperCase();
   const tvAppOptions = useMemo(() => {
     const normalizedTitle = appTitle.toLowerCase();
     const filteredApps = (Array.isArray(tvApps) ? tvApps : []).filter((app) => {

@@ -837,7 +837,7 @@ function PaymentHistory({
 // --- TV App Mini Icons ---
 function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | undefined }) {
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const appTitle = (appName || "WMCPLAYER").trim().toUpperCase();
   const normalizedUserApp = String(userApp || "")
     .trim()
     .toLowerCase();

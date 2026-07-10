@@ -40,7 +40,7 @@ const isOfficialWmcflixApp = (value: string | undefined, appTitle: string) => {
 const IptvInfoPage = () => {
   const { user } = useAuth();
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = (appName || "WMCFLIX").trim().toUpperCase();
+  const appTitle = (appName || "WMCPLAYER").trim().toUpperCase();
   const [providerInfo, setProviderInfo] = useState({ assist_plus_provider: "", blessed_player_provider: "" });
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateMessage, setUpdateMessage] = useState("");

@@ -13,6 +13,8 @@ export const APP_BRANDING_STORAGE_KEY = "wmcplayer_app_branding_v2";
 const LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
 const LEGACY_APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
 export const APP_BRANDING_EVENT = "app-branding-updated";
+export const APP_MANIFEST_ENDPOINT =
+  "https://vywtzzrvpdjqpcnixskz.supabase.co/functions/v1/app-manifest";
 
 const DEFAULT_LOGO = "/wmcplayer-icon-512-v3.png";
 
@@ -29,7 +31,7 @@ const textOrDefault = (value: unknown, fallback: string) => {
   return text || fallback;
 };
 
-const isLegacyBitzBranding = (branding: AppBranding) => {
+const isLegacyBranding = (branding: AppBranding) => {
   const name = `${branding.appName || ""} ${branding.appShortName || ""}`.toLowerCase();
   return name.includes("bitz iptv") || name === "bitz";
 };
@@ -43,9 +45,11 @@ export const normalizeAppBranding = (row?: any): AppBranding => {
     row?.app_description ?? row?.appDescription,
     `${appName} - Programa Oficial de Fidelidade`,
   );
-
   const logoUrl = textOrDefault(row?.app_logo_url ?? row?.logoUrl, DEFAULT_BRANDING.logoUrl);
-  const faviconUrl = textOrDefault(row?.app_favicon_url ?? row?.faviconUrl, logoUrl || DEFAULT_BRANDING.faviconUrl);
+  const faviconUrl = textOrDefault(
+    row?.app_favicon_url ?? row?.faviconUrl,
+    logoUrl || DEFAULT_BRANDING.faviconUrl,
+  );
 
   return { appName, appShortName, appDescription, logoUrl, faviconUrl };
 };
@@ -55,8 +59,7 @@ const safeParseBranding = (value: string | null): AppBranding | null => {
 
   try {
     const branding = normalizeAppBranding(JSON.parse(value));
-    if (isLegacyBitzBranding(branding)) return null;
-    return branding;
+    return isLegacyBranding(branding) ? null : branding;
   } catch {
     return null;
   }
@@ -69,26 +72,22 @@ export const readStoredAppBranding = (): AppBranding => {
     const stored = safeParseBranding(localStorage.getItem(APP_BRANDING_STORAGE_KEY));
     if (stored) return stored;
 
-    // Migra branding salvo na chave antiga para não quebrar o PWA instalado.
-    const legacyWmcflix = safeParseBranding(localStorage.getItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY));
+    const legacyWmcflix = safeParseBranding(
+      localStorage.getItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY),
+    );
     localStorage.removeItem(LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY);
     if (legacyWmcflix) {
       localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(legacyWmcflix));
       return legacyWmcflix;
     }
 
-    // Remove cache antigo do Bitz para não contaminar novas instalações PWA.
-    const legacy = safeParseBranding(localStorage.getItem(LEGACY_APP_BRANDING_STORAGE_KEY));
+    // A chave antiga é apenas removida. Nenhuma identidade antiga volta a ser usada.
     localStorage.removeItem(LEGACY_APP_BRANDING_STORAGE_KEY);
-    if (legacy) {
-      localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(legacy));
-      return legacy;
-    }
 
     const bootBranding = (window as any).__APP_BRANDING_BOOT__;
     if (bootBranding) {
       const normalized = normalizeAppBranding(bootBranding);
-      if (!isLegacyBitzBranding(normalized)) return normalized;
+      if (!isLegacyBranding(normalized)) return normalized;
     }
   } catch {
     localStorage.removeItem(APP_BRANDING_STORAGE_KEY);
@@ -121,7 +120,7 @@ const setMeta = (selector: string, attr: "content" | "href", value: string) => {
       const propertyMatch = selector.match(/property="([^"]+)"/);
       if (nameMatch) (element as HTMLMetaElement).name = nameMatch[1];
       if (propertyMatch) element.setAttribute("property", propertyMatch[1]);
-    } else if (selector.startsWith("link")) {
+    } else {
       element = document.createElement("link");
       const relMatch = selector.match(/rel="([^"]+)"/);
       if (relMatch) (element as HTMLLinkElement).rel = relMatch[1];
@@ -130,7 +129,7 @@ const setMeta = (selector: string, attr: "content" | "href", value: string) => {
     if (element) document.head.appendChild(element);
   }
 
-  if (element) element.setAttribute(attr, value);
+  element?.setAttribute(attr, value);
 };
 
 const setIconType = (selector: string, iconUrl: string) => {
@@ -143,8 +142,7 @@ const isUsableIconUrl = (url?: string | null) => {
   if (!value) return false;
   if (value.startsWith("data:")) return true;
   if (value.startsWith("/")) return true;
-  if (/^https?:\/\//i.test(value)) return true;
-  return false;
+  return /^https?:\/\//i.test(value);
 };
 
 const manifestIcon = (url: string, size: string, purpose: "any" | "maskable" = "any") => ({
@@ -156,78 +154,87 @@ const manifestIcon = (url: string, size: string, purpose: "any" | "maskable" = "
 
 export const buildDynamicManifest = (brandingInput: AppBranding) => {
   const branding = normalizeAppBranding(brandingInput);
-  const iconUrl = isUsableIconUrl(branding.faviconUrl) ? branding.faviconUrl : DEFAULT_LOGO;
-  const mainLogo = isUsableIconUrl(branding.logoUrl) ? branding.logoUrl : iconUrl;
+  const iconUrl = isUsableIconUrl(branding.faviconUrl)
+    ? branding.faviconUrl
+    : isUsableIconUrl(branding.logoUrl)
+      ? branding.logoUrl
+      : DEFAULT_LOGO;
 
   return {
-    id: "/wmcplayer-pwa",
-    name: branding.appName || "WMCPLAYER",
-    short_name: branding.appShortName || branding.appName || "WMCPLAYER",
-    description: branding.appDescription || "WMCPLAYER - Programa Oficial de Fidelidade",
+    id: "/",
+    name: branding.appName,
+    short_name: branding.appShortName,
+    description: branding.appDescription,
     theme_color: "#000000",
     background_color: "#000000",
     display: "standalone",
     display_override: ["standalone", "fullscreen"],
-    orientation: "portrait",
+    orientation: "any",
     start_url: "/?source=pwa",
     scope: "/",
     categories: ["entertainment", "utilities"],
     icons: [
       manifestIcon(iconUrl, "192x192", "any"),
       manifestIcon(iconUrl, "512x512", "any"),
-      manifestIcon(mainLogo, "512x512", "maskable"),
-    ],
-    shortcuts: [
-      {
-        name: "Início",
-        short_name: "Início",
-        description: "Abrir início do app",
-        url: "/dashboard",
-        icons: [manifestIcon(iconUrl, "192x192", "any")],
-      },
-      {
-        name: "AO VIVO",
-        short_name: "AO VIVO",
-        description: "Abrir TV ao vivo",
-        url: "/tv-guide",
-        icons: [manifestIcon(iconUrl, "192x192", "any")],
-      },
     ],
   };
 };
 
-let dynamicManifestUrl: string | null = null;
+const fingerprintBranding = (brandingInput: AppBranding) => {
+  const branding = normalizeAppBranding(brandingInput);
+  const source = [
+    branding.appName,
+    branding.appShortName,
+    branding.appDescription,
+    branding.logoUrl,
+    branding.faviconUrl,
+  ].join("|");
+
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
+export const getAppManifestUrl = (brandingInput?: AppBranding) => {
+  if (!brandingInput) return `${APP_MANIFEST_ENDPOINT}?v=admin`;
+  return `${APP_MANIFEST_ENDPOINT}?v=${fingerprintBranding(brandingInput)}`;
+};
 
 export const updateManifest = (brandingInput: AppBranding) => {
   if (typeof document === "undefined") return;
 
   const branding = normalizeAppBranding(brandingInput);
-  const manifest = buildDynamicManifest(branding);
-
-  if (dynamicManifestUrl) URL.revokeObjectURL(dynamicManifestUrl);
-  dynamicManifestUrl = URL.createObjectURL(
-    new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }),
-  );
-
   let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
+
   if (!manifestLink) {
     manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.href = dynamicManifestUrl;
-  manifestLink.dataset.dynamicBranding = "true";
+  manifestLink.crossOrigin = "anonymous";
+  manifestLink.href = getAppManifestUrl(branding);
+  manifestLink.dataset.dynamicBranding = "admin";
   manifestLink.dataset.appName = branding.appName;
 };
 
+let lastWorkerBrandingFingerprint = "";
+
 const notifyServiceWorker = (branding: AppBranding) => {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+
+  const fingerprint = fingerprintBranding(branding);
+  if (fingerprint === lastWorkerBrandingFingerprint) return;
+  lastWorkerBrandingFingerprint = fingerprint;
 
   navigator.serviceWorker.ready
     .then((registration) => {
       const worker = registration.active || registration.waiting || registration.installing;
       worker?.postMessage({ type: "APP_BRANDING_UPDATED", branding });
+      return registration.update().catch(() => undefined);
     })
     .catch(() => undefined);
 };
@@ -236,7 +243,7 @@ export const applyAppBranding = (brandingInput: AppBranding) => {
   if (typeof document === "undefined") return;
 
   const branding = normalizeAppBranding(brandingInput);
-  const iconUrl = branding.faviconUrl || branding.logoUrl || DEFAULT_LOGO;
+  const installIcon = branding.faviconUrl || branding.logoUrl || DEFAULT_LOGO;
 
   document.title = branding.appName;
   document.documentElement.setAttribute("data-app-name", branding.appName);
@@ -252,12 +259,12 @@ export const applyAppBranding = (brandingInput: AppBranding) => {
   setMeta('meta[name="twitter:description"]', "content", branding.appDescription);
   setMeta('meta[name="twitter:image"]', "content", branding.logoUrl || DEFAULT_LOGO);
 
-  setMeta('link[rel="icon"]', "href", iconUrl);
-  setMeta('link[rel="shortcut icon"]', "href", iconUrl);
-  setMeta('link[rel="apple-touch-icon"]', "href", iconUrl);
-  setIconType('link[rel="icon"]', iconUrl);
-  setIconType('link[rel="shortcut icon"]', iconUrl);
-  setIconType('link[rel="apple-touch-icon"]', iconUrl);
+  setMeta('link[rel="icon"]', "href", installIcon);
+  setMeta('link[rel="shortcut icon"]', "href", installIcon);
+  setMeta('link[rel="apple-touch-icon"]', "href", installIcon);
+  setIconType('link[rel="icon"]', installIcon);
+  setIconType('link[rel="shortcut icon"]', installIcon);
+  setIconType('link[rel="apple-touch-icon"]', installIcon);
 
   updateManifest(branding);
   notifyServiceWorker(branding);
@@ -286,24 +293,37 @@ export const saveStoredAppBranding = (brandingInput: AppBranding) => {
   window.dispatchEvent(new CustomEvent(APP_BRANDING_EVENT, { detail: branding }));
 };
 
-export const loadRemoteAppBranding = async (): Promise<AppBranding | null> => {
-  try {
-    const { data, error } = await supabase
-      .from("platform_settings")
-      .select("app_name, app_short_name, app_description, app_logo_url, app_favicon_url" as any)
-      .limit(1)
-      .maybeSingle();
+let remoteBrandingPromise: Promise<AppBranding | null> | null = null;
+let remoteBrandingCache: AppBranding | null = null;
 
-    if (error || !data) return null;
-    const branding = normalizeAppBranding(data);
-    return isLegacyBitzBranding(branding) ? getDefaultAppBranding() : branding;
-  } catch {
-    return null;
-  }
+export const loadRemoteAppBranding = async (force = false): Promise<AppBranding | null> => {
+  if (!force && remoteBrandingCache) return remoteBrandingCache;
+  if (!force && remoteBrandingPromise) return remoteBrandingPromise;
+
+  remoteBrandingPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("app_name, app_short_name, app_description, app_logo_url, app_favicon_url" as any)
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      const branding = normalizeAppBranding(data);
+      remoteBrandingCache = isLegacyBranding(branding) ? getDefaultAppBranding() : branding;
+      return remoteBrandingCache;
+    } catch {
+      return null;
+    } finally {
+      remoteBrandingPromise = null;
+    }
+  })();
+
+  return remoteBrandingPromise;
 };
 
 export const prepareBrandingForPwaInstall = async (): Promise<AppBranding> => {
-  const remoteBranding = await loadRemoteAppBranding();
+  const remoteBranding = await loadRemoteAppBranding(true);
   const branding = remoteBranding || readStoredAppBranding();
 
   if (typeof window !== "undefined") {
@@ -326,6 +346,7 @@ export const useAppBranding = () => {
       if (cancelled) return;
 
       const normalized = normalizeAppBranding(nextBranding);
+      remoteBrandingCache = normalized;
       setBranding(normalized);
       if (persist) {
         localStorage.setItem(APP_BRANDING_STORAGE_KEY, JSON.stringify(normalized));
@@ -344,12 +365,14 @@ export const useAppBranding = () => {
     const listener = (event: Event) => {
       const rawDetail = (event as CustomEvent<any>).detail;
       const detail = rawDetail?.branding || rawDetail;
-      if (detail) apply(detail, true);
-      else {
-        loadRemoteAppBranding().then((remoteBranding) => {
-          if (remoteBranding) apply(remoteBranding, true);
-        });
+      if (detail) {
+        apply(detail, true);
+        return;
       }
+
+      loadRemoteAppBranding(true).then((remoteBranding) => {
+        if (remoteBranding) apply(remoteBranding, true);
+      });
     };
 
     window.addEventListener(APP_BRANDING_EVENT, listener as EventListener);

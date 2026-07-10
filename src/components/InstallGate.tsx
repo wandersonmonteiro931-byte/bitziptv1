@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Download, Plus, Share2, ShieldCheck, Smartphone } from "lucide-react";
-import { prepareBrandingForPwaInstall, useAppBranding } from "@/hooks/useAppBranding";
+import { APP_MANIFEST_ENDPOINT, prepareBrandingForPwaInstall, useAppBranding } from "@/hooks/useAppBranding";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -16,11 +16,8 @@ async function ensurePwaAssetsReady() {
 
   try {
     const manifestHref =
-      document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href || "/manifest.webmanifest";
-    await fetch(manifestHref, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
-    });
+      document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.href || APP_MANIFEST_ENDPOINT;
+    await fetch(manifestHref, { cache: "no-store" });
   } catch {
     // O navegador ainda pode instalar o PWA mesmo se bloquear esta leitura.
   }

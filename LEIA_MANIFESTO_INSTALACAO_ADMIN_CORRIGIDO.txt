@@ -1,0 +1,68 @@
+CORRECAO: JANELA DE INSTALACAO OBEDECE AO PAINEL ADMIN
+
+BASE USADA:
+bitziptv1-identidade-admin-capa-splash-corrigidos.zip
+
+PROBLEMA IDENTIFICADO:
+A janela nativa de instalacao do navegador ainda estava lendo o manifesto fixo gerado no build.
+Por isso ela mostrava uma descricao antiga, como:
+WMCPLAYER - Programa Oficial de Fidelidade
+mesmo quando o administrador havia cadastrado outro texto, como WMCPLAYER TV.
+
+O QUE FOI CORRIGIDO:
+1. Criada a Edge Function publica app-manifest.
+2. O manifesto de instalacao agora consulta a identidade salva em platform_settings.
+3. Nome do App, Nome curto, Descricao e Favicon/icone ao instalar passam a obedecer ao painel admin.
+4. O Logotipo do App continua reservado ao cabecalho, login, splash e telas internas.
+5. O Favicon/icone ao instalar e usado na janela de instalacao, atalho, navegador e notificacoes.
+6. O icone cadastrado pelo admin nao e marcado como maskable, evitando corte/zoom forcado pelo navegador.
+7. O manifesto usa cache desativado e muda de versao quando a identidade e alterada.
+8. Clientes conectados continuam recebendo a mudanca pelo unico canal Realtime ja existente.
+9. Clientes fechados recebem a identidade atual ao abrir/recarregar.
+10. Nenhum polling, setInterval de rede ou consulta continua foi adicionado.
+11. O manifesto e consultado somente ao abrir/instalar ou quando o admin envia uma alteracao.
+12. Fallbacks visuais antigos foram substituidos por WMCPLAYER.
+
+ARQUIVOS PRINCIPAIS ALTERADOS:
+- supabase/functions/app-manifest/index.ts
+- supabase/config.toml
+- CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat
+- index.html
+- vite.config.ts
+- src/hooks/useAppBranding.ts
+- src/components/InstallGate.tsx
+- supabase/functions/push-notification/index.ts
+- supabase/functions/pix-efi/index.ts
+- arquivos de interface que ainda tinham fallback visual antigo
+
+ORDEM OBRIGATORIA PARA PUBLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute primeiro CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+   Isso publica a nova funcao app-manifest antes do site comecar a usa-la.
+4. Depois execute ATUALIZAR_GITHUB_AGORA.bat.
+5. Aguarde o Cloudflare finalizar a publicacao.
+6. Feche a janela de instalacao antiga.
+7. Pressione Ctrl + F5 e abra a opcao de instalar novamente.
+
+RESULTADO ESPERADO COM A CONFIGURACAO MOSTRADA:
+- Nome: WMCPLAYER
+- Nome curto: WMCPLAYER
+- Descricao na instalacao: WMCPLAYER TV
+- Imagem da instalacao: exatamente o Favicon/icone ao Instalar cadastrado pelo admin
+
+OBSERVACAO SOBRE APPS JA INSTALADOS:
+O conteudo, cabecalho, login, splash, favicon e notificacoes atualizam pelo sistema.
+O icone que ja esta gravado na tela inicial pode continuar retido pelo Android/iPhone.
+Nesse caso especifico, remova somente o atalho instalado e instale novamente.
+Essa retencao pertence ao sistema operacional do celular.
+
+VALIDACOES REALIZADAS:
+- npm run audit: OK
+- npm run check:tdz: OK
+- npm run build: OK
+- PWA e Service Worker gerados: OK
+- Somente 1 canal Realtime no frontend: OK
+- Sintaxe app-manifest Edge Function: OK
+- Sintaxe push-notification Edge Function: OK
+- Polling de rede adicionado: nenhum
