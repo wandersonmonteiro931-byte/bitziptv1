@@ -1,0 +1,40 @@
+CORREÇÃO: ERR_FAILED AO ABRIR, ATUALIZAR OU ENTRAR NO SITE/PWA
+
+BASE USADA:
+bitziptv1-status-teste-finalizado-aguardando-ativacao.zip
+
+CAUSA CORRIGIDA:
+- O aplicativo limpava todos os caches, desregistrava o Service Worker e forçava recarregamentos durante a abertura.
+- A atualização automática acontecia em mais de um lugar ao mesmo tempo.
+- Isso podia interromper a navegação e gerar ERR_FAILED no celular e no computador.
+
+O QUE FOI FEITO:
+1. Removida a limpeza automática de caches ao abrir o app.
+2. Removido o cancelamento automático do Service Worker ao abrir.
+3. Removido o recarregamento forçado com pwa_update durante a entrada.
+4. Removida a consulta automática de version.json durante cada abertura.
+5. Atualização do PWA agora acontece com segurança pelo evento do Service Worker.
+6. O usuário confirma pelo botão "Atualizar agora" quando houver nova versão.
+7. Nenhum polling ou consulta contínua foi adicionado.
+8. Adicionado _redirects do Cloudflare Pages para todas as rotas abrirem após atualizar.
+9. Adicionado _headers para index, manifest, service worker e version.json não ficarem presos em cache antigo.
+10. O start_url do PWA foi simplificado para /.
+
+ARQUIVOS ALTERADOS:
+- src/main.tsx
+- src/components/PWAUpdatePrompt.tsx
+- src/lib/pwaForceUpdate.ts
+- vite.config.ts
+- public/push-sw.js
+- public/_redirects
+- public/_headers
+
+COMO PUBLICAR:
+1. Execute ATUALIZAR_GITHUB_AGORA.bat.
+2. Aguarde o Cloudflare concluir a publicação.
+3. No celular, feche completamente o PWA antigo e abra novamente.
+4. Se o atalho antigo continuar preso no erro, remova somente esse atalho/PWA e instale novamente uma única vez.
+
+NÃO PRECISA:
+- rodar SQL
+- executar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat

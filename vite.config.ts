@@ -129,7 +129,7 @@ export default defineConfig(({ mode }) => ({
             },
           },
         ],
-        skipWaiting: true,
+        skipWaiting: false,
         clientsClaim: true,
       },
       manifest: {
@@ -142,7 +142,7 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         display_override: ["standalone", "fullscreen"],
         orientation: "portrait",
-        start_url: "/?source=pwa",
+        start_url: "/",
         scope: "/",
         categories: ["entertainment", "utilities"],
         icons: [

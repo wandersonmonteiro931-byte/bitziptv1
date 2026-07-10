@@ -44,14 +44,6 @@ function pickNotificationBadge(data) {
   return DEFAULT_PUSH_BADGE;
 }
 
-self.addEventListener("install", function (event) {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", function (event) {
-  event.waitUntil(self.clients.claim());
-});
-
 self.addEventListener("message", function (event) {
   if (!event.data) return;
 
