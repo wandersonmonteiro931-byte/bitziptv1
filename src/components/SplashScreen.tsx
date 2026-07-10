@@ -26,7 +26,7 @@ const redBeams = [
 export function SplashScreen({ children }: { children: React.ReactNode }) {
   const [show, setShow] = useState(true);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz IPTV";
+  const appTitle = appName || "Bitz TV";
   const appTitleUpper = appTitle.toUpperCase();
 
   useEffect(() => {

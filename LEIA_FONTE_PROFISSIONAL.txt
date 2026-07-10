@@ -1,0 +1,36 @@
+ALTERAÇÃO: FONTE PROFISSIONAL EM TODO O APP
+
+BASE USADA:
+bitziptv1-remover-termo-iptv.zip
+
+O QUE FOI ALTERADO:
+1. Fonte principal trocada para uma família geométrica moderna:
+   - Corpo do app: Manrope
+   - Títulos/logos/menus fortes: Space Grotesk
+   - Preços, percentuais e dados numéricos: Inter Tight
+2. @import das fontes foi movido para o topo do CSS para evitar aviso do Vite:
+   @import must precede all other statements
+3. Ajustada a hierarquia visual:
+   - títulos com peso e espaçamento mais premium
+   - preços com números mais nítidos
+   - porcentagens e labels com fonte de dados mais técnica
+   - menus, botões e inputs com renderização mais limpa
+4. Mantidos:
+   - estrutura do dashboard
+   - textos exatos
+   - cores dark mode com vermelho
+   - correções do PIX, certificado Efí, Unauthorized, planos do admin e remoção do termo antigo
+
+ARQUIVOS ALTERADOS:
+- src/index.css
+- tailwind.config.ts
+- src/pages/ClientDashboard.tsx
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+
+OBSERVAÇÃO:
+Não foram adicionados arquivos de fonte ao projeto. As fontes são carregadas via Google Fonts no CSS.

@@ -1,4 +1,4 @@
-BITZIPTV1 / WMCPLAYER - CORREÇÃO DO PIX NO SUPABASE NOVO
+WMCPLAYER - CORREÇÃO DO PIX NO SUPABASE NOVO
 
 PROBLEMA:
 O site já está no Cloudflare e o login funciona, mas ao gerar PIX aparece:

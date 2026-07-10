@@ -1,0 +1,31 @@
+ALTERAÇÃO: REMOVIDO O TERMO ANTIGO DOS TEXTOS DO SISTEMA
+
+BASE USADA:
+bitziptv1-pix-certificado-efi-corrigido.zip
+
+O QUE FOI ALTERADO:
+1. Onde aparecia o termo antigo no visual do cliente/admin, agora aparece "TV".
+2. Exemplos:
+   - Meu sistema antigo -> Minha TV
+   - Gerenciar sistema antigo -> Gerenciar TV
+   - Usuário do serviço -> Usuário TV
+   - Senha do serviço -> Senha TV
+   - Servidor do serviço -> Servidor TV
+   - Dados do serviço -> Dados TV
+   - plano do serviço -> plano TV
+   - para ativar seu serviço -> para ativar sua TV
+3. O menu do admin também foi alterado para TV.
+4. Arquivos auxiliares e títulos de BAT também foram ajustados para WMCPLAYER.
+5. Não alterei os nomes internos do banco como iptv_user, iptv_payments, iptv_status, porque isso quebraria o sistema.
+6. Mantidas as correções do PIX, certificado Efí, Unauthorized e planos do admin.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Se ainda não rodou a correção do PIX/certificado, rode também CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+OBSERVAÇÃO:
+O termo técnico interno lowercase usado no banco continua por segurança.
+No visual do sistema, o termo foi removido.

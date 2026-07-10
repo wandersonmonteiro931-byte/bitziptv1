@@ -140,7 +140,7 @@ const ReferralsPage = () => {
                     </p>
                     <p className="text-xs text-muted-foreground">Indicado em {formatDateBRT(ref.created_at)}</p>
                     {ref.referred_iptv_user && (
-                      <p className="text-[10px] text-muted-foreground/80">Usuário IPTV: {ref.referred_iptv_user}</p>
+                      <p className="text-[10px] text-muted-foreground/80">Usuário TV: {ref.referred_iptv_user}</p>
                     )}
                     {ref.rewarded_at && (
                       <p className="text-[10px] text-emerald-400">Bônus liberado em {formatDateBRT(ref.rewarded_at)}</p>

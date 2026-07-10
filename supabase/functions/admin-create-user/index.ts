@@ -101,13 +101,13 @@ Deno.serve(async (req) => {
     const loginIdentifier = cleanIptvUser;
 
     if (!loginIdentifier) {
-      return new Response(JSON.stringify({ error: "Usuário IPTV/Login é obrigatório" }), {
+      return new Response(JSON.stringify({ error: "Usuário TV/Login é obrigatório" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Login do cliente deve ser sempre Usuário IPTV + senha.
+    // Login do cliente deve ser sempre Usuário TV + senha.
     // O campo "email" não é usado como login.
     const userEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
     const userPassword = String(password || iptv_password || loginIdentifier);

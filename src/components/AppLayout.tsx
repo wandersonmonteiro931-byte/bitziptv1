@@ -66,7 +66,7 @@ const clientLinks = [...clientPrimaryLinks, ...clientGameLinks];
 const adminLinks = [
   { to: "/admin", label: "Painel", icon: LayoutDashboard },
   { to: "/admin/users", label: "Usuários", icon: Users },
-  { to: "/admin/iptv", label: "IPTV", icon: Tv },
+  { to: "/admin/iptv", label: "TV", icon: Tv },
   { to: "/admin/tv-guide", label: "Programação", icon: MonitorPlay },
   { to: "/admin/games", label: "Jogos", icon: Gamepad2 },
   { to: "/admin/missions", label: "Missões", icon: Target },
@@ -100,7 +100,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz IPTV";
+  const appTitle = appName || "Bitz TV";
   const appTitleUpper = appTitle.toUpperCase();
   const balance = Number(user?.balance || 0);
   const isFrozen = user?.balance_frozen;

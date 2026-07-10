@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { IPTV_STATUSES, getStatusInfo } from "./types";
+import { TV_STATUSES, getStatusInfo } from "./types";
 import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
@@ -1432,10 +1432,10 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      🔐 Dados IPTV
+                      🔐 Dados TV
                     </p>
                     <div>
-                      <label className={labelCls}>Usuário IPTV</label>
+                      <label className={labelCls}>Usuário TV</label>
                       <input
                         value={form.iptv_user}
                         onChange={(e) => setForm({ ...form, iptv_user: e.target.value })}
@@ -1443,7 +1443,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Senha IPTV</label>
+                      <label className={labelCls}>Senha TV</label>
                       <div className="relative">
                         <input
                           type={showPass ? "text" : "password"}
@@ -1464,7 +1464,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                       <input
                         value={form.iptv_app}
                         onChange={(e) => setForm({ ...form, iptv_app: e.target.value })}
-                        placeholder="Ex: SmartOne, XCIPTV..."
+                        placeholder="Ex: SmartOne, XCTV..."
                         className={inputCls}
                       />
                     </div>
@@ -1515,7 +1515,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                         onChange={(e) => setForm({ ...form, iptv_status: e.target.value })}
                         className={inputCls}
                       >
-                        {IPTV_STATUSES.map((s) => (
+                        {TV_STATUSES.map((s) => (
                           <option key={s.value} value={s.value}>
                             {s.label}
                           </option>

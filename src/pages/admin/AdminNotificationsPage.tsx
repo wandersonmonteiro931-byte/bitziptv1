@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Send, Loader2, Plus, Pencil, Trash2, ToggleLeft, ToggleRight, X, Settings2, Zap, Clock, Users, User, Eye, Calendar, Copy, ChevronDown, ChevronUp, Save, Play, Variable, Filter, Upload } from "lucide-react";
-import { IPTV_STATUSES } from "./iptv/types";
+import { TV_STATUSES } from "./iptv/types";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +38,7 @@ const CLICK_ROUTES = [
   { value: "/dashboard#faturas", label: "Faturas Pagas" },
   { value: "/dashboard#plano", label: "Plano / Renovar" },
   { value: "/dashboard#suporte", label: "Suporte" },
-  { value: "/iptv-info", label: "Meu IPTV / Dados de Acesso" },
+  { value: "/iptv-info", label: "Minha TV / Dados de Acesso" },
   { value: "/challenges", label: "Jogos" },
   { value: "/scratch", label: "Raspadinha" },
   { value: "/cup-game", label: "Copos" },
@@ -880,7 +880,7 @@ const AdminNotificationsPage = () => {
                               <label className="mb-0.5 block text-[10px] text-muted-foreground">Status</label>
                               <select value={recipientFilterStatus} onChange={(e) => setRecipientFilterStatus(e.target.value)} className={`${inputCls} text-xs !py-1.5`}>
                                 <option value="">Todos</option>
-                                {IPTV_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                {TV_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                               </select>
                             </div>
                             <div>

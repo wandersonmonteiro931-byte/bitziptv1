@@ -25,7 +25,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { IPTV_STATUSES } from "./iptv/types";
+import { TV_STATUSES } from "./iptv/types";
 import { formatDateTimeBRT } from "@/lib/utils";
 import { getFhdImageUrl } from "@/lib/imageQuality";
 
@@ -511,7 +511,7 @@ const AdminAnnouncementsPage = () => {
                           className="rounded-lg border border-border bg-muted/30 px-2 py-1.5 text-xs text-foreground"
                         >
                           <option value="">Status</option>
-                          {IPTV_STATUSES.map((s) => (
+                          {TV_STATUSES.map((s) => (
                             <option key={s.value} value={s.value}>
                               {s.label}
                             </option>

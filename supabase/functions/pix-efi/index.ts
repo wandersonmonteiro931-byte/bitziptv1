@@ -540,7 +540,7 @@ async function handleCreateCharge(userId: string, body: any) {
     calendario: { expiracao: 3600 },
     valor: { original: Number(amount).toFixed(2) },
     chave: pixKey,
-    solicitacaoPagador: descricao || "Pagamento IPTV",
+    solicitacaoPagador: descricao || "Pagamento TV",
   };
 
   if (devedor_nome && devedor_cpf) {
@@ -704,7 +704,7 @@ async function handleCreateCreditCharge(userId: string, body: any) {
     calendario: { expiracao: 3600 },
     valor: { original: Number(amount).toFixed(2) },
     chave: pixKey,
-    solicitacaoPagador: descricao || "Compra de Créditos - Bitz IPTV",
+    solicitacaoPagador: descricao || "Compra de Créditos - Bitz TV",
   };
 
   const cob = await createPixCharge(accessToken, cobPayload);
@@ -870,7 +870,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     user_id: payment.user_id,
     amount: -payment.amount,
     type: "iptv_payment",
-    description: `Pagamento IPTV confirmado via PIX (txid: ${payment.pix_txid})`,
+    description: `Pagamento TV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
 
   // 5. Send automatic push notifications based on DB rules
@@ -1032,7 +1032,7 @@ function scheduleBackgroundCheck(adminSupa: any, recordId: string, txid: string,
         if (type === "iptv") {
           const { data: p } = await adminSupa.from("iptv_payments").select("status").eq("id", recordId).single();
           if (!p || !["pending", "pix_pending"].includes(p.status)) {
-            console.log(`[BG-CHECK] IPTV payment ${recordId} already processed (${p?.status}), stopping.`);
+            console.log(`[BG-CHECK] TV payment ${recordId} already processed (${p?.status}), stopping.`);
             return;
           }
         } else {

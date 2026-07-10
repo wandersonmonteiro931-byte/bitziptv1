@@ -46,7 +46,7 @@ type AdminSetReferrerResult = {
 const isAdminSetReferrerResult = (value: unknown): value is AdminSetReferrerResult =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-// Parser for IPTV credential text blocks
+// Parser for TV credential text blocks
 const parseIptvText = (text: string) => {
   const result: Record<string, string> = {};
 
@@ -183,7 +183,7 @@ const AdminUsersPage = () => {
 
   const handleAutoRegister = async () => {
     if (!parsedData?.username || !autoName.trim()) {
-      toast({ title: "Erro", description: "Nome e dados IPTV são obrigatórios", variant: "destructive" });
+      toast({ title: "Erro", description: "Nome e dados da TV são obrigatórios", variant: "destructive" });
       return;
     }
     setAutoCreating(true);
@@ -225,7 +225,7 @@ const AdminUsersPage = () => {
   const createUser = async () => {
     const loginUser = String(form.iptv_user || form.username || "").trim();
     if (!form.name || !loginUser || !form.password) {
-      toast({ title: "Erro", description: "Preencha nome, usuário IPTV e senha", variant: "destructive" });
+      toast({ title: "Erro", description: "Preencha nome, usuário TV e senha", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -243,7 +243,7 @@ const AdminUsersPage = () => {
     } else {
       toast({
         title: "Usuário criado com sucesso!",
-        description: "Login liberado pelo Usuário IPTV/Username e senha informada.",
+        description: "Login liberado pelo Usuário TV/Username e senha informada.",
       });
       setShowCreate(false);
       setForm({
@@ -576,11 +576,11 @@ const AdminUsersPage = () => {
               <div className="space-y-3">
                 {[
                   { key: "name", label: "Nome completo", type: "text" },
-                  { key: "username", label: "Usuário IPTV / Login obrigatório", type: "text" },
-                  { key: "password", label: "Senha IPTV / Senha de login", type: "password" },
-                  { key: "iptv_server", label: "Servidor IPTV", type: "text" },
-                  { key: "iptv_app", label: "App IPTV", type: "text" },
-                  { key: "iptv_expiry", label: "Vencimento IPTV", type: "date" },
+                  { key: "username", label: "Usuário TV / Login obrigatório", type: "text" },
+                  { key: "password", label: "Senha TV / Senha de login", type: "password" },
+                  { key: "iptv_server", label: "Servidor TV", type: "text" },
+                  { key: "iptv_app", label: "App TV", type: "text" },
+                  { key: "iptv_expiry", label: "Vencimento TV", type: "date" },
                   {
                     key: "referred_by_code",
                     label: "Código de indicação recebido (opcional) — Ex: WMC001A",
@@ -603,7 +603,7 @@ const AdminUsersPage = () => {
                     />
                     {f.key === "username" && (
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        Esse será o login do cliente. O Username sempre será igual ao Usuário IPTV.
+                        Esse será o login do cliente. O Username sempre será igual ao Usuário TV.
                       </p>
                     )}
                   </div>
@@ -690,14 +690,14 @@ const AdminUsersPage = () => {
               </div>
 
               <p className="mb-4 text-sm text-muted-foreground">
-                Cole o texto com as credenciais IPTV do cliente abaixo. O sistema irá extrair automaticamente os dados
+                Cole o texto com as credenciais da TV do cliente abaixo. O sistema irá extrair automaticamente os dados
                 necessários.
               </p>
 
               {/* Step 1: Paste */}
               <div className="mb-4">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  📋 Texto com credenciais IPTV
+                  📋 Texto com credenciais da TV
                 </label>
                 <textarea
                   value={pastedText}
@@ -749,8 +749,8 @@ const AdminUsersPage = () => {
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: "Usuário IPTV *", key: "username", type: "text" },
-                      { label: "Senha IPTV", key: "password", type: "text" },
+                      { label: "Usuário TV *", key: "username", type: "text" },
+                      { label: "Senha TV", key: "password", type: "text" },
                       { label: "Servidor/DNS", key: "server", type: "text" },
                       { label: "Vencimento", key: "expiry", type: "date" },
                       { label: "Conexões", key: "connections", type: "number" },
@@ -777,7 +777,7 @@ const AdminUsersPage = () => {
 
                   {!parsedData.username && (
                     <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                      <AlertCircle size={16} /> Preencha o campo Usuário IPTV.
+                      <AlertCircle size={16} /> Preencha o campo Usuário TV.
                     </div>
                   )}
 
@@ -1110,7 +1110,7 @@ const AdminUsersPage = () => {
                         disabled
                         className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
                       />
-                      <p className="mt-1 text-[10px] text-muted-foreground">Sempre igual ao Usuário IPTV.</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">Sempre igual ao Usuário TV.</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -1193,12 +1193,12 @@ const AdminUsersPage = () => {
                   )}
                 </div>
 
-                {/* Dados IPTV */}
+                {/* Dados TV */}
                 <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📺 Dados IPTV</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">📺 Dados TV</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Usuário IPTV</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">Usuário TV</label>
                       <input
                         value={editForm.iptv_user}
                         onChange={(e) =>
@@ -1208,7 +1208,7 @@ const AdminUsersPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Senha IPTV</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">Senha TV</label>
                       <input
                         value={editForm.iptv_password}
                         onChange={(e) => setEditForm({ ...editForm, iptv_password: e.target.value })}
@@ -1226,7 +1226,7 @@ const AdminUsersPage = () => {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">App IPTV</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">App TV</label>
                       <input
                         value={editForm.iptv_app}
                         onChange={(e) => setEditForm({ ...editForm, iptv_app: e.target.value })}
@@ -1255,7 +1255,7 @@ const AdminUsersPage = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Status IPTV</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">Status TV</label>
                       <select
                         value={editForm.iptv_status}
                         onChange={(e) => setEditForm({ ...editForm, iptv_status: e.target.value })}

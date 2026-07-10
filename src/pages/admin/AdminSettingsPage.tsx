@@ -648,7 +648,7 @@ const AdminSettingsPage = () => {
               <input
                 value={appName}
                 onChange={(e) => setAppName(e.target.value)}
-                placeholder="Ex: BITZ IPTV"
+                placeholder="Ex: BITZ TV"
                 className={inputCls + " max-w-full"}
               />
               <p className="mt-1 text-[11px] text-muted-foreground">

@@ -1188,7 +1188,7 @@ function PixModal({
                   <div className="mt-3 rounded-xl bg-primary/10 px-4 py-3">
                     <p className="text-xs font-medium text-primary">✅ Nosso suporte já foi notificado!</p>
                     <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                      O administrador será imediatamente notificado para realizar a atualização e ativação do IPTV no
+                      O administrador será imediatamente notificado para realizar a atualização e ativação do TV no
                       servidor. Em média leva menos de <span className="font-semibold text-foreground">2 horas</span>,
                       no máximo em até <span className="font-semibold text-foreground">24 horas</span> estará
                       funcionando normalmente.
@@ -1283,7 +1283,7 @@ function PixModal({
 
                 <div className="mb-5 rounded-xl bg-blue-500/10 px-4 py-3">
                   <p className="text-[11px] text-blue-300 leading-relaxed text-center">
-                    Após o pagamento, o suporte será notificado imediatamente para ativar seu IPTV. Em média leva menos
+                    Após o pagamento, o suporte será notificado imediatamente para ativar sua TV. Em média leva menos
                     de <span className="font-semibold">2 horas</span>.
                   </p>
                 </div>
@@ -1784,7 +1784,7 @@ const ClientDashboard = () => {
         body: {
           action: "send_to_admins",
           title: "🚫 Solicitação de Cancelamento",
-          body: `${user.name || user.username} solicitou cancelamento do plano IPTV.`,
+          body: `${user.name || user.username} solicitou cancelamento do plano TV.`,
         },
       });
 
@@ -2215,31 +2215,31 @@ const ClientDashboard = () => {
                   />
                   <div className={`relative rounded-[27px] p-5 ${premium ? "bg-[linear-gradient(180deg,rgba(21,10,10,0.97),rgba(10,8,8,0.99))]" : "bg-[linear-gradient(180deg,rgba(16,16,18,0.96),rgba(8,8,10,0.98))]"}`}>
                     <div className="flex items-start justify-between gap-3">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
+                      <span className={`inline-flex rounded-full px-3 py-1 font-data text-[10px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
                         {badgeText}
                       </span>
                       <div className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-right shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]">
                         <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/45">Total</p>
-                        <p className="mt-1 text-2xl font-extrabold leading-none text-white">
+                        <p className="mt-1 font-data text-2xl font-extrabold leading-none text-white">
                           R$ {financials.finalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                     </div>
 
                     <div className="mt-5">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">{financials.months} mês(es)</p>
-                      <h4 className="mt-1 text-[28px] font-extrabold leading-none tracking-tight text-white">{plan.title}</h4>
+                      <p className="font-data text-[11px] uppercase tracking-[0.18em] text-white/45">{financials.months} mês(es)</p>
+                      <h4 className="mt-1 font-display text-[28px] font-extrabold leading-none tracking-tight text-white">{plan.title}</h4>
                       <p className="mt-2 text-base font-medium text-white/80">{description}</p>
                     </div>
 
                     <div className={`mt-6 flex items-end justify-between gap-3 border-t pt-4 ${premium ? "border-red-500/10" : "border-white/8"}`}>
                       <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-white/40">Economia</p>
-                        <p className="mt-1 text-2xl font-extrabold text-red-400">
+                        <p className="font-data text-[11px] uppercase tracking-[0.18em] text-white/40">Economia</p>
+                        <p className="mt-1 font-data text-2xl font-extrabold text-red-400">
                           R$ {financials.discountValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
-                      <div className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] ${premium ? "border border-red-500/32 bg-red-500/14 text-red-100" : "border border-red-500/25 bg-red-500/12 text-red-200"}`}>
+                      <div className={`rounded-full px-4 py-2 font-data text-[11px] font-semibold uppercase tracking-[0.12em] ${premium ? "border border-red-500/32 bg-red-500/14 text-red-100" : "border border-red-500/25 bg-red-500/12 text-red-200"}`}>
                         {formatDiscountPercent(financials.discountPercent)}% OFF
                       </div>
                     </div>
@@ -2368,7 +2368,7 @@ const ClientDashboard = () => {
             >
               <h3 className="text-lg font-bold text-foreground mb-1">Solicitar Cancelamento</h3>
               <p className="text-xs text-muted-foreground mb-4">
-                Tem certeza que deseja solicitar o cancelamento do seu plano IPTV? O suporte analisará sua solicitação.
+                Tem certeza que deseja solicitar o cancelamento da sua TV? O suporte analisará sua solicitação.
               </p>
               <div className="mb-4">
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Motivo (opcional)</label>

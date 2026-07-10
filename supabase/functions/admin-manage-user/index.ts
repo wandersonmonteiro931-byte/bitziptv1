@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
 
         const updateData = { ...(data || {}) };
 
-        // REGRA FIXA: username/login sempre igual ao Usuário IPTV.
+        // REGRA FIXA: username/login sempre igual ao Usuário TV.
         if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
           const loginIdentifier = updateData.iptv_user.trim();
           updateData.username = loginIdentifier;
@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        // REGRA FIXA: senha de login sempre igual à Senha IPTV.
+        // REGRA FIXA: senha de login sempre igual à Senha TV.
         if (typeof updateData.iptv_password === "string" && updateData.iptv_password.trim()) {
           const { error: authPwdError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
             password: updateData.iptv_password.trim(),

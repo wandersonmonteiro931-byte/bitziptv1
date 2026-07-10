@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
-title BITZIPTV1 - Configurar PIX e Edge Functions Supabase
+title WMCPLAYER - Configurar PIX e Edge Functions Supabase
 
 set "PROJECT_REF=vywtzzrvpdjqpcnixskz"
 set "ROOT_DIR=%~dp0"
@@ -10,7 +10,7 @@ set "SECRETS_MODEL=%ROOT_DIR%SECRETS_SUPABASE_PIX_MODELO.env"
 
 echo.
 echo ==========================================================
-echo  BITZIPTV1 - CONFIGURAR PIX / EDGE FUNCTIONS NO SUPABASE
+echo  WMCPLAYER - CONFIGURAR PIX / EDGE FUNCTIONS NO SUPABASE
 echo ==========================================================
 echo.
 echo Projeto Supabase:

@@ -72,7 +72,7 @@ const IptvInfoPage = () => {
   const tvProvider = getUserTvProvider();
 
   const info = [
-    { label: "Usuário IPTV", value: user?.iptv_user || "-", icon: User },
+    { label: "Usuário TV", value: user?.iptv_user || "-", icon: User },
     { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
     { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
     { label: "App TV", value: displayedTvApp, icon: Tv },
@@ -104,9 +104,9 @@ const IptvInfoPage = () => {
     <AppLayout>
       <div className="mb-6">
         <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-          <Tv className="text-red-500" /> Meu IPTV
+          <Tv className="text-red-500" /> Minha TV
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Informações da sua assinatura</p>
+        <p className="mt-1 text-sm text-muted-foreground">Informações da sua TV</p>
 
         <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
           <button

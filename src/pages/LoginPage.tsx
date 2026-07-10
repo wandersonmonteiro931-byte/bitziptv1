@@ -29,7 +29,7 @@ const LoginPage = () => {
   const { login, isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz IPTV";
+  const appTitle = appName || "Bitz TV";
   const appTitleUpper = appTitle.toUpperCase();
 
   // Fetch support link

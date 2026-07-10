@@ -14,8 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Orbitron", "sans-serif"],
-        body: ["Inter", "sans-serif"],
+        display: ["Space Grotesk", "Inter Tight", "system-ui", "sans-serif"],
+        body: ["Manrope", "Inter Tight", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+        data: ["Inter Tight", "Manrope", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",

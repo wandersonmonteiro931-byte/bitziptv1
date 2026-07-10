@@ -1,4 +1,4 @@
-export const IPTV_STATUSES = [
+export const TV_STATUSES = [
   {
     value: "active",
     label: "Ativo",
@@ -69,4 +69,4 @@ export const QUICK_FILTERS = [
   { key: "awaiting_payment", label: "Aguardando Pgto" },
 ];
 
-export const getStatusInfo = (status: string) => IPTV_STATUSES.find((s) => s.value === status) || IPTV_STATUSES[0];
+export const getStatusInfo = (status: string) => TV_STATUSES.find((s) => s.value === status) || TV_STATUSES[0];

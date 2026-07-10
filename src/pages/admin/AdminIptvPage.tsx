@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatsCards } from "./iptv/StatsCards";
 import { ClientEditPanel } from "./iptv/ClientEditPanel";
-import { IPTV_STATUSES, QUICK_FILTERS, getStatusInfo } from "./iptv/types";
+import { TV_STATUSES, QUICK_FILTERS, getStatusInfo } from "./iptv/types";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
 const BULK_FIELDS = [
@@ -240,7 +240,7 @@ const AdminIptvPage = () => {
           action: "send",
           title: approve ? "Cancelamento Aprovado ✅" : "Cancelamento Recusado",
           body: approve
-            ? "Seu plano IPTV foi cancelado conforme solicitado."
+            ? "Sua TV foi cancelada conforme solicitado."
             : "Sua solicitação de cancelamento foi recusada pelo suporte.",
           target_type: "user",
           target_ids: [userId],
@@ -468,7 +468,7 @@ const AdminIptvPage = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
               <Tv size={16} className="text-primary" />
             </div>
-            Gerenciar IPTV
+            Gerenciar TV
           </h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{users.length} clientes cadastrados</p>
         </div>
@@ -646,7 +646,7 @@ const AdminIptvPage = () => {
             <XCircle size={16} className="text-red-400" />
             <h3 className="text-sm font-bold text-red-400">Solicitações de Cancelamento ({cancelRequests.length})</h3>
           </div>
-          <p className="mb-3 text-[10px] text-muted-foreground">Clientes solicitaram o cancelamento do plano IPTV.</p>
+          <p className="mb-3 text-[10px] text-muted-foreground">Clientes solicitaram o cancelamento da TV.</p>
           <div className="space-y-2">
             {cancelRequests.map((cr) => {
               const profile = cr.profiles as any;
@@ -775,7 +775,7 @@ const AdminIptvPage = () => {
                       className={`${inputCls} text-xs`}
                     >
                       <option value="">Todos</option>
-                      {IPTV_STATUSES.map((s) => (
+                      {TV_STATUSES.map((s) => (
                         <option key={s.value} value={s.value}>
                           {s.label}
                         </option>
@@ -1074,7 +1074,7 @@ const AdminIptvPage = () => {
                   ) : bulkField === "iptv_status" ? (
                     <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} className={inputCls}>
                       <option value="">Selecione...</option>
-                      {IPTV_STATUSES.map((s) => (
+                      {TV_STATUSES.map((s) => (
                         <option key={s.value} value={s.value}>
                           {s.label}
                         </option>

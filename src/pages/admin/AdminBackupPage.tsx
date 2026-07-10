@@ -33,9 +33,9 @@ const PAGE_SIZE = 1000;
 const BACKUP_TABLES: BackupTable[] = [
   { name: "profiles", label: "Clientes / usuários", priority: true },
   { name: "user_roles", label: "Permissões / administradores", priority: true },
-  { name: "iptv_servers", label: "Servidores IPTV", priority: true },
+  { name: "iptv_servers", label: "Servidores TV", priority: true },
   { name: "iptv_tv_apps", label: "Aplicativos de TV", priority: true },
-  { name: "iptv_payments", label: "Pagamentos / faturas IPTV", priority: true },
+  { name: "iptv_payments", label: "Pagamentos / faturas TV", priority: true },
   { name: "iptv_scheduled_rates", label: "Reajustes programados", priority: true },
   { name: "billing_due_dates", label: "Datas de vencimento", priority: true },
   { name: "iptv_cancellation_requests", label: "Pedidos de cancelamento", priority: true },
@@ -287,7 +287,7 @@ const AdminBackupPage = () => {
     }
 
     const payload = {
-      backupName: "BITZIPTV1_WMCFLIX_LOVABLE_SUPABASE_BACKUP",
+      backupName: "WMCPLAYER_WMCFLIX_LOVABLE_SUPABASE_BACKUP",
       exportedAt: new Date().toISOString(),
       exportedFrom: window.location.origin,
       supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
