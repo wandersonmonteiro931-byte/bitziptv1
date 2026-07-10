@@ -20,7 +20,8 @@ as $$
 begin
   update public.platform_settings
      set renewal_plans_snapshot = coalesce(p_plans, '[]'::jsonb),
-         renewal_plans_snapshot_updated_at = now();
+         renewal_plans_snapshot_updated_at = now()
+   where id is not null;
 
   if not found then
     raise exception 'platform_settings não possui registro para salvar renewal_plans_snapshot';

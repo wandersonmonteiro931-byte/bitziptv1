@@ -479,8 +479,27 @@ const AdminSettingsPage = () => {
       p_plans: plans,
     });
 
-    if (error) {
+    if (!error) return;
+
+    const message = String(error.message || error.details || "");
+    const canFallbackWithWhere =
+      message.toLowerCase().includes("where clause") ||
+      message.toLowerCase().includes("set_renewal_plans_snapshot");
+
+    if (!canFallbackWithWhere || !settings?.id || settings.id === "default") {
       throw error;
+    }
+
+    const { error: fallbackError } = await (supabase as any)
+      .from("platform_settings")
+      .update({
+        renewal_plans_snapshot: plans,
+        renewal_plans_snapshot_updated_at: new Date().toISOString(),
+      })
+      .eq("id", settings.id);
+
+    if (fallbackError) {
+      throw fallbackError;
     }
   };
 

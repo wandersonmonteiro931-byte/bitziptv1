@@ -1,0 +1,33 @@
+CORREÇÃO: UPDATE REQUIRES A WHERE CLAUSE
+
+BASE USADA:
+bitziptv1-planos-build-cached-corrigido.zip
+
+ERRO CORRIGIDO:
+Erro ao salvar planos
+UPDATE requires a WHERE clause
+
+CAUSA:
+A função SQL set_renewal_plans_snapshot atualizava platform_settings sem WHERE.
+Alguns ambientes do Supabase bloqueiam UPDATE sem WHERE.
+
+O QUE FOI CORRIGIDO:
+1. SQL agora usa:
+   update public.platform_settings ... where id is not null;
+2. Admin agora tem fallback:
+   se o RPC antigo ainda falhar, ele atualiza platform_settings usando .eq("id", settings.id).
+3. Mantido snapshot fixo dos planos do admin.
+4. Mantido cliente sem fallback padrão 5%/10%.
+5. Mantido cliente recebendo atualização imediata do admin.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. No Supabase, rode novamente:
+   SQL_CRIAR_PLANOS_RENOVACAO.sql
+6. No admin, clique em Salvar Planos.
+7. Depois clique em Atualizar / verificar planos.
+
+Pode rodar o SQL por cima. Não apaga seus planos.
