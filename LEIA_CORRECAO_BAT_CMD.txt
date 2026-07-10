@@ -1,0 +1,42 @@
+CORREÇÃO: ARQUIVOS .BAT ABRINDO COM ERRO NO CMD
+
+BASE USADA:
+bitziptv1-data-pagamento-efetiva-todo-app.zip
+
+PROBLEMA VISTO NO CMD:
+'et' nao e reconhecido
+'cho' nao e reconhecido
+'here' nao e reconhecido
+'f' nao e reconhecido
+ERRO: NPM nao encontrado
+
+CAUSA:
+O CMD do Windows estava lendo o arquivo .BAT com quebra de linha errada.
+Por isso ele cortava a primeira letra dos comandos:
+set virava et
+echo virava cho
+where virava here
+if virava f
+
+O QUE FOI CORRIGIDO:
+1. Todos os arquivos .BAT foram regravados com quebra de linha Windows CRLF.
+2. CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat agora verifica NODE, NPM e NPX separadamente.
+3. Mantidas todas as correções anteriores:
+   - data de pagamento efetiva em todo app
+   - fonte profissional
+   - PIX/certificado Efi
+   - Unauthorized
+   - planos do admin
+   - remocao do termo antigo no visual
+
+COMO USAR:
+1. Extraia este ZIP novo.
+2. Abra a pasta bitziptv1-main.
+3. Clique primeiro em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois clique em CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+SE AINDA APARECER NPM NAO ENCONTRADO:
+Instale o Node.js LTS:
+https://nodejs.org/
+Depois feche o CMD e rode o .BAT novamente.

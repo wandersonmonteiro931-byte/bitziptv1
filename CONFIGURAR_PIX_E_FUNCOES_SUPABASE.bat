@@ -20,12 +20,34 @@ echo Esta etapa corrige o erro:
 echo Failed to send a request to the Edge Function
 echo.
 
-echo [1/7] Verificando Node/NPM...
+echo [1/7] Verificando Node / NPM / NPX...
+where node
+if errorlevel 1 (
+    echo.
+    echo ERRO: NODE nao encontrado.
+    echo Instale o Node.js LTS e execute novamente:
+    echo https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+)
+
 where npm
 if errorlevel 1 (
     echo.
     echo ERRO: NPM nao encontrado.
     echo Instale o Node.js LTS e execute novamente:
+    echo https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+)
+
+where npx
+if errorlevel 1 (
+    echo.
+    echo ERRO: NPX nao encontrado.
+    echo Reinstale o Node.js LTS marcando a opcao npm.
     echo https://nodejs.org/
     echo.
     pause
