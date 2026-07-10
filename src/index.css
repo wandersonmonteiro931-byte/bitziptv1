@@ -284,3 +284,62 @@ img[alt*="Preview" i] {
     transform: translateY(-1px);
   }
 }
+
+
+@keyframes wmc-plan-shimmer-move {
+  0% {
+    transform: translateX(-160%) rotate(18deg);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.42;
+  }
+  86% {
+    opacity: 0.16;
+  }
+  100% {
+    transform: translateX(240%) rotate(18deg);
+    opacity: 0;
+  }
+}
+
+.wmc-plan-shimmer {
+  position: absolute;
+  top: -16%;
+  bottom: -16%;
+  left: 0;
+  width: 38%;
+  pointer-events: none;
+  filter: blur(18px);
+  mix-blend-mode: screen;
+  animation: wmc-plan-shimmer-move 4.6s linear infinite;
+}
+
+.wmc-plan-shimmer-red {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 96, 96, 0.04) 8%, rgba(255, 170, 90, 0.24) 50%, rgba(255, 100, 140, 0.06) 92%, transparent 100%);
+}
+
+.wmc-plan-shimmer-gold {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 214, 120, 0.05) 8%, rgba(255, 214, 120, 0.28) 50%, rgba(255, 174, 64, 0.08) 92%, transparent 100%);
+}
+
+.wmc-button-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  animation: wmc-plan-shimmer-move 3.8s linear infinite;
+  opacity: 0.55;
+  filter: blur(12px);
+}
+
+.wmc-button-shimmer-red {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 79, 109, 0.08) 18%, rgba(255, 189, 94, 0.30) 50%, rgba(255, 79, 109, 0.08) 82%, transparent 100%);
+}
+
+.wmc-button-shimmer-gold {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 208, 128, 0.10) 18%, rgba(255, 228, 158, 0.34) 50%, rgba(255, 208, 128, 0.10) 82%, transparent 100%);
+}

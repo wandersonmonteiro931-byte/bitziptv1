@@ -1,0 +1,25 @@
+ATUALIZAÇÃO: PLANOS EM 1 LINHA + MENOR + SEM ÍCONE DE BRILHO
+
+BASE USADA:
+- bitziptv1-tv-tela-preta-corrigida.zip
+
+O QUE FOI FEITO:
+1. Os 3 cards de renovação foram ajustados para ficar em 1 linha no desktop.
+2. Os cards ficaram menores, mais equilibrados e sem aparência gigante.
+3. O ícone de brilho foi removido.
+4. Foi adicionado efeito de brilho em movimento nos cards.
+5. Foi adicionado efeito de brilho em movimento também no botão do card.
+6. Mantido o visual dark/red do sistema.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/index.css
+
+VALIDAÇÃO:
+- npm run build executado com sucesso.
+
+COMO PUBLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat
+4. Aguarde a publicação no Cloudflare.
