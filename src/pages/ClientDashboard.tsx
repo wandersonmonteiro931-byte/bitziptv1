@@ -969,28 +969,45 @@ function PixModal({
 
         setPaymentId(payment.id);
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.access_token) {
-          throw new Error("Sessão expirada. Saia e entre novamente.");
-        }
-
-        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/create-charge`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({
-            payment_id: payment.id,
-            amount: pixModal.value,
-            devedor_nome: user.name || undefined,
-            descricao: `RENOVAÇÃO WMCPLAYER - ${pixModal.months} MÊS(S) - CLIENTE ${user.iptv_client_code || user.username || user.name || user.id}`,
-          }),
+        const buildPixHeaders = (accessToken?: string) => ({
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         });
+
+        const pixPayload = {
+          payment_id: payment.id,
+          amount: pixModal.value,
+          devedor_nome: user.name || undefined,
+          descricao: `RENOVAÇÃO WMCPLAYER - ${pixModal.months} MÊS(S) - CLIENTE ${user.iptv_client_code || user.username || user.name || user.id}`,
+        };
+
+        const getFreshToken = async () => {
+          const current = await supabase.auth.getSession();
+          if (current.data.session?.access_token) return current.data.session.access_token;
+
+          const refreshed = await supabase.auth.refreshSession();
+          return refreshed.data.session?.access_token;
+        };
+
+        let accessToken = await getFreshToken();
+
+        let resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/create-charge`, {
+          method: "POST",
+          headers: buildPixHeaders(accessToken),
+          body: JSON.stringify(pixPayload),
+        });
+
+        if (resp.status === 401) {
+          const refreshed = await supabase.auth.refreshSession();
+          accessToken = refreshed.data.session?.access_token;
+
+          resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/create-charge`, {
+            method: "POST",
+            headers: buildPixHeaders(accessToken),
+            body: JSON.stringify(pixPayload),
+          });
+        }
 
         let data: any = null;
         try {
@@ -1000,11 +1017,14 @@ function PixModal({
         }
 
         if (!resp.ok || data?.error) {
-          throw new Error(
-            data?.detail ||
-              data?.error ||
-              `Erro ao gerar PIX. Código HTTP ${resp.status}`
-          );
+          const rawMessage = data?.detail || data?.error || `Erro ao gerar PIX. Código HTTP ${resp.status}`;
+          const friendlyMessage =
+            String(rawMessage).toLowerCase().includes("unauthorized") ||
+            String(rawMessage).includes("AUTH_TEMPORARILY_UNAVAILABLE")
+              ? "Sessão atualizada. Feche esta janela do PIX e tente novamente."
+              : rawMessage;
+
+          throw new Error(friendlyMessage);
         }
 
         setPixData(data);
@@ -1045,16 +1065,22 @@ function PixModal({
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (session) {
-          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-            body: JSON.stringify({ payment_id: paymentId }),
-          });
+
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({ payment_id: paymentId }),
+        });
+
+        if (resp.status === 401) {
+          return;
+        }
+
+        if (true) {
           if (resp.ok) {
             const result = await resp.json();
             if (result?.confirmed && active) {

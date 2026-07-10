@@ -1,0 +1,29 @@
+CORREÇÃO: PIX NÃO PODE DAR UNAUTHORIZED QUANDO ADMIN MEXE NO CLIENTE
+
+BASE USADA:
+bitziptv1-planos-update-where-corrigido.zip
+
+PROBLEMA:
+Quando o admin alterava algo no usuário, o cliente podia tentar gerar PIX e receber:
+Unauthorized
+
+O QUE FOI CORRIGIDO:
+1. A Edge Function pix-efi não retorna mais Unauthorized direto para PIX do cliente.
+2. Se o token da sessão estiver instável, a função resolve o cliente pelo payment_id já criado no banco.
+3. create-charge verifica se o payment_id pertence ao cliente antes de gerar PIX.
+4. check-status também funciona com fallback pelo payment_id.
+5. Cliente tenta atualizar a sessão antes de chamar a função.
+6. Cliente tenta novamente se a primeira chamada retornar 401.
+7. Mensagem "Unauthorized" crua não aparece mais no modal.
+8. Mantidas as correções dos planos do admin/snapshot.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat para republicar a função pix-efi.
+6. Teste gerar PIX depois de mexer em um cliente no admin.
+
+IMPORTANTE:
+Essa correção mexe na Edge Function. Por isso precisa rodar o BAT do Supabase/PIX também.

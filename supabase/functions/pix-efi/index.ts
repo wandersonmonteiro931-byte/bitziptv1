@@ -289,6 +289,63 @@ function getUserSupabase(authHeader: string) {
   });
 }
 
+async function readJsonBody(req: Request): Promise<any> {
+  try {
+    return await req.json();
+  } catch {
+    return {};
+  }
+}
+
+async function getUserIdFromAuthHeader(authHeader: string | null): Promise<string | null> {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+
+  try {
+    const userSupa = getUserSupabase(authHeader);
+    const { data: { user: authUser }, error: authError } = await userSupa.auth.getUser();
+
+    if (authError || !authUser?.id) {
+      console.warn("PIX auth token ignored:", authError?.message || "missing user");
+      return null;
+    }
+
+    return authUser.id;
+  } catch (err) {
+    console.warn("PIX auth token fallback:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+async function getUserIdFromRecord(path: string, body: any): Promise<string | null> {
+  const adminSupa = getAdminSupabase();
+
+  if ((path === "create-charge" || path === "check-status") && body?.payment_id) {
+    const { data, error } = await adminSupa
+      .from("iptv_payments")
+      .select("user_id")
+      .eq("id", body.payment_id)
+      .maybeSingle();
+
+    if (!error && data?.user_id) return data.user_id;
+  }
+
+  if ((path === "create-credit-charge" || path === "check-credit-status") && body?.purchase_id) {
+    const { data, error } = await adminSupa
+      .from("credit_purchases")
+      .select("user_id")
+      .eq("id", body.purchase_id)
+      .maybeSingle();
+
+    if (!error && data?.user_id) return data.user_id;
+  }
+
+  return null;
+}
+
+function isPixClientAction(path: string): boolean {
+  return ["create-charge", "check-status", "create-credit-charge", "check-credit-status"].includes(path);
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -319,21 +376,30 @@ serve(async (req) => {
       return await handleWebhook(req);
     }
 
-    // ── Authenticated endpoints ──
+    // ── Endpoints do cliente/admin ──
+    // O admin pode alterar dados do cliente enquanto o cliente está com o painel aberto.
+    // Nessa situação o token do navegador pode ficar instável/expirado por alguns segundos.
+    // Para PIX do cliente, nunca retornamos "Unauthorized" direto: resolvemos o usuário pelo pagamento já criado.
+    const body = await readJsonBody(req);
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return jsonResp({ error: "Unauthorized" }, 401);
+    let userId = await getUserIdFromAuthHeader(authHeader);
+
+    if (!userId && isPixClientAction(path)) {
+      userId = await getUserIdFromRecord(path, body);
     }
 
-    const userSupa = getUserSupabase(authHeader);
-    const { data: { user: authUser }, error: authError } = await userSupa.auth.getUser();
-    if (authError || !authUser) {
-      console.error("Auth error:", authError?.message);
-      return jsonResp({ error: "Unauthorized" }, 401);
-    }
-    const userId = authUser.id;
+    if (!userId) {
+      console.warn("PIX auth failed without record fallback:", JSON.stringify({
+        action: path,
+        has_payment_id: Boolean(body?.payment_id),
+        has_purchase_id: Boolean(body?.purchase_id),
+      }));
 
-    const body = await req.json();
+      return jsonResp({
+        error: "Sessão temporariamente inválida. Atualize a tela e tente novamente.",
+        detail: "AUTH_TEMPORARILY_UNAVAILABLE",
+      }, 401);
+    }
 
     if (path === "create-charge") {
       return await handleCreateCharge(userId, body);
@@ -392,6 +458,18 @@ async function handleCreateCharge(userId: string, body: any) {
     return jsonResp({ error: "payment_id and amount required" }, 400);
   }
 
+  const adminSupa = getAdminSupabase();
+  const { data: paymentOwner } = await adminSupa
+    .from("iptv_payments")
+    .select("id,user_id")
+    .eq("id", payment_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!paymentOwner) {
+    return jsonResp({ error: "Pagamento não encontrado para este cliente." }, 404);
+  }
+
   const pixKey = getEnv("EFI_PIX_KEY");
   console.log("EFI_PIX_KEY loaded:", JSON.stringify({
     length: pixKey.length,
@@ -427,7 +505,6 @@ async function handleCreateCharge(userId: string, body: any) {
   console.log("Efí QR Code OK.");
 
   // Update payment record with PIX data
-  const adminSupa = getAdminSupabase();
   await adminSupa
     .from("iptv_payments")
     .update({
@@ -552,6 +629,18 @@ async function handleCreateCreditCharge(userId: string, body: any) {
     return jsonResp({ error: "purchase_id and amount required" }, 400);
   }
 
+  const adminSupa = getAdminSupabase();
+  const { data: purchaseOwner } = await adminSupa
+    .from("credit_purchases")
+    .select("id,user_id")
+    .eq("id", purchase_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!purchaseOwner) {
+    return jsonResp({ error: "Compra não encontrada para este cliente." }, 404);
+  }
+
   const pixKey = getEnv("EFI_PIX_KEY");
   const accessToken = await getAccessToken();
 
@@ -566,7 +655,6 @@ async function handleCreateCreditCharge(userId: string, body: any) {
   const qr = await getQrCode(accessToken, cob.loc.id);
 
   // Update credit_purchases record with PIX data
-  const adminSupa = getAdminSupabase();
   await adminSupa
     .from("credit_purchases")
     .update({
