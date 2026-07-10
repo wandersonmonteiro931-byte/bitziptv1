@@ -1,0 +1,35 @@
+CORREÇÃO: TESTE NÃO GRAVA / APAGA SOZINHO / STATUS E AVISO
+
+BASE USADA:
+bitziptv1-teste-considera-data-teste-validade-oculta.zip
+
+PROBLEMA CORRIGIDO:
+1. Ao marcar usuário efetivo como teste, o sistema gravava a data, mas apagava o modo teste sozinho.
+2. Isso acontecia porque qualquer status "active" estava sendo tratado como ativação após pagamento.
+3. Agora só vira efetivo quando existir pagamento pendente de ativação confirmado.
+4. Se o admin marcar como teste ativo, trial_enabled continua true.
+5. Se o teste ainda estiver válido:
+   - status fica active
+   - aparece como TESTE X DIAS
+   - validade considerada é a data final do teste
+6. Se o teste já estiver vencido:
+   - status fica blocked
+   - aparece TESTE FINALIZADO
+   - tenta enviar aviso automático ao cliente
+   - o app continua mostrando o aviso ao entrar
+7. Ao salvar modo teste, não dispara notificação errada de "ativação confirmada".
+8. Ao pagar/renovar de verdade, continua virando usuário efetivo.
+
+ARQUIVOS ALTERADOS:
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+Precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque a correção está na Edge Function admin-manage-user.
+Não precisa rodar novo SQL se você já rodou SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql.

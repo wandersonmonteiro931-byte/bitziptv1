@@ -1,0 +1,27 @@
+CORREÇÃO: BOTÃO ENTENDI DO AVISO TESTE FINALIZADO
+
+BASE USADA:
+bitziptv1-teste-grava-status-aviso-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. Ao clicar em "Entendi", o aviso TESTE FINALIZADO some.
+2. O aviso não aparece de novo na mesma sessão/tela aberta.
+3. O aviso só volta a aparecer ao recarregar a página, reabrir o app ou fazer novo login.
+4. O clique fora do aviso também fecha e respeita a mesma regra.
+5. Mantido o bloqueio do cliente até pagar.
+6. Mantido o aviso automático ao entrar/recarregar.
+
+ARQUIVO ALTERADO:
+- src/pages/ClientDashboard.tsx
+
+VALIDAÇÃO:
+Build executado com sucesso.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+
+OBSERVAÇÃO:
+Não precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat nesta atualização, pois só mexeu no front-end.

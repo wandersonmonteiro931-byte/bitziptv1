@@ -496,31 +496,83 @@ Deno.serve(async (req) => {
           trial_payment_confirmed: updateData.trial_payment_confirmed,
         });
 
-        // When admin activates a user (sets status to active), also confirm pending activation payments
+        // Quando o admin ativa após pagamento, confirma pagamento pendente.
+        // IMPORTANTE: se o admin estiver colocando o cliente como TESTE, não pode desmarcar trial_enabled.
         if (data.iptv_status === "active") {
-          await supabaseAdmin
+          const { data: pendingActivationPayments } = await supabaseAdmin
             .from("iptv_payments")
-            .update({ status: "confirmed", admin_id: caller.id })
+            .select("id")
             .eq("user_id", user_id)
             .eq("status", "paid_pending_activation");
 
-          // Depois que o 1º pagamento for confirmado e o admin ativar,
-          // o cliente deixa de ser teste e vira usuário efetivo.
-          await supabaseAdmin
-            .from("profiles")
-            .update({
+          const hasPaidPendingActivation = Array.isArray(pendingActivationPayments) && pendingActivationPayments.length > 0;
+
+          if (hasPaidPendingActivation) {
+            await supabaseAdmin
+              .from("iptv_payments")
+              .update({ status: "confirmed", admin_id: caller.id })
+              .eq("user_id", user_id)
+              .eq("status", "paid_pending_activation");
+
+            // Depois que o 1º pagamento for confirmado e o admin ativar,
+            // o cliente deixa de ser teste e vira usuário efetivo.
+            await supabaseAdmin
+              .from("profiles")
+              .update({
+                trial_enabled: false,
+                trial_payment_confirmed: true,
+                trial_expired_at: null,
+                trial_expired_notice_sent_at: null,
+              })
+              .eq("id", user_id)
+              .eq("trial_enabled", true);
+
+            await emitClientProfileUpdated(supabaseAdmin, user_id, {
+              iptv_status: "active",
               trial_enabled: false,
               trial_payment_confirmed: true,
               trial_expired_at: null,
               trial_expired_notice_sent_at: null,
-            })
-            .eq("id", user_id)
-            .eq("trial_enabled", true);
+            });
+          }
+        }
+
+        // Se o admin salvar já como TESTE FINALIZADO, bloqueia e envia aviso automático uma vez.
+        if (updateData.trial_enabled === true && updateData.iptv_status === "blocked") {
+          try {
+            const { data: trialProfile } = await supabaseAdmin
+              .from("profiles")
+              .select("name, trial_expired_notice_sent_at")
+              .eq("id", user_id)
+              .maybeSingle();
+
+            if (!trialProfile?.trial_expired_notice_sent_at) {
+              await supabaseAdmin
+                .from("profiles")
+                .update({ trial_expired_notice_sent_at: new Date().toISOString() })
+                .eq("id", user_id);
+
+              await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+                body: JSON.stringify({
+                  action: "send_to_user",
+                  user_id,
+                  title: "TESTE FINALIZADO",
+                  body: `Olá ${trialProfile?.name || ""}! Seu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
+                  url: "/dashboard#gerar-pix",
+                }),
+              });
+            }
+          } catch (trialPushErr) {
+            console.error("Falha ao enviar aviso automático de teste finalizado:", trialPushErr);
+          }
         }
 
         // Send push notification ONLY when the status actually changed (not on regular edits)
         const statusActuallyChanged = data.iptv_status && data.iptv_status !== previousStatus;
-        if (statusActuallyChanged && (data.iptv_status === "blocked" || data.iptv_status === "active")) {
+        const isTrialStatusSave = updateData.trial_enabled === true;
+        if (!isTrialStatusSave && statusActuallyChanged && (data.iptv_status === "blocked" || data.iptv_status === "active")) {
           try {
             const triggerEvent = data.iptv_status === "blocked" ? "user_blocked" : "activation_confirmed";
             const { data: userProfile } = await supabaseAdmin
@@ -569,7 +621,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (data.iptv_status === "active") {
+        if (data.iptv_status === "active" && updateData.trial_enabled !== true) {
           await emitClientProfileUpdated(supabaseAdmin, user_id, {
             iptv_status: "active",
             trial_enabled: false,

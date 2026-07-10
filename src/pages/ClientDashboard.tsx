@@ -1335,6 +1335,7 @@ const ClientDashboard = () => {
     imageOnly?: boolean;
   } | null>(null);
   const [trialExpiredNoticeOpen, setTrialExpiredNoticeOpen] = useState(false);
+  const trialExpiredNoticeDismissedRef = useRef(false);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
   const [renewalPlans, setRenewalPlans] = useState<RenewalPlanCard[]>([]);
@@ -1355,6 +1356,16 @@ const ClientDashboard = () => {
     body: `Olá ${user?.name || "cliente"}!\nSeu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
   };
 
+  const openTrialExpiredNoticeOncePerSession = useCallback(() => {
+    if (trialExpiredNoticeDismissedRef.current) return;
+    setTrialExpiredNoticeOpen(true);
+  }, []);
+
+  const dismissTrialExpiredNoticeForSession = useCallback(() => {
+    trialExpiredNoticeDismissedRef.current = true;
+    setTrialExpiredNoticeOpen(false);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1373,7 +1384,7 @@ const ClientDashboard = () => {
     const expiredLocally = isTrialExpiredNow() || ((user as any).iptv_status === "blocked" && Boolean((user as any).trial_enabled) && Boolean((user as any).trial_expired_at));
 
     if (expiredLocally) {
-      setTrialExpiredNoticeOpen(true);
+      openTrialExpiredNoticeOncePerSession();
     }
 
     supabase.functions
@@ -1382,14 +1393,14 @@ const ClientDashboard = () => {
       })
       .then((res: any) => {
         if (res?.data?.expired) {
-          setTrialExpiredNoticeOpen(true);
+          openTrialExpiredNoticeOncePerSession();
           refreshProfile();
         }
       })
       .catch(() => {
         // Se a função falhar, o aviso local ainda aparece quando o perfil já estiver vencido.
       });
-  }, [user?.id, user?.trial_enabled, user?.trial_ends_at, (user as any)?.trial_expired_at, (user as any)?.trial_payment_confirmed, user?.iptv_status, isTrialExpiredNow, refreshProfile]);
+  }, [user?.id, user?.trial_enabled, user?.trial_ends_at, (user as any)?.trial_expired_at, (user as any)?.trial_payment_confirmed, user?.iptv_status, isTrialExpiredNow, openTrialExpiredNoticeOncePerSession, refreshProfile]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -2513,7 +2524,7 @@ const ClientDashboard = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[210] flex items-center justify-center bg-black/70 backdrop-blur-md px-5"
-            onClick={() => setTrialExpiredNoticeOpen(false)}
+            onClick={dismissTrialExpiredNoticeForSession}
           >
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 18 }}
@@ -2529,7 +2540,7 @@ const ClientDashboard = () => {
                 {trialFinalMessage.body}
               </p>
               <button
-                onClick={() => setTrialExpiredNoticeOpen(false)}
+                onClick={dismissTrialExpiredNoticeForSession}
                 className="mt-6 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-[0_14px_40px_rgba(255,0,0,0.22)]"
               >
                 Entendi
