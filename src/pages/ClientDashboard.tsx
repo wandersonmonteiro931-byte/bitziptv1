@@ -54,6 +54,7 @@ type AppVersionState = {
   version?: string;
 };
 
+const FINANCE_UPDATE_EVENT = "wmcplayer-finance-updated";
 const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v2";
 const LEGACY_APP_VERSION_STORAGE_KEYS = ["wmcflix_app_version_state_v1", "bitz_app_version_state_v1"];
 const APP_VERSION_INITIAL = "v1.1";
@@ -1358,19 +1359,29 @@ const ClientDashboard = () => {
       openTrialExpiredNoticeOncePerSession();
     }
 
-    supabase.functions
-      .invoke("admin-manage-user", {
-        body: { action: "client_check_trial_status", user_id: user.id, data: {} },
-      })
-      .then((res: any) => {
+    const checkTrialStatusOnce = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) return;
+
+        const res: any = await supabase.functions.invoke("admin-manage-user", {
+          body: { action: "client_check_trial_status", user_id: user.id, data: {} },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
         if (res?.data?.expired) {
           openTrialExpiredNoticeOncePerSession();
-          refreshProfile();
+          await refreshProfile();
         }
-      })
-      .catch(() => {
+      } catch {
         // Se a função falhar, o aviso local ainda aparece quando o perfil já estiver vencido.
-      });
+      }
+    };
+
+    void checkTrialStatusOnce();
   }, [user?.id, user?.trial_enabled, user?.trial_ends_at, (user as any)?.trial_expired_at, (user as any)?.trial_payment_confirmed, user?.iptv_status, isTrialExpiredNow, openTrialExpiredNoticeOncePerSession, refreshProfile]);
 
   useEffect(() => {

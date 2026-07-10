@@ -1,0 +1,38 @@
+CORREÇÃO: ERRO AO ATUALIZAR O DASHBOARD
+
+BASE USADA:
+bitziptv1-pagamento-pos-teste-status-corrigido.zip
+
+ERRO CORRIGIDO:
+ReferenceError: FINANCE_UPDATE_EVENT is not defined
+
+O QUE FOI FEITO:
+1. Criada a constante FINANCE_UPDATE_EVENT antes de qualquer componente usar.
+2. O dashboard não fica mais preto ao atualizar.
+3. A verificação única do teste agora espera uma sessão autenticada válida.
+4. As chamadas de admin-manage-user recebem o token da sessão explicitamente.
+5. A inscrição Push também espera sessão válida e envia o token explicitamente.
+6. Evita os erros 401 ao atualizar/reabrir o site.
+7. Nenhum polling, consulta contínua ou setInterval de rede foi adicionado.
+8. O único setInterval mantido no PIX é o contador visual local de tempo restante.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/hooks/usePushNotifications.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Feche a aba/PWA e abra novamente.
+6. Use Ctrl + F5 no navegador se ainda aparecer arquivo antigo em cache.
+
+OBSERVAÇÃO:
+Não precisa rodar SQL.
+Não precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque somente o front-end foi alterado.
+
+VALIDAÇÃO:
+- Sintaxe de ClientDashboard.tsx: OK.
+- Sintaxe de usePushNotifications.ts: OK.
+- FINANCE_UPDATE_EVENT definido antes do uso: OK.

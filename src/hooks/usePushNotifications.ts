@@ -20,6 +20,14 @@ export function usePushNotifications(userId: string | undefined) {
       runningRef.current = true;
 
       try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token || session.user.id !== userId) return;
+
+        const authHeaders = { Authorization: `Bearer ${session.access_token}` };
+
         const registration =
           (await navigator.serviceWorker.getRegistration("/")) ||
           (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
@@ -29,6 +37,7 @@ export function usePushNotifications(userId: string | undefined) {
 
         const { data: vapidData, error: vapidError } = await supabase.functions.invoke("push-notification", {
           body: { action: "get_vapid_public_key" },
+          headers: authHeaders,
         });
 
         if (vapidError || !vapidData?.public_key) {
@@ -77,6 +86,7 @@ export function usePushNotifications(userId: string | undefined) {
             p256dh: subJson.keys.p256dh,
             auth: subJson.keys.auth,
           },
+          headers: authHeaders,
         });
 
         if (subscribeError) {
