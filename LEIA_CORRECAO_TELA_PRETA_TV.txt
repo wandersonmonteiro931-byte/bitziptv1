@@ -1,0 +1,21 @@
+CORREÇÃO: TELA PRETA EM ADMIN > TV
+
+BASE USADA:
+bitziptv1-tv-filtros-arquivados-corrigido.zip
+
+PROBLEMA:
+A tela /admin/iptv ficava preta porque a página usava todayBRT() nos filtros, mas o import dessa função não entrou no arquivo AdminIptvPage.tsx.
+Isso causava erro de JavaScript na abertura da tela.
+
+O QUE FOI CORRIGIDO:
+1. Adicionado import correto de todayBRT em src/pages/admin/AdminIptvPage.tsx.
+2. Mantidas as correções dos filtros.
+3. Mantida a regra para não mostrar clientes arquivados/excluídos na seção TV.
+4. Build validado com sucesso.
+
+COMO APLICAR:
+1. Extraia este ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat se ainda não rodou a versão anterior, pois admin-manage-user já tinha sido alterado.

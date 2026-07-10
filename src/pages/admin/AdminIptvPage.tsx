@@ -28,6 +28,7 @@ import { StatsCards } from "./iptv/StatsCards";
 import { ClientEditPanel } from "./iptv/ClientEditPanel";
 import { TV_STATUSES, QUICK_FILTERS, getStatusInfo } from "./iptv/types";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { todayBRT } from "@/lib/utils";
 
 
 const HIDDEN_PROFILE_STATUSES = new Set(["archived", "deleted", "removed", "excluded", "excluido", "arquivado"]);
