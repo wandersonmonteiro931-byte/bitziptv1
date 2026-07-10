@@ -1,0 +1,40 @@
+CORRECAO: ERRO DE CONSOLE AO ATUALIZAR O DASHBOARD
+
+BASE USADA:
+bitziptv1-aguardando-ativacao-data-prevista-corrigidos.zip
+
+ERRO CORRIGIDO:
+ReferenceError: Cannot access '_e' before initialization
+
+CAUSA:
+O dashboard usava billingDueDay em uma dependencia de useEffect antes da constante ser inicializada.
+No build minificado o nome aparecia como _e, causando tela preta ao atualizar/reabrir.
+
+O QUE FOI FEITO:
+1. billingDueDay, selectedBillingDueDate e billingGraceDays foram movidos para antes de todos os effects que os utilizam.
+2. Criado scripts/check-tdz.cjs para verificar todo o diretorio src antes de cada build.
+3. Adicionado prebuild automatico no package.json.
+4. Se futuramente alguma variavel const/let for avaliada antes da inicializacao, o build sera interrompido antes de publicar.
+5. Nenhum polling, setInterval de rede ou consulta continua foi adicionado.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- scripts/check-tdz.cjs
+- package.json
+
+VALIDACAO:
+- check:tdz em todo o src: OK
+- npm run build completo: OK
+- PWA/Service Worker gerados: OK
+
+COMO PUBLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a publicacao no Cloudflare.
+5. Feche completamente o navegador/PWA e abra novamente.
+6. No PC, use Ctrl + F5 uma unica vez se ainda carregar o arquivo antigo.
+
+NAO PRECISA:
+- Rodar SQL.
+- Rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.

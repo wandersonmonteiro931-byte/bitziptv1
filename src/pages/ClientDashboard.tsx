@@ -1340,6 +1340,12 @@ const ClientDashboard = () => {
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
 
+  // Estes valores precisam existir antes dos effects que os usam nas dependências.
+  // Mantê-los aqui evita erro de Temporal Dead Zone ao atualizar/reabrir o dashboard.
+  const selectedBillingDueDate = pickBillingDueDate(billingDueDates, user);
+  const billingDueDay = Number(user?.iptv_due_day || selectedBillingDueDate?.day_of_month || 10);
+  const billingGraceDays = getBillingGraceDays(selectedBillingDueDate, user, 5);
+
   const isTrialExpiredNow = useCallback(() => {
     const profile: any = user;
     if (!profile?.trial_enabled || profile?.trial_payment_confirmed) return false;
@@ -1956,12 +1962,6 @@ const ClientDashboard = () => {
   };
 
   const now = parseDateOnly(toBrazilDateOnlyString(new Date()));
-  const selectedBillingDueDate = pickBillingDueDate(billingDueDates, user);
-  // O dia salvo diretamente no perfil é a fonte principal.
-  // A tabela de datas padrão só entra como apoio quando o perfil não possui dia próprio.
-  const billingDueDay = Number(user?.iptv_due_day || selectedBillingDueDate?.day_of_month || 10);
-  const billingGraceDays = getBillingGraceDays(selectedBillingDueDate, user, 5);
-
   let dueDate: Date;
   if (user?.iptv_expiry) {
     dueDate = parseDateOnly(user.iptv_expiry);
