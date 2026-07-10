@@ -2,6 +2,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Tv,
@@ -49,6 +50,7 @@ const categories = ["Jornal", "Novela", "Filme", "Esporte", "Série", "Infantil"
 
 const AdminTvGuidePage = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [activeTab, setActiveTab] = useState<"channels" | "programs" | "history">("channels");
@@ -67,6 +69,23 @@ const AdminTvGuidePage = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [channelForm, setChannelForm] = useState({ name: "", logo_url: "", sort_order: 0 });
+  const broadcastGuideUpdate = async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+      body: {
+        action: "broadcast_client_event",
+        user_id: user.id,
+        data: {
+          event: "tv-guide-updated",
+          payload: { updated_at: Date.now() },
+        },
+      },
+    });
+    if (error || data?.error) {
+      console.warn("Não foi possível enviar atualização da programação:", data?.error || error?.message);
+    }
+  };
+
   const [programForm, setProgramForm] = useState({
     channel_id: "",
     program_date: format(new Date(), "yyyy-MM-dd"),
@@ -147,11 +166,13 @@ const AdminTvGuidePage = () => {
     }
     setShowChannelForm(false);
     loadChannels();
+    void broadcastGuideUpdate();
   };
 
   const toggleChannel = async (id: string, active: boolean) => {
     await supabase.from("tv_channels").update({ is_active: !active }).eq("id", id);
     loadChannels();
+    void broadcastGuideUpdate();
   };
 
   const deleteChannel = async (id: string) => {
@@ -159,6 +180,7 @@ const AdminTvGuidePage = () => {
     await supabase.from("tv_channels").delete().eq("id", id);
     toast({ title: "Canal excluído" });
     loadChannels();
+    void broadcastGuideUpdate();
   };
 
   // Program CRUD
@@ -235,6 +257,7 @@ const AdminTvGuidePage = () => {
     }
     setShowProgramForm(false);
     loadPrograms();
+    void broadcastGuideUpdate();
   };
 
   const deleteProgram = async (id: string) => {
@@ -242,11 +265,13 @@ const AdminTvGuidePage = () => {
     await supabase.from("tv_programs").delete().eq("id", id);
     toast({ title: "Programa excluído" });
     loadPrograms();
+    void broadcastGuideUpdate();
   };
 
   const toggleProgram = async (id: string, active: boolean) => {
     await supabase.from("tv_programs").update({ is_active: !active }).eq("id", id);
     loadPrograms();
+    void broadcastGuideUpdate();
   };
 
   // Copy day
@@ -267,6 +292,7 @@ const AdminTvGuidePage = () => {
       toast({ title: "Erro ao copiar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: `Programação copiada para ${format(new Date(targetDate + "T12:00:00"), "dd/MM/yyyy")}` });
+      void broadcastGuideUpdate();
     }
   };
 
@@ -275,6 +301,7 @@ const AdminTvGuidePage = () => {
     await supabase.from("tv_programs").delete().eq("channel_id", selectedChannel).eq("program_date", selectedDate);
     toast({ title: "Programação do dia excluída" });
     loadPrograms();
+    void broadcastGuideUpdate();
   };
 
   // AI Sync
@@ -290,6 +317,7 @@ const AdminTvGuidePage = () => {
         description: `${data.inserted || 0} programas inseridos para ${data.day || "hoje"} (${data.date})`,
       });
       loadPrograms();
+      void broadcastGuideUpdate();
     } catch (err: any) {
       toast({ title: "Erro na sincronização", description: err.message, variant: "destructive" });
     } finally {

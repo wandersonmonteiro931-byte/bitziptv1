@@ -176,16 +176,12 @@ const CreditsStorePage = () => {
       }
     };
 
-    const channel = supabase
-      .channel(`wmcplayer-credit-pix-${purchaseId}`)
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        applyConfirmationCommand((event as any)?.payload);
-      })
-      .subscribe();
+    const onFinanceCommand = (event: Event) => applyConfirmationCommand((event as CustomEvent)?.detail);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
 
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
     };
   }, [pixModal?.purchaseId, pixData, paymentConfirmed, applyProfilePatch, queryClient]);
 

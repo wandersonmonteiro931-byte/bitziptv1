@@ -262,15 +262,14 @@ const AdminIptvPage = () => {
       }
     };
 
-    const channel = supabase
-      .channel("wmcplayer-admin-finance")
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        applyAdminFinanceCommand((event as any)?.payload);
-      })
-      .subscribe();
+    const onFinanceCommand = (event: Event) => applyAdminFinanceCommand((event as CustomEvent)?.detail);
+    const onAdminRefresh = () => void loadData();
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
+    window.addEventListener("wmcplayer-admin-refresh", onAdminRefresh);
 
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
+      window.removeEventListener("wmcplayer-admin-refresh", onAdminRefresh);
     };
   }, []);
 

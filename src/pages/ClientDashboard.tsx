@@ -1058,14 +1058,14 @@ function PixModal({
     createCharge();
   }, []);
 
-  // Confirmação do PIX por ordem enviada pelo webhook/Edge Function.
-  // Não há polling nem consulta repetida ao Cloudflare/Supabase.
+  // Confirmação do PIX por ordem recebida pelo canal único do cliente.
+  // Não há polling nem um segundo canal exclusivo para o pagamento.
   useEffect(() => {
     if (!paymentId || paymentConfirmed) return;
 
     let active = true;
-
-    const applyPaymentCommand = (payload: any) => {
+    const onFinanceCommand = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
       if (!active || !payload) return;
       if (payload.payment_id !== paymentId) return;
       if (!["paid_pending_activation", "confirmed"].includes(String(payload.status || ""))) return;
@@ -1075,16 +1075,10 @@ function PixModal({
       dispatchFinanceUpdated(payload);
     };
 
-    const channel = supabase
-      .channel(`wmcplayer-pix-payment-${paymentId}`)
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        applyPaymentCommand((event as any)?.payload);
-      })
-      .subscribe();
-
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
     return () => {
       active = false;
-      supabase.removeChannel(channel);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
     };
   }, [paymentId, paymentConfirmed]);
 
@@ -1571,17 +1565,9 @@ const ClientDashboard = () => {
     window.addEventListener("wmcplayer-client-profile-update", onLocalProfileUpdate);
     window.addEventListener("storage", onStorageProfileUpdate);
 
-    const profileUpdateChannel = supabase
-      .channel(`wmcplayer-client-profile-${user.id}`)
-      .on("broadcast", { event: "client-profile-updated" }, (event) => {
-        applyProfileUpdatePayload((event as any)?.payload);
-      })
-      .subscribe();
-
     return () => {
       window.removeEventListener("wmcplayer-client-profile-update", onLocalProfileUpdate);
       window.removeEventListener("storage", onStorageProfileUpdate);
-      supabase.removeChannel(profileUpdateChannel);
     };
   }, [user?.id, applyProfilePatch]);
 
@@ -1607,15 +1593,11 @@ const ClientDashboard = () => {
       dispatchFinanceUpdated(payload);
     };
 
-    const financeChannel = supabase
-      .channel(`wmcplayer-finance-${user.id}`)
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        applyFinanceCommand((event as any)?.payload);
-      })
-      .subscribe();
+    const onFinanceCommand = (event: Event) => applyFinanceCommand((event as CustomEvent)?.detail);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
 
     return () => {
-      supabase.removeChannel(financeChannel);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
     };
   }, [user?.id, applyProfilePatch]);
 
@@ -1640,30 +1622,23 @@ const ClientDashboard = () => {
       }
     };
 
+    const onPlansCommand = (event: Event) => {
+      const pushedPlans = (event as CustomEvent)?.detail?.plans;
+      if (Array.isArray(pushedPlans) && pushedPlans.length > 0) {
+        applyPushedPlans(pushedPlans);
+        return;
+      }
+
+      const cached = readCachedRenewalPlans();
+      if (cached.length > 0) applyPushedPlans(cached);
+    };
+
     window.addEventListener("storage", onStoragePlansUpdate);
-
-    const planUpdateChannel = supabase
-      .channel("wmcplayer-renewal-plans-push")
-      .on("broadcast", { event: "renewal-plans-updated" }, (event) => {
-        const pushedPlans = (event as any)?.payload?.plans;
-        if (Array.isArray(pushedPlans) && pushedPlans.length > 0) {
-          applyPushedPlans(pushedPlans);
-          return;
-        }
-
-        const cached = readCachedRenewalPlans();
-        if (cached.length > 0) {
-          applyPushedPlans(cached);
-          return;
-        }
-
-        loadRenewalPlansOnce({ useCacheFallback: true });
-      })
-      .subscribe();
+    window.addEventListener("wmcplayer-renewal-plans-updated", onPlansCommand);
 
     return () => {
       window.removeEventListener("storage", onStoragePlansUpdate);
-      supabase.removeChannel(planUpdateChannel);
+      window.removeEventListener("wmcplayer-renewal-plans-updated", onPlansCommand);
     };
   }, [user?.id, user?.iptv_status, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
 

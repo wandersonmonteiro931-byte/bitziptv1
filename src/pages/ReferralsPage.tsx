@@ -27,19 +27,20 @@ const ReferralsPage = () => {
 
   useEffect(() => {
     if (!user) return;
-    loadReferrals();
+    void loadReferrals();
 
-    const channel = supabase
-      .channel(`referrals-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "referrals", filter: `referrer_id=eq.${user.id}` },
-        () => loadReferrals(),
-      )
-      .subscribe();
+    const onReferralCommand = () => void loadReferrals();
+    const onFinanceCommand = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
+      if (!payload?.user_id || payload.user_id === user.id) void loadReferrals();
+    };
+
+    window.addEventListener("wmcplayer-referrals-updated", onReferralCommand);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
 
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener("wmcplayer-referrals-updated", onReferralCommand);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
     };
   }, [user?.id]);
 

@@ -36,23 +36,9 @@ const HistoryPage = () => {
     void load();
     window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
 
-    const channel = supabase
-      .channel(`wmcplayer-finance-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "balance_history", filter: `user_id=eq.${user.id}` },
-        refresh,
-      )
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        const payload = (event as any)?.payload;
-        if (!payload?.user_id || payload.user_id === user.id) refresh();
-      })
-      .subscribe();
-
     return () => {
       if (timer) clearTimeout(timer);
       window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
-      supabase.removeChannel(channel);
     };
   }, [user?.id]);
 

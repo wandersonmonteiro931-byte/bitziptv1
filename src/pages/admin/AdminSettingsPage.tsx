@@ -445,32 +445,21 @@ const AdminSettingsPage = () => {
   };
 
   const sendRenewalPlansUpdateSignal = async (plans: RenewalPlanForm[]) => {
-    const channel = supabase.channel("wmcplayer-renewal-plans-push");
+    if (!user?.id) throw new Error("Administrador não identificado.");
 
-    try {
-      await new Promise<void>((resolve) => {
-        const timeout = window.setTimeout(() => resolve(), 1200);
-
-        channel.subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            window.clearTimeout(timeout);
-            resolve();
-          }
-        });
-      });
-
-      await channel.send({
-        type: "broadcast",
-        event: "renewal-plans-updated",
-        payload: {
-          sentAt: Date.now(),
-          plans,
+    const { data, error } = await supabase.functions.invoke("admin-manage-user", {
+      body: {
+        action: "broadcast_client_event",
+        user_id: user.id,
+        data: {
+          event: "renewal-plans-updated",
+          payload: { plans },
         },
-      });
-    } finally {
-      window.setTimeout(() => {
-        supabase.removeChannel(channel);
-      }, 500);
+      },
+    });
+
+    if (error || data?.error) {
+      throw new Error(data?.error || error?.message || "Não foi possível enviar os planos aos clientes.");
     }
   };
 

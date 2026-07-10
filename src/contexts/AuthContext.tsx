@@ -367,6 +367,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRole(null);
     setLoading(false);
+    try {
+      await supabase.removeAllChannels();
+    } catch {
+      // limpeza opcional; o signOut continua mesmo se o Realtime já estiver fechado
+    }
     await supabase.auth.signOut({ scope: "local" });
   };
 

@@ -2,17 +2,47 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+const APP_REALTIME_PREFIXES = [
+  "wmcplayer-client-",
+  "wmcplayer-admin",
+  "wmcplayer-finance-",
+  "wmcplayer-client-profile-",
+  "wmcplayer-pix-payment-",
+  "wmcplayer-credit-pix-",
+  "wmcplayer-renewal-plans-push",
+  "wmcplayer-admin-finance",
+  "global-announcements-realtime-",
+  "referrals-",
+  "admin-referrals-realtime",
+  "tv-realtime",
+];
+
+const dispatchAppEvent = (name: string, payload: any) => {
+  try {
+    window.dispatchEvent(new CustomEvent(name, { detail: payload }));
+  } catch {
+    // Evento local opcional.
+  }
+};
+
 /**
- * Recebe ordens financeiras enviadas pelas Edge Functions via Supabase Broadcast.
- * Não faz polling e não consulta o banco ao receber uma atualização.
+ * Mantém somente um canal Realtime aberto por sessão autenticada:
+ * - cliente: wmcplayer-client-<id>
+ * - admin:   wmcplayer-admin
+ *
+ * Não usa polling e não consulta banco ao receber ordens.
  */
 export function useRealtimeBalance() {
-  const { user, applyProfilePatch } = useAuth();
+  const { user, isAdmin, applyProfilePatch } = useAuth();
 
   useEffect(() => {
     if (!user?.id) return;
 
-    const applyCommand = (payload: any) => {
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const channelName = isAdmin ? "wmcplayer-admin" : `wmcplayer-client-${user.id}`;
+
+    const applyProfileCommand = (payload: any) => {
       if (!payload || (payload.user_id && payload.user_id !== user.id)) return;
 
       const patch: Record<string, any> = {
@@ -28,19 +58,72 @@ export function useRealtimeBalance() {
       if (Object.keys(patch).length > 0) applyProfilePatch(patch);
     };
 
-    const financeChannel = supabase
-      .channel(`wmcplayer-finance-${user.id}`)
-      .on("broadcast", { event: "finance-updated" }, (event) => applyCommand((event as any)?.payload))
-      .subscribe();
+    const receiveCommand = (message: any) => {
+      if (!active) return;
 
-    const profileChannel = supabase
-      .channel(`wmcplayer-client-profile-${user.id}`)
-      .on("broadcast", { event: "client-profile-updated" }, (event) => applyCommand((event as any)?.payload))
-      .subscribe();
+      const eventName = String(message?.event || message?.payload?.event || "command");
+      const payload = message?.payload ?? message;
+
+      if (!isAdmin && payload?.user_id && payload.user_id !== user.id) return;
+
+      if (eventName === "finance-updated" || eventName === "client-profile-updated") {
+        applyProfileCommand(payload);
+      }
+
+      dispatchAppEvent("wmcplayer-realtime-command", { event: eventName, payload });
+
+      switch (eventName) {
+        case "finance-updated":
+          dispatchAppEvent("wmcplayer-finance-updated", payload);
+          break;
+        case "client-profile-updated":
+          dispatchAppEvent("wmcplayer-client-profile-update", payload);
+          break;
+        case "renewal-plans-updated":
+          dispatchAppEvent("wmcplayer-renewal-plans-updated", payload);
+          break;
+        case "announcement-updated":
+          dispatchAppEvent("wmcplayer-announcement-updated", payload);
+          break;
+        case "referrals-updated":
+          dispatchAppEvent("wmcplayer-referrals-updated", payload);
+          break;
+        case "tv-guide-updated":
+          dispatchAppEvent("wmcplayer-tv-guide-updated", payload);
+          break;
+        case "trust-request-created":
+        case "admin-refresh":
+          dispatchAppEvent("wmcplayer-admin-refresh", payload);
+          break;
+        default:
+          break;
+      }
+    };
+
+    const startSingleChannel = async () => {
+      const oldChannels = supabase.getChannels().filter((existing) => {
+        const topic = String((existing as any)?.topic || "").replace(/^realtime:/, "");
+        return APP_REALTIME_PREFIXES.some((prefix) => topic.startsWith(prefix));
+      });
+
+      await Promise.all(oldChannels.map((existing) => supabase.removeChannel(existing)));
+      if (!active) return;
+
+      channel = supabase
+        .channel(channelName)
+        .on("broadcast", { event: "*" }, receiveCommand)
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn(`[Realtime] Falha no canal único ${channelName}:`, error || status);
+          }
+        });
+    };
+
+    void startSingleChannel();
 
     return () => {
-      supabase.removeChannel(financeChannel);
-      supabase.removeChannel(profileChannel);
+      active = false;
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [user?.id, applyProfilePatch]);
+  }, [user?.id, isAdmin, applyProfilePatch]);
 }

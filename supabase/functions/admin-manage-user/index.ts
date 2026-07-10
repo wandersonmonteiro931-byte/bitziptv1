@@ -47,63 +47,65 @@ const addMonthsToDateOnlyByFixedDay = (dateOnly: string, months: number, fixedDa
 
 const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
-const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, profilePatch: Record<string, any>) => {
-  try {
-    const channel = supabaseAdmin.channel(`wmcplayer-client-profile-${userId}`, {
-      config: { broadcast: { self: true } },
-    });
+const sendRealtimeBroadcast = async (_supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 
-    await channel.subscribe(async (status: string) => {
-      if (status === "SUBSCRIBED") {
-        await channel.send({
-          type: "broadcast",
-          event: "client-profile-updated",
-          payload: {
-            user_id: userId,
-            sentAt: Date.now(),
-            profile: profilePatch,
-          },
-        });
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Secrets do Supabase não configurados para Realtime REST.");
+  }
 
-        await supabaseAdmin.removeChannel(channel);
-      }
-    });
-  } catch (err) {
-    console.warn("Falha ao enviar broadcast de perfil:", err instanceof Error ? err.message : String(err));
+  const endpoint = `${supabaseUrl}/realtime/v1/api/broadcast/${encodeURIComponent(channelName)}/events/${encodeURIComponent(eventName)}`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Realtime REST ${response.status}: ${await response.text()}`);
   }
 };
 
-const sendRealtimeBroadcast = async (supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
-  await new Promise<void>((resolve) => {
-    let finished = false;
-    const channel = supabaseAdmin.channel(channelName, { config: { broadcast: { self: true } } });
+const sendRealtimeBatch = async (messages: Array<{ topic: string; event: string; payload: Record<string, any> }>) => {
+  if (!messages.length) return;
 
-    const finish = async () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timeout);
-      try {
-        await supabaseAdmin.removeChannel(channel);
-      } catch {
-        // limpeza opcional
-      }
-      resolve();
-    };
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
+  if (!supabaseUrl || !serviceKey) throw new Error("Secrets do Supabase não configurados para Realtime REST.");
 
-    const timeout = setTimeout(() => void finish(), 1800);
-
-    channel.subscribe(async (status: string) => {
-      if (status === "SUBSCRIBED") {
-        try {
-          await channel.send({ type: "broadcast", event: eventName, payload });
-        } finally {
-          await finish();
-        }
-      } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
-        await finish();
-      }
+  for (let index = 0; index < messages.length; index += 100) {
+    const batch = messages.slice(index, index + 100);
+    const response = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: "POST",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ messages: batch }),
     });
-  });
+
+    if (!response.ok) {
+      throw new Error(`Realtime REST batch ${response.status}: ${await response.text()}`);
+    }
+  }
+};
+
+const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, profilePatch: Record<string, any>) => {
+  try {
+    await sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-${userId}`, "client-profile-updated", {
+      user_id: userId,
+      sentAt: Date.now(),
+      profile: profilePatch,
+    });
+  } catch (err) {
+    console.warn("Falha ao enviar atualização de perfil:", err instanceof Error ? err.message : String(err));
+  }
 };
 
 const emitFinanceUpdated = async (supabaseAdmin: any, userId: string, payload: Record<string, any> = {}) => {
@@ -114,25 +116,13 @@ const emitFinanceUpdated = async (supabaseAdmin: any, userId: string, payload: R
   };
 
   const commands = [
-    sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-finance-${userId}`, "finance-updated", eventPayload),
-    sendRealtimeBroadcast(supabaseAdmin, "wmcplayer-admin-finance", "finance-updated", eventPayload),
+    sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-${userId}`, "finance-updated", eventPayload),
+    sendRealtimeBroadcast(supabaseAdmin, "wmcplayer-admin", "finance-updated", eventPayload),
   ];
-
-  if (payload.payment_id) {
-    commands.push(
-      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-pix-payment-${payload.payment_id}`, "finance-updated", eventPayload),
-    );
-  }
-
-  if (payload.purchase_id) {
-    commands.push(
-      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-credit-pix-${payload.purchase_id}`, "finance-updated", eventPayload),
-    );
-  }
 
   if (payload.profile_patch) {
     commands.push(
-      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-profile-${userId}`, "client-profile-updated", {
+      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-${userId}`, "client-profile-updated", {
         user_id: userId,
         sentAt: eventPayload.sentAt,
         profile: payload.profile_patch,
@@ -386,6 +376,18 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Ordem instantânea para o único canal administrativo compartilhado.
+      try {
+        await sendRealtimeBroadcast(supabaseAdmin, "wmcplayer-admin", "trust-request-created", {
+          request_id: createdTrustRequest.id,
+          user_id,
+          status: "pending",
+          requested_at: createdTrustRequest.requested_at,
+        });
+      } catch (realtimeErr) {
+        console.error("Falha ao avisar admin sobre confiança:", realtimeErr);
+      }
+
       // Notify admins via push
       try {
         const { data: userProfile } = await supabaseAdmin.from("profiles").select("name").eq("id", user_id).single();
@@ -461,6 +463,48 @@ Deno.serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    if (action === "broadcast_client_event") {
+      const eventName = String(data?.event || "").trim();
+      if (!eventName) {
+        return new Response(JSON.stringify({ error: "event é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let targetIds: string[] = Array.isArray(data?.target_ids)
+        ? data.target_ids.map((id: unknown) => String(id)).filter(Boolean)
+        : [];
+
+      if (targetIds.length === 0) {
+        const { data: clientRoles, error: roleError } = await supabaseAdmin
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "client");
+        if (roleError) throw new Error(roleError.message);
+        targetIds = ((clientRoles || []) as any[]).map((row) => String(row.user_id)).filter(Boolean);
+      }
+
+      const sentAt = Date.now();
+      const commandPayload = { sentAt, ...(data?.payload || {}) };
+      const messages: Array<{ topic: string; event: string; payload: Record<string, any> }> = targetIds.map((id) => ({
+        topic: `wmcplayer-client-${id}`,
+        event: eventName,
+        payload: { user_id: id, ...commandPayload },
+      }));
+      messages.push({
+        topic: "wmcplayer-admin",
+        event: eventName,
+        payload: commandPayload,
+      });
+
+      await sendRealtimeBatch(messages);
+
+      return new Response(JSON.stringify({ success: true, sent: targetIds.length }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!action || !user_id) {

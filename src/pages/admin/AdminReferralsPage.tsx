@@ -20,13 +20,14 @@ const AdminReferralsPage = () => {
   };
 
   useEffect(() => {
-    load();
-    const channel = supabase
-      .channel("admin-referrals-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "referrals" }, () => load())
-      .subscribe();
+    void load();
+    const onReferralCommand = () => void load();
+    const onFinanceCommand = () => void load();
+    window.addEventListener("wmcplayer-referrals-updated", onReferralCommand);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
     return () => {
-      supabase.removeChannel(channel);
+      window.removeEventListener("wmcplayer-referrals-updated", onReferralCommand);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
     };
   }, []);
 

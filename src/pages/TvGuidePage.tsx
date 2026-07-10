@@ -95,16 +95,14 @@ const TvGuidePage = () => {
     loadPrograms();
   }, []);
 
-  // Realtime
+  // Atualização por ordem do canal único; sem canal adicional e sem polling de rede.
   useEffect(() => {
-    const ch = supabase
-      .channel("tv-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tv_programs" }, () => loadPrograms())
-      .on("postgres_changes", { event: "*", schema: "public", table: "tv_channels" }, () => loadChannels())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
+    const onGuideCommand = () => {
+      void loadChannels();
+      void loadPrograms();
     };
+    window.addEventListener("wmcplayer-tv-guide-updated", onGuideCommand);
+    return () => window.removeEventListener("wmcplayer-tv-guide-updated", onGuideCommand);
   }, []);
 
   const loadChannels = async () => {

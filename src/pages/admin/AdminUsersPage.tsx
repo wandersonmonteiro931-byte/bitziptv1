@@ -318,16 +318,8 @@ const AdminUsersPage = () => {
     const onFinanceUpdate = (event: Event) => applyFinanceCommand((event as CustomEvent)?.detail);
     window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
 
-    const channel = supabase
-      .channel("wmcplayer-admin-finance")
-      .on("broadcast", { event: "finance-updated" }, (event) => {
-        applyFinanceCommand((event as any)?.payload);
-      })
-      .subscribe();
-
     return () => {
       window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
-      supabase.removeChannel(channel);
     };
   }, [showUserHistory?.id]);
 

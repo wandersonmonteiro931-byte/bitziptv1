@@ -329,61 +329,36 @@ function getAdminSupabase() {
   return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY")));
 }
 
-async function sendRealtimeBroadcast(adminSupa: any, channelName: string, eventName: string, payload: Record<string, any>) {
-  await new Promise<void>((resolve) => {
-    let finished = false;
-    const channel = adminSupa.channel(channelName, { config: { broadcast: { self: true } } });
+async function sendRealtimeBroadcast(_adminSupa: any, channelName: string, eventName: string, payload: Record<string, any>) {
+  const supabaseUrl = getEnv("SUPABASE_URL").replace(/\/$/, "");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const endpoint = `${supabaseUrl}/realtime/v1/api/broadcast/${encodeURIComponent(channelName)}/events/${encodeURIComponent(eventName)}`;
 
-    const finish = async () => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timeout);
-      try {
-        await adminSupa.removeChannel(channel);
-      } catch {
-        // limpeza opcional
-      }
-      resolve();
-    };
-
-    const timeout = setTimeout(() => void finish(), 1800);
-
-    channel.subscribe(async (status: string) => {
-      if (status === "SUBSCRIBED") {
-        try {
-          await channel.send({ type: "broadcast", event: eventName, payload });
-        } finally {
-          await finish();
-        }
-      } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
-        await finish();
-      }
-    });
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   });
+
+  if (!response.ok) {
+    throw new Error(`Realtime REST ${response.status}: ${await response.text()}`);
+  }
 }
 
 async function emitFinanceUpdated(adminSupa: any, userId: string, payload: Record<string, any> = {}) {
   const eventPayload = { user_id: userId, sentAt: Date.now(), ...payload };
   const commands = [
-    sendRealtimeBroadcast(adminSupa, `wmcplayer-finance-${userId}`, "finance-updated", eventPayload),
-    sendRealtimeBroadcast(adminSupa, "wmcplayer-admin-finance", "finance-updated", eventPayload),
+    sendRealtimeBroadcast(adminSupa, `wmcplayer-client-${userId}`, "finance-updated", eventPayload),
+    sendRealtimeBroadcast(adminSupa, "wmcplayer-admin", "finance-updated", eventPayload),
   ];
-
-  if (payload.payment_id) {
-    commands.push(
-      sendRealtimeBroadcast(adminSupa, `wmcplayer-pix-payment-${payload.payment_id}`, "finance-updated", eventPayload),
-    );
-  }
-
-  if (payload.purchase_id) {
-    commands.push(
-      sendRealtimeBroadcast(adminSupa, `wmcplayer-credit-pix-${payload.purchase_id}`, "finance-updated", eventPayload),
-    );
-  }
 
   if (payload.profile_patch) {
     commands.push(
-      sendRealtimeBroadcast(adminSupa, `wmcplayer-client-profile-${userId}`, "client-profile-updated", {
+      sendRealtimeBroadcast(adminSupa, `wmcplayer-client-${userId}`, "client-profile-updated", {
         user_id: userId,
         sentAt: eventPayload.sentAt,
         profile: payload.profile_patch,

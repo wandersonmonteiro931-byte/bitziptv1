@@ -1,0 +1,66 @@
+ATUALIZAÇÃO: 1 CANAL REALTIME POR CLIENTE E 1 CANAL ADMIN
+
+BASE USADA:
+bitziptv1-vencimento-previsto-mais-meses-corrigido.zip
+
+O QUE FOI FEITO:
+1. Cliente agora abre somente:
+   wmcplayer-client-<ID_DO_CLIENTE>
+2. Admin agora abre somente:
+   wmcplayer-admin
+3. Todos os canais separados de PIX, perfil, financeiro, planos, créditos, histórico, indicações e programação foram removidos do front-end.
+4. Todas as páginas recebem ordens por eventos locais distribuídos pelo canal único.
+5. Canais antigos são removidos antes de abrir o canal correto.
+6. O canal é removido ao trocar de página, sair ou deslogar.
+7. Mudança de saldo, perfil ou status não recria o canal.
+8. Edge Functions não abrem mais WebSocket para enviar Broadcast.
+9. pix-efi e admin-manage-user enviam ordens pela API REST do Supabase Realtime.
+10. Planos de renovação agora são enviados pelo admin através da Edge Function, sem criar canal temporário no navegador.
+11. Programação da TV recebe ordem pelo mesmo canal único.
+12. Não foi adicionado polling, consulta contínua ou setInterval de rede.
+
+CANAIS ANTIGOS REMOVIDOS:
+- wmcplayer-finance-<id>
+- wmcplayer-client-profile-<id>
+- wmcplayer-pix-payment-<id>
+- wmcplayer-credit-pix-<id>
+- wmcplayer-admin-finance
+- wmcplayer-renewal-plans-push
+- tv-realtime
+- referrals-<id>
+- admin-referrals-realtime
+- global-announcements-realtime-<id>
+
+ARQUIVOS PRINCIPAIS ALTERADOS:
+- src/hooks/useRealtimeBalance.ts
+- src/contexts/AuthContext.tsx
+- src/pages/ClientDashboard.tsx
+- src/pages/HistoryPage.tsx
+- src/pages/CreditsStorePage.tsx
+- src/pages/ReferralsPage.tsx
+- src/components/GlobalAnnouncementPopup.tsx
+- src/pages/TvGuidePage.tsx
+- src/pages/admin/AdminIptvPage.tsx
+- src/pages/admin/AdminUsersPage.tsx
+- src/pages/admin/iptv/ClientEditPanel.tsx
+- src/pages/admin/AdminReferralsPage.tsx
+- src/pages/admin/AdminSettingsPage.tsx
+- src/pages/admin/AdminTvGuidePage.tsx
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a publicação no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+O PASSO 5 É OBRIGATÓRIO:
+As Edge Functions pix-efi e admin-manage-user foram alteradas.
+
+VALIDAÇÃO REALIZADA:
+- sintaxe TypeScript/TSX validada em todos os arquivos alterados
+- validação individual com esbuild concluída
+- somente uma chamada supabase.channel() permanece em todo o front-end
+- nenhuma Edge Function mantém subscribe() ou WebSocket Realtime para enviar ordens

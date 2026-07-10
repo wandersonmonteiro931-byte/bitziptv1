@@ -140,16 +140,9 @@ export function GlobalAnnouncementPopup() {
       loadAnnouncements();
     }
 
-    const channel = supabase
-      .channel(`global-announcements-realtime-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, () => {
-        // Não abre automaticamente. Novo aviso aparece somente no próximo reload.
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Nenhum canal extra é criado aqui. Avisos novos aparecem no próximo reload,
+    // conforme a regra do aplicativo, usando o canal único apenas quando houver ordem.
+    return undefined;
   }, [loadAnnouncements, user?.id, isAdmin]);
 
   const dismiss = async () => {

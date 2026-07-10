@@ -257,39 +257,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     const onFinanceUpdate = (event: Event) => refreshFinance((event as CustomEvent)?.detail);
     window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
 
-    const channel = supabase
-      .channel("wmcplayer-admin-finance")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "iptv_payments", filter: `user_id=eq.${user.id}` },
-        (payload) => refreshFinance({ user_id: user.id, source: "iptv_payments", row: (payload as any)?.new || (payload as any)?.old }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "balance_history", filter: `user_id=eq.${user.id}` },
-        (payload) => refreshFinance({ user_id: user.id, source: "balance_history", row: (payload as any)?.new || (payload as any)?.old }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "admin_audit_logs", filter: `target_id=eq.${user.id}` },
-        () => { if (tab === "history") void loadLogs(true); },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
-        (payload) => {
-          const next = (payload as any)?.new;
-          if (next) setForm((current) => ({ ...current, ...next }));
-          refreshFinance({ user_id: user.id, source: "profiles" });
-        },
-      )
-      .on("broadcast", { event: "finance-updated" }, (event) => refreshFinance((event as any)?.payload))
-      .subscribe();
-
     return () => {
       if (timer) clearTimeout(timer);
       window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
-      supabase.removeChannel(channel);
     };
   }, [user.id, tab, loadPayments, loadScheduledRates, loadLogs, onSaved]);
 
