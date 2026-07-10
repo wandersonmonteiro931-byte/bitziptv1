@@ -39,6 +39,13 @@ export interface Profile {
   iptv_password: string;
   admin_notes: string;
   admin_notes_urgent: boolean;
+  trial_enabled: boolean;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  trial_duration_days: number | null;
+  trial_expired_at: string | null;
+  trial_expired_notice_sent_at: string | null;
+  trial_payment_confirmed: boolean;
 }
 
 export interface LoginResult {

@@ -23,6 +23,18 @@ const brDateOnly = (date = new Date()) => {
 
 const roundMoney = (v: number) => Math.round(v * 100) / 100;
 
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const base = new Date(year, (month || 1) - 1, day || 1);
+  base.setDate(base.getDate() + Number(days || 0));
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
 const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, profilePatch: Record<string, any>) => {
   try {
     const channel = supabaseAdmin.channel(`wmcplayer-client-profile-${userId}`, {
@@ -122,6 +134,78 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // client_check_trial_status — called by the logged client.
+    // Automatically blocks expired trial users and sends the final warning push once.
+    if (action === "client_check_trial_status") {
+      if (!user_id || user_id !== caller.id) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const today = brDateOnly(new Date());
+
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("id, name, trial_enabled, trial_ends_at, trial_expired_at, trial_expired_notice_sent_at, trial_payment_confirmed, iptv_status")
+        .eq("id", user_id)
+        .maybeSingle();
+
+      const expired =
+        Boolean(profile?.trial_enabled) &&
+        !profile?.trial_payment_confirmed &&
+        Boolean(profile?.trial_ends_at) &&
+        String(profile?.trial_ends_at) < today;
+
+      if (!expired) {
+        return new Response(JSON.stringify({ success: true, expired: false }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const updatePayload: Record<string, any> = {
+        iptv_status: "blocked",
+        trial_expired_at: profile?.trial_expired_at || new Date().toISOString(),
+      };
+
+      if (!profile?.trial_expired_notice_sent_at) {
+        updatePayload.trial_expired_notice_sent_at = new Date().toISOString();
+      }
+
+      await supabaseAdmin.from("profiles").update(updatePayload).eq("id", user_id);
+
+      // Notificação automática ao cliente quando o teste termina.
+      // Se Push estiver configurado, envia. Mesmo sem push, o app mostra o aviso sempre que entrar.
+      if (!profile?.trial_expired_notice_sent_at) {
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": supabaseServiceKey },
+            body: JSON.stringify({
+              action: "send_to_user",
+              user_id,
+              title: "TESTE FINALIZADO",
+              body: `Olá ${profile?.name || ""}! Seu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
+              url: "/dashboard#gerar-pix",
+            }),
+          });
+        } catch (pushErr) {
+          console.error("Falha ao enviar push de teste finalizado:", pushErr);
+        }
+      }
+
+      await emitClientProfileUpdated(supabaseAdmin, user_id, {
+        iptv_status: "blocked",
+        trial_expired_at: updatePayload.trial_expired_at,
+        trial_expired_notice_sent_at: updatePayload.trial_expired_notice_sent_at,
+      });
+
+      return new Response(JSON.stringify({ success: true, expired: true, blocked: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -243,6 +327,29 @@ Deno.serve(async (req) => {
           updateData.billing_due_date_id = null;
         }
 
+        if (updateData.trial_enabled !== undefined) {
+          updateData.trial_enabled = Boolean(updateData.trial_enabled);
+          if (updateData.trial_enabled) {
+            const duration = Math.max(1, Math.min(365, Number(updateData.trial_duration_days || 1)));
+            updateData.trial_duration_days = duration;
+            updateData.trial_started_at = updateData.trial_started_at || brDateOnly(new Date());
+            updateData.trial_ends_at = isDateOnly(updateData.trial_ends_at)
+              ? String(updateData.trial_ends_at)
+              : addDaysToDateOnly(updateData.trial_started_at, duration);
+            updateData.trial_payment_confirmed = Boolean(updateData.trial_payment_confirmed || false);
+            if (updateData.iptv_status === "blocked" && String(updateData.trial_ends_at) >= brDateOnly(new Date())) {
+              updateData.iptv_status = "active";
+            }
+          } else {
+            updateData.trial_duration_days = null;
+            updateData.trial_started_at = null;
+            updateData.trial_ends_at = null;
+            updateData.trial_expired_at = null;
+            updateData.trial_expired_notice_sent_at = null;
+            updateData.trial_payment_confirmed = false;
+          }
+        }
+
         // REGRA FIXA: username/login sempre igual ao Usuário TV.
         if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
           const loginIdentifier = updateData.iptv_user.trim();
@@ -354,6 +461,10 @@ Deno.serve(async (req) => {
           iptv_monthly_value: updateData.iptv_monthly_value,
           iptv_connections: updateData.iptv_connections,
           iptv_status: updateData.iptv_status,
+          trial_enabled: updateData.trial_enabled,
+          trial_ends_at: updateData.trial_ends_at,
+          trial_expired_at: updateData.trial_expired_at,
+          trial_payment_confirmed: updateData.trial_payment_confirmed,
         });
 
         // When admin activates a user (sets status to active), also confirm pending activation payments
@@ -363,6 +474,15 @@ Deno.serve(async (req) => {
             .update({ status: "confirmed", admin_id: caller.id })
             .eq("user_id", user_id)
             .eq("status", "paid_pending_activation");
+
+          await supabaseAdmin
+            .from("profiles")
+            .update({
+              trial_payment_confirmed: true,
+              trial_expired_at: null,
+            })
+            .eq("id", user_id)
+            .eq("trial_enabled", true);
         }
 
         // Send push notification ONLY when the status actually changed (not on regular edits)

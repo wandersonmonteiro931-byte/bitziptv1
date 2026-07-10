@@ -1,0 +1,40 @@
+ATUALIZAÇÃO: USUÁRIO DE TESTE COM BLOQUEIO AUTOMÁTICO
+
+BASE USADA:
+bitziptv1-planos-1-linha-brilho-movimento.zip
+
+O QUE FOI ADICIONADO:
+1. Ao criar usuário novo, o admin pode marcar "Criar como teste".
+2. O admin define quantos dias o teste vai durar.
+3. O admin também pode definir manualmente a data final do teste.
+4. Quando o teste acabar, o app verifica automaticamente ao entrar.
+5. Se o teste acabou, o cliente é bloqueado.
+6. O aviso "TESTE FINALIZADO..." aparece sempre que o cliente entrar no app enquanto não pagar.
+7. O sistema tenta enviar notificação push automática ao cliente quando o teste termina.
+8. O cliente continua bloqueado até pagar e o admin ativar/liberar.
+9. Ao admin ativar o cliente após pagamento, o teste fica marcado como pago/confirmado.
+
+ARQUIVOS ALTERADOS:
+- src/pages/admin/AdminUsersPage.tsx
+- src/pages/ClientDashboard.tsx
+- src/contexts/AuthContext.tsx
+- supabase/functions/admin-create-user/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+NOVO SQL:
+- SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. No Supabase SQL Editor, rode:
+   SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql
+3. Abra a pasta bitziptv1-main.
+4. Clique em:
+   ATUALIZAR_GITHUB_AGORA.bat
+5. Aguarde publicar no Cloudflare.
+6. Depois rode:
+   CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat
+
+IMPORTANTE:
+O SQL é obrigatório antes de criar usuário de teste, porque ele cria os campos:
+trial_enabled, trial_ends_at, trial_duration_days, trial_expired_at e outros.

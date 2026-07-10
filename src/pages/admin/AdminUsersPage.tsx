@@ -75,6 +75,16 @@ const getDayFromDateOnly = (value: string) => {
   return Math.max(1, Math.min(31, day));
 };
 
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const base = new Date(year, (month || 1) - 1, day || 1);
+  base.setDate(base.getDate() + Number(days || 0));
+  const offset = base.getTimezoneOffset();
+  return new Date(base.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getTrialEndDate = (days: number) => addDaysToDateOnly(getTodayDateOnly(), Math.max(1, Number(days || 1)));
+
 
 const broadcastClientProfileUpdate = (userId: string, payload: Record<string, any>) => {
   const data = {
@@ -190,6 +200,9 @@ const AdminUsersPage = () => {
     billing_due_date_id: "",
     billing_proportional_enabled: false,
     iptv_due_day: 10,
+    trial_enabled: false,
+    trial_duration_days: 1,
+    trial_ends_at: "",
   });
   const [creating, setCreating] = useState(false);
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
@@ -287,6 +300,11 @@ const AdminUsersPage = () => {
         iptv_user: loginUser,
         iptv_due_day: form.iptv_expiry ? getDayFromDateOnly(form.iptv_expiry) : Number((form as any).iptv_due_day || 10),
         billing_due_date_id: form.billing_due_date_id || undefined,
+        trial_enabled: Boolean((form as any).trial_enabled),
+        trial_duration_days: Number((form as any).trial_duration_days || 1),
+        trial_ends_at: (form as any).trial_enabled
+          ? ((form as any).trial_ends_at || getTrialEndDate(Number((form as any).trial_duration_days || 1)))
+          : null,
         referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined,
       },
     });
@@ -313,6 +331,9 @@ const AdminUsersPage = () => {
         billing_due_date_id: "",
         billing_proportional_enabled: false,
         iptv_due_day: 10,
+        trial_enabled: false,
+        trial_duration_days: 1,
+        trial_ends_at: "",
       });
       loadUsers();
     }
@@ -727,6 +748,61 @@ const AdminUsersPage = () => {
                     </span>
                   </span>
                 </label>
+
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean((form as any).trial_enabled)}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          trial_enabled: e.target.checked,
+                          trial_ends_at: e.target.checked ? ((form as any).trial_ends_at || getTrialEndDate(Number((form as any).trial_duration_days || 1))) : "",
+                        } as any)
+                      }
+                      className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-amber-300">Criar como teste</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        Ao terminar o teste, o cliente recebe aviso automático e fica bloqueado até pagar.
+                      </span>
+                    </span>
+                  </label>
+
+                  {Boolean((form as any).trial_enabled) && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Duração do teste (dias)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={(form as any).trial_duration_days}
+                          onChange={(e) => {
+                            const days = Math.max(1, Number(e.target.value || 1));
+                            setForm({
+                              ...form,
+                              trial_duration_days: days,
+                              trial_ends_at: getTrialEndDate(days),
+                            } as any);
+                          }}
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Termina em</label>
+                        <input
+                          type="date"
+                          value={(form as any).trial_ends_at || getTrialEndDate(Number((form as any).trial_duration_days || 1))}
+                          onChange={(e) => setForm({ ...form, trial_ends_at: e.target.value } as any)}
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label className="mb-1 block text-xs text-muted-foreground">Função</label>
                   <select

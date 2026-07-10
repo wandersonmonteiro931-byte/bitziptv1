@@ -20,6 +20,18 @@ const brDateOnly = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const base = new Date(year, (month || 1) - 1, day || 1);
+  base.setDate(base.getDate() + Number(days || 0));
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -88,6 +100,9 @@ Deno.serve(async (req) => {
       admin_notes,
       billing_due_date_id,
       billing_proportional_enabled,
+      trial_enabled,
+      trial_duration_days,
+      trial_ends_at,
     } = body;
 
     if (!name || !username) {
@@ -214,6 +229,13 @@ Deno.serve(async (req) => {
     // O primeiro proporcional começa no dia do cadastro do usuário em data comercial do Brasil.
     const calculatedExpiry = explicitExpiry || makeDueDate(new Date(billingStart + "T00:00:00"), selectedDueDay);
 
+    const trialEnabled = Boolean(trial_enabled);
+    const trialDurationDays = Math.max(1, Math.min(365, Number(trial_duration_days || 1)));
+    const trialStartedAt = trialEnabled ? billingStart : null;
+    const trialEndsAt = trialEnabled
+      ? (isDateOnly(trial_ends_at) ? String(trial_ends_at) : addDaysToDateOnly(billingStart, trialDurationDays))
+      : null;
+
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
@@ -232,6 +254,13 @@ Deno.serve(async (req) => {
       iptv_connections: iptv_connections || 1,
       iptv_monthly_value: iptv_monthly_value || 0,
       iptv_status: iptv_status || "active",
+      trial_enabled: trialEnabled,
+      trial_duration_days: trialEnabled ? trialDurationDays : null,
+      trial_started_at: trialStartedAt,
+      trial_ends_at: trialEndsAt,
+      trial_expired_at: null,
+      trial_expired_notice_sent_at: null,
+      trial_payment_confirmed: false,
       referred_by: referredById,
       admin_notes: admin_notes || "",
     });
@@ -287,7 +316,7 @@ Deno.serve(async (req) => {
       action: "create_user",
       target_table: "profiles",
       target_id: userId,
-      details: { name, username: loginIdentifier, role: userRole, referred_by_code: cleanReferredCode || null },
+      details: { name, username: loginIdentifier, role: userRole, referred_by_code: cleanReferredCode || null, trial_enabled: trialEnabled, trial_ends_at: trialEndsAt },
     });
 
     const { data: createdProfile } = await supabaseAdmin

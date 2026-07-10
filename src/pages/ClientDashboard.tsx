@@ -1334,6 +1334,7 @@ const ClientDashboard = () => {
     bannerUrl?: string;
     imageOnly?: boolean;
   } | null>(null);
+  const [trialExpiredNoticeOpen, setTrialExpiredNoticeOpen] = useState(false);
   const [renewalDiscount3mPercent, setRenewalDiscount3mPercent] = useState(5);
   const [renewalDiscount6mPercent, setRenewalDiscount6mPercent] = useState(10);
   const [renewalPlans, setRenewalPlans] = useState<RenewalPlanCard[]>([]);
@@ -1353,6 +1354,30 @@ const ClientDashboard = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const expiredLocally = isTrialExpiredNow() || ((user as any).iptv_status === "blocked" && Boolean((user as any).trial_enabled) && Boolean((user as any).trial_expired_at));
+
+    if (expiredLocally) {
+      setTrialExpiredNoticeOpen(true);
+    }
+
+    supabase.functions
+      .invoke("admin-manage-user", {
+        body: { action: "client_check_trial_status", user_id: user.id, data: {} },
+      })
+      .then((res: any) => {
+        if (res?.data?.expired) {
+          setTrialExpiredNoticeOpen(true);
+          refreshProfile();
+        }
+      })
+      .catch(() => {
+        // Se a função falhar, o aviso local ainda aparece quando o perfil já estiver vencido.
+      });
+  }, [user?.id, user?.trial_enabled, user?.trial_ends_at, (user as any)?.trial_expired_at, (user as any)?.trial_payment_confirmed, user?.iptv_status, isTrialExpiredNow, refreshProfile]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -1375,6 +1400,18 @@ const ClientDashboard = () => {
       setTimeout(done, timeoutMs);
     });
   }, []);
+
+  const isTrialExpiredNow = useCallback(() => {
+    const profile: any = user;
+    if (!profile?.trial_enabled || profile?.trial_payment_confirmed) return false;
+    if (!profile?.trial_ends_at) return false;
+    return String(profile.trial_ends_at).slice(0, 10) < toBrazilDateOnlyString(new Date());
+  }, [user]);
+
+  const trialFinalMessage = {
+    title: "TESTE FINALIZADO...",
+    body: `Olá ${user?.name || "cliente"}!\nSeu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
+  };
 
   const normalizeRenewalPlans = useCallback((rows: any[] = []) => {
     return rows.map((plan) => ({
@@ -2465,6 +2502,38 @@ const ClientDashboard = () => {
                   {cancelRequesting ? "Enviando..." : "Confirmar"}
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Trial Expired Modal */}
+        {trialExpiredNoticeOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[210] flex items-center justify-center bg-black/70 backdrop-blur-md px-5"
+            onClick={() => setTrialExpiredNoticeOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 18 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 18 }}
+              className="w-full max-w-md rounded-3xl border border-white/10 bg-[#111111] p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-display text-xl font-extrabold uppercase tracking-[-0.03em] text-white">
+                {trialFinalMessage.title}
+              </h3>
+              <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-white/70">
+                {trialFinalMessage.body}
+              </p>
+              <button
+                onClick={() => setTrialExpiredNoticeOpen(false)}
+                className="mt-6 w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-[0_14px_40px_rgba(255,0,0,0.22)]"
+              >
+                Entendi
+              </button>
             </motion.div>
           </motion.div>
         )}
