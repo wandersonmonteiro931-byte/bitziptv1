@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
 
       const { data: profile } = await supabaseAdmin
         .from("profiles")
-        .select("id, name, trial_enabled, trial_ends_at, trial_expired_at, trial_expired_notice_sent_at, trial_payment_confirmed, iptv_status")
+        .select("id, name, trial_enabled, trial_ends_at, trial_expired_at, trial_expired_notice_sent_at, trial_payment_confirmed, iptv_status, iptv_expiry")
         .eq("id", user_id)
         .maybeSingle();
 
@@ -163,6 +163,26 @@ Deno.serve(async (req) => {
         String(profile?.trial_ends_at) < today;
 
       if (!expired) {
+        if (profile?.trial_enabled && !profile?.trial_payment_confirmed && profile?.trial_ends_at) {
+          await supabaseAdmin
+            .from("profiles")
+            .update({
+              iptv_status: "active",
+              iptv_expiry: String(profile.trial_ends_at),
+              iptv_due_day: Math.max(1, Math.min(31, Number(String(profile.trial_ends_at).split("-")[2] || 10))),
+              billing_due_date_id: null,
+              trial_expired_at: null,
+            })
+            .eq("id", user_id);
+
+          await emitClientProfileUpdated(supabaseAdmin, user_id, {
+            iptv_status: "active",
+            iptv_expiry: String(profile.trial_ends_at),
+            trial_ends_at: profile.trial_ends_at,
+            trial_expired_at: null,
+          });
+        }
+
         return new Response(JSON.stringify({ success: true, expired: false }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -336,10 +356,19 @@ Deno.serve(async (req) => {
             updateData.trial_ends_at = isDateOnly(updateData.trial_ends_at)
               ? String(updateData.trial_ends_at)
               : addDaysToDateOnly(updateData.trial_started_at, duration);
-            updateData.trial_payment_confirmed = Boolean(updateData.trial_payment_confirmed || false);
-            if (updateData.iptv_status === "blocked" && String(updateData.trial_ends_at) >= brDateOnly(new Date())) {
-              updateData.iptv_status = "active";
-            }
+
+            const trialEndDate = String(updateData.trial_ends_at);
+            const trialFinished = trialEndDate < brDateOnly(new Date());
+
+            // Quando o admin coloca como teste, a validade antiga é ignorada.
+            // A data final do teste passa a mandar em todo o app.
+            updateData.iptv_expiry = trialEndDate;
+            updateData.iptv_due_day = Math.max(1, Math.min(31, Number(trialEndDate.split("-")[2] || 10)));
+            updateData.billing_due_date_id = null;
+            updateData.trial_payment_confirmed = false;
+            updateData.iptv_status = trialFinished ? "blocked" : "active";
+            updateData.trial_expired_at = trialFinished ? (updateData.trial_expired_at || new Date().toISOString()) : null;
+            updateData.trial_expired_notice_sent_at = trialFinished ? updateData.trial_expired_notice_sent_at : null;
           } else {
             updateData.trial_duration_days = null;
             updateData.trial_started_at = null;

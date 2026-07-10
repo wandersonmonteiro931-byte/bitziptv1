@@ -235,6 +235,10 @@ Deno.serve(async (req) => {
     const trialEndsAt = trialEnabled
       ? (isDateOnly(trial_ends_at) ? String(trial_ends_at) : addDaysToDateOnly(billingStart, trialDurationDays))
       : null;
+    const trialFinished = Boolean(trialEndsAt) && String(trialEndsAt) < billingStart;
+    const effectiveExpiry = trialEnabled && trialEndsAt ? trialEndsAt : calculatedExpiry;
+    const effectiveDueDay = Math.max(1, Math.min(31, Number(String(effectiveExpiry).split("-")[2] || selectedDueDay || 10)));
+    const effectiveIptvStatus = trialEnabled ? (trialFinished ? "blocked" : "active") : (iptv_status || "active");
 
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
@@ -245,20 +249,20 @@ Deno.serve(async (req) => {
       iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
-      iptv_expiry: calculatedExpiry,
-      billing_due_date_id: billingDueDateId,
+      iptv_expiry: effectiveExpiry,
+      billing_due_date_id: trialEnabled ? null : billingDueDateId,
       billing_cycle_started_at: billingStart,
       billing_first_cycle_paid: false,
       billing_proportional_enabled: Boolean(billing_proportional_enabled),
-      iptv_due_day: selectedDueDay,
+      iptv_due_day: effectiveDueDay,
       iptv_connections: iptv_connections || 1,
       iptv_monthly_value: iptv_monthly_value || 0,
-      iptv_status: iptv_status || "active",
+      iptv_status: effectiveIptvStatus,
       trial_enabled: trialEnabled,
       trial_duration_days: trialEnabled ? trialDurationDays : null,
       trial_started_at: trialStartedAt,
       trial_ends_at: trialEndsAt,
-      trial_expired_at: null,
+      trial_expired_at: trialFinished ? new Date().toISOString() : null,
       trial_expired_notice_sent_at: null,
       trial_payment_confirmed: false,
       referred_by: referredById,

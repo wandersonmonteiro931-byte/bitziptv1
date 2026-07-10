@@ -136,12 +136,14 @@ const prepareTrialPayload = (payload: any) => {
     next.trial_started_at = startedAt;
     next.trial_ends_at = endsAt;
     next.trial_payment_confirmed = false;
-    next.iptv_status = finished ? "blocked" : "active";
 
-    if (!finished) {
-      next.trial_expired_at = null;
-      next.trial_expired_notice_sent_at = null;
-    }
+    // Quando vira teste, a validade antiga fica oculta e a data do teste manda em todo o app.
+    next.iptv_expiry = endsAt;
+    next.iptv_due_day = getDayFromDateOnly(endsAt);
+    next.billing_due_date_id = null;
+    next.iptv_status = finished ? "blocked" : "active";
+    next.trial_expired_at = finished ? (next.trial_expired_at || new Date().toISOString()) : null;
+    next.trial_expired_notice_sent_at = finished ? next.trial_expired_notice_sent_at : null;
   } else if (next.trial_enabled === false) {
     // Ao desmarcar teste no admin, o cliente vira efetivo sem apagar histórico financeiro.
     next.trial_payment_confirmed = true;
@@ -1508,19 +1510,37 @@ const AdminUsersPage = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Validade</label>
-                      <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
-                        <p className="text-sm font-semibold text-red-300">Todo dia {getEditBillingDay()}</p>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground">
-                          Próxima cobrança:{" "}
-                          {editForm.iptv_expiry
-                            ? editForm.iptv_expiry.split("-").reverse().join("/")
-                            : "calculada automaticamente"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          Bloqueio após {getEditBillingGraceDays()} dia(s) corridos de atraso.
-                        </p>
-                      </div>
+                      <label className="mb-1 block text-xs text-muted-foreground">
+                        {editForm.trial_enabled ? "Validade do Teste" : "Validade"}
+                      </label>
+                      {editForm.trial_enabled ? (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                          <p className="text-sm font-semibold text-amber-300">
+                            {editForm.trial_ends_at
+                              ? editForm.trial_ends_at.split("-").reverse().join("/")
+                              : "Defina a data final do teste"}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                            A validade antiga fica oculta. O sistema passa a considerar somente a data final do teste.
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Status: {prepareTrialPayload(editForm).iptv_status === "blocked" ? "TESTE FINALIZADO · Bloqueado" : "TESTE ATIVO"}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2">
+                          <p className="text-sm font-semibold text-red-300">Todo dia {getEditBillingDay()}</p>
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                            Próxima cobrança:{" "}
+                            {editForm.iptv_expiry
+                              ? editForm.iptv_expiry.split("-").reverse().join("/")
+                              : "calculada automaticamente"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Bloqueio após {getEditBillingGraceDays()} dia(s) corridos de atraso.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1641,6 +1661,9 @@ const AdminUsersPage = () => {
                           trial_payment_confirmed: enabled ? false : true,
                           trial_started_at: enabled ? (editForm.trial_started_at || getTodayDateOnly()) : editForm.trial_started_at,
                           trial_ends_at: enabled ? (editForm.trial_ends_at || getTrialEndDate(duration)) : editForm.trial_ends_at,
+                          iptv_expiry: enabled ? (editForm.trial_ends_at || getTrialEndDate(duration)) : editForm.iptv_expiry,
+                          iptv_due_day: enabled ? getDayFromDateOnly(editForm.trial_ends_at || getTrialEndDate(duration)) : editForm.iptv_due_day,
+                          billing_due_date_id: enabled ? null : editForm.billing_due_date_id,
                           iptv_status: enabled ? "active" : editForm.iptv_status,
                         });
                       }}
@@ -1670,6 +1693,9 @@ const AdminUsersPage = () => {
                               trial_duration_days: days,
                               trial_started_at: editForm.trial_started_at || getTodayDateOnly(),
                               trial_ends_at: getTrialEndDate(days),
+                              iptv_expiry: getTrialEndDate(days),
+                              iptv_due_day: getDayFromDateOnly(getTrialEndDate(days)),
+                              billing_due_date_id: null,
                               iptv_status: "active",
                             });
                           }}
@@ -1700,6 +1726,9 @@ const AdminUsersPage = () => {
                             setEditForm({
                               ...editForm,
                               trial_ends_at: e.target.value,
+                              iptv_expiry: e.target.value,
+                              iptv_due_day: e.target.value ? getDayFromDateOnly(e.target.value) : editForm.iptv_due_day,
+                              billing_due_date_id: null,
                               iptv_status: finished ? "blocked" : "active",
                             });
                           }}

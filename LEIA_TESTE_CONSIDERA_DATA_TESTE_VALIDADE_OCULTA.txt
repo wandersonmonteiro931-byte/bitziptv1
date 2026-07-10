@@ -1,0 +1,39 @@
+CORREÇÃO: QUANDO COLOCAR COMO TESTE, A DATA DO TESTE MANDA NO APP
+
+BASE USADA:
+bitziptv1-admin-users-efetivo-como-teste.zip
+
+O QUE FOI CORRIGIDO:
+1. Ao marcar um usuário efetivo como teste, a validade antiga fica oculta na edição.
+2. O sistema passa a considerar a data final do teste como a nova validade do cliente.
+3. Ao salvar como teste, atualiza:
+   - iptv_expiry = data final do teste
+   - iptv_due_day = dia da data final do teste
+   - billing_due_date_id = null
+   - iptv_status = active se o teste ainda está válido
+   - iptv_status = blocked se o teste já finalizou
+4. O painel do cliente não deve mais ficar bloqueado por atraso antigo quando o teste ainda está ativo.
+5. Se o cliente entrar e ainda estiver dentro do teste, o app reforça:
+   - status ativo
+   - validade igual à data final do teste
+6. Se o teste já terminou, fica:
+   - TESTE FINALIZADO
+   - bloqueado até pagar
+7. Ao criar usuário novo como teste, a validade também passa a ser a data final do teste.
+8. Histórico do usuário não é apagado.
+
+ARQUIVOS ALTERADOS:
+- src/pages/admin/AdminUsersPage.tsx
+- supabase/functions/admin-manage-user/index.ts
+- supabase/functions/admin-create-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+Não precisa rodar novo SQL se você já rodou SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql.
+Precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque foram alteradas Edge Functions.
