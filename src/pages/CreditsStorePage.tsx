@@ -123,7 +123,7 @@ const CreditsStorePage = () => {
             body: JSON.stringify({
               purchase_id: purchaseId,
               amount: data.price,
-              descricao: `Compra de ${data.total_credits} créditos - Bitz TV`,
+              descricao: `Compra de ${data.total_credits} créditos - WMCPLAYER`,
             }),
           }
         );

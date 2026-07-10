@@ -8,7 +8,7 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
   const [requesting, setRequesting] = useState(false);
   const [notificationSupported, setNotificationSupported] = useState(true);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz TV";
+  const appTitle = appName || "WMCPLAYER";
   const appTitleUpper = appTitle.toUpperCase();
 
   const checkPermission = useCallback(() => {

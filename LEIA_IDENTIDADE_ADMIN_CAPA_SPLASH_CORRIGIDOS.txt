@@ -1,0 +1,30 @@
+CORREÇÃO: IDENTIDADE CONTROLADA PELO ADMIN, CAPA RESPONSIVA E SPLASH LEVE
+
+BASE:
+bitziptv1-icone-wmcplayer-site-pwa-corrigido(1).zip
+
+ALTERAÇÕES:
+1. Nome, logotipo e favicon cadastrados em Configurações > Identidade do App são a fonte oficial.
+2. Ao salvar, o admin envia uma ordem Realtime aos clientes conectados usando o canal único já existente.
+3. Clientes fechados recebem a identidade atual ao abrir/recarregar o app.
+4. O logotipo do app é usado em cabeçalhos, login e splash.
+5. O favicon é usado no navegador, instalação PWA e notificações.
+6. Manifesto de instalação passa a ser atualizado com os dados do admin antes da instalação.
+7. Branding de notificações é persistido no Service Worker.
+8. Arquivos antigos de logotipo Bitz foram removidos.
+9. Banner/capa usa todo o espaço responsivo sem corte, zoom ou faixas vazias; a imagem é ajustada aos limites do componente.
+10. Splash reduzido para 1,8 segundo, sem partículas, giros ou efeitos pesados.
+11. Nenhum polling, consulta repetida ou novo canal Realtime foi adicionado.
+
+ARQUIVOS PRINCIPAIS ALTERADOS:
+- src/hooks/useAppBranding.ts
+- src/hooks/useRealtimeBalance.ts
+- src/pages/admin/AdminSettingsPage.tsx
+- src/pages/ClientDashboard.tsx
+- src/components/SplashScreen.tsx
+- public/push-sw.js
+
+PUBLICAÇÃO:
+1. Execute ATUALIZAR_GITHUB_AGORA.bat.
+2. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque admin-manage-user participa da ordem Realtime.
+3. Feche e abra o PWA. Em instalações antigas, o ícone da tela inicial pode exigir desinstalar e instalar novamente por limitação do Android/iOS.

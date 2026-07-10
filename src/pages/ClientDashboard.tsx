@@ -447,13 +447,8 @@ function BannerCarousel() {
         className={`block w-full ${banner.redirect_url ? "cursor-pointer" : "cursor-default"}`}
       >
         <div
-          className="relative mx-auto flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-transparent"
-          style={{
-            aspectRatio: String(currentRatio),
-            maxHeight: "70vh",
-            maxWidth: `min(100%, calc(70vh * ${currentRatio}))`,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-          }}
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black aspect-[4/3] sm:aspect-[16/7] lg:aspect-[16/6]"
+          style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
         >
           <AnimatePresence mode="sync" initial={false}>
             <motion.img
@@ -468,7 +463,7 @@ function BannerCarousel() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.7, ease: "easeInOut" }}
-              className="absolute inset-0 h-full w-full rounded-[20px] object-contain"
+              className="absolute inset-0 h-full w-full rounded-[20px] object-fill"
             />
           </AnimatePresence>
         </div>

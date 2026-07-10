@@ -11,6 +11,30 @@ var APP_BRANDING_CACHE = {
   faviconUrl: DEFAULT_PUSH_ICON,
 };
 
+
+var BRANDING_CACHE_NAME = "wmcplayer-branding-v1";
+var BRANDING_CACHE_KEY = "/__wmcplayer_branding__";
+
+async function persistBrandingCache() {
+  try {
+    var cache = await caches.open(BRANDING_CACHE_NAME);
+    await cache.put(
+      BRANDING_CACHE_KEY,
+      new Response(JSON.stringify(APP_BRANDING_CACHE), { headers: { "Content-Type": "application/json" } }),
+    );
+  } catch (e) {}
+}
+
+async function restoreBrandingCache() {
+  try {
+    var cache = await caches.open(BRANDING_CACHE_NAME);
+    var response = await cache.match(BRANDING_CACHE_KEY);
+    if (!response) return;
+    var saved = await response.json();
+    APP_BRANDING_CACHE = Object.assign({}, APP_BRANDING_CACHE, saved || {});
+  } catch (e) {}
+}
+
 function isOldBitzIcon(value) {
   if (!value || typeof value !== "string") return false;
   var lower = value.toLowerCase();
@@ -67,11 +91,13 @@ self.addEventListener("message", function (event) {
       ? branding.faviconUrl || branding.app_favicon_url
       : DEFAULT_PUSH_ICON,
   });
+  event.waitUntil(persistBrandingCache());
 });
 
 self.addEventListener("push", function (event) {
   event.waitUntil(
     (async function () {
+      await restoreBrandingCache();
       var data = {};
       try {
         data = event.data ? event.data.json() : {};

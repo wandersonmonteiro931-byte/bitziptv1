@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { normalizeAppBranding, previewAppBranding, saveStoredAppBranding } from "@/hooks/useAppBranding";
+import { invokeAuthenticatedFunction } from "@/lib/edgeFunctions";
 
 type RenewalPlanForm = {
   id?: string;
@@ -55,9 +56,9 @@ const createEmptyRenewalPlan = (sortOrder = 1): RenewalPlanForm => ({
 
 const DEFAULT_PLATFORM_SETTINGS = {
   id: "default",
-  app_name: "WMCFLIX",
-  app_short_name: "WMCFLIX",
-  app_description: "WMCFLIX - Programa de Fidelidade",
+  app_name: "WMCPLAYER",
+  app_short_name: "WMCPLAYER",
+  app_description: "WMCPLAYER - Programa de Fidelidade",
   app_logo_url: "",
   app_favicon_url: "",
   min_withdrawal: 10,
@@ -181,9 +182,9 @@ const AdminSettingsPage = () => {
     if (!brandingLoaded) return;
 
     previewAppBranding({
-      appName: appName.trim() || "WMCFLIX",
-      appShortName: appShortName.trim() || appName.trim() || "WMCFLIX",
-      appDescription: appDescription.trim() || `${appName.trim() || "WMCFLIX"} - Programa de Fidelidade`,
+      appName: appName.trim() || "WMCPLAYER",
+      appShortName: appShortName.trim() || appName.trim() || "WMCPLAYER",
+      appDescription: appDescription.trim() || `${appName.trim() || "WMCPLAYER"} - Programa de Fidelidade`,
       logoUrl: appLogoUrl.trim(),
       faviconUrl: appFaviconUrl.trim() || appLogoUrl.trim(),
     });
@@ -271,18 +272,47 @@ const AdminSettingsPage = () => {
         app_favicon_url: appFaviconUrl.trim() || appLogoUrl.trim(),
       };
 
-      const { error } = await supabase
-        .from("platform_settings")
-        .update(payload as any)
-        .eq("id", settings.id);
-      if (error) throw error;
+      let savedSettings = settings;
+      if (!settings.id || settings.id === "default") {
+        const { data, error } = await supabase
+          .from("platform_settings")
+          .insert(payload as any)
+          .select("*")
+          .single();
+        if (error) throw error;
+        savedSettings = data;
+      } else {
+        const { data, error } = await supabase
+          .from("platform_settings")
+          .update(payload as any)
+          .eq("id", settings.id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        savedSettings = data;
+      }
 
       const branding = normalizeAppBranding(payload);
       saveStoredAppBranding(branding);
-      setSettings({ ...settings, ...payload });
+      setSettings(savedSettings || { ...settings, ...payload });
+
+      let sent = 0;
+      try {
+        const result = await invokeAuthenticatedFunction<{ sent?: number }>("admin-manage-user", {
+          action: "broadcast_client_event",
+          event: "app-branding-updated",
+          payload: { branding },
+        });
+        sent = Number(result?.sent || 0);
+      } catch (broadcastError) {
+        console.warn("Identidade salva, mas a atualização instantânea falhou:", broadcastError);
+      }
+
       toast({
         title: "Identidade do app salva!",
-        description: "Nome, logotipo, favicon e dados de instalação foram atualizados.",
+        description: sent > 0
+          ? `Nome e imagens atualizados agora para ${sent} cliente(s) conectado(s).`
+          : "Nome e imagens atualizados. Todos receberão ao abrir ou atualizar o aplicativo.",
       });
     } catch (err: any) {
       toast({

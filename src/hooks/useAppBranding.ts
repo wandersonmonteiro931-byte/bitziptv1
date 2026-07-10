@@ -202,25 +202,22 @@ export const updateManifest = (brandingInput: AppBranding) => {
   if (typeof document === "undefined") return;
 
   const branding = normalizeAppBranding(brandingInput);
+  const manifest = buildDynamicManifest(branding);
 
-  // Mantém o manifest oficial gerado pelo VitePWA.
-  // Usar blob/dynamic manifest pode impedir o Chrome/Android de reconhecer o app como PWA instalável.
-  document.querySelectorAll('link[rel="manifest"][data-dynamic-branding="true"]').forEach((link) => link.remove());
-
-  if (dynamicManifestUrl) {
-    URL.revokeObjectURL(dynamicManifestUrl);
-    dynamicManifestUrl = null;
-  }
+  if (dynamicManifestUrl) URL.revokeObjectURL(dynamicManifestUrl);
+  dynamicManifestUrl = URL.createObjectURL(
+    new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }),
+  );
 
   let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null;
-
   if (!manifestLink) {
     manifestLink = document.createElement("link");
     manifestLink.rel = "manifest";
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.href = "/manifest.webmanifest?v=wmcplayer-icon-v3";
+  manifestLink.href = dynamicManifestUrl;
+  manifestLink.dataset.dynamicBranding = "true";
   manifestLink.dataset.appName = branding.appName;
 };
 
@@ -345,8 +342,9 @@ export const useAppBranding = () => {
     });
 
     const listener = (event: Event) => {
-      const detail = (event as CustomEvent<AppBranding>).detail;
-      if (detail) apply(detail, false);
+      const rawDetail = (event as CustomEvent<any>).detail;
+      const detail = rawDetail?.branding || rawDetail;
+      if (detail) apply(detail, true);
       else {
         loadRemoteAppBranding().then((remoteBranding) => {
           if (remoteBranding) apply(remoteBranding, true);

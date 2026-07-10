@@ -30,7 +30,7 @@ const LoginPage = () => {
   const { login, logout, isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz TV";
+  const appTitle = appName || "WMCPLAYER";
   const appTitleUpper = appTitle.toUpperCase();
 
   useEffect(() => {

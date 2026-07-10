@@ -100,7 +100,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { appName, logoUrl } = useAppBranding();
-  const appTitle = appName || "Bitz TV";
+  const appTitle = appName || "WMCPLAYER";
   const appTitleUpper = appTitle.toUpperCase();
   const balance = Number(user?.balance || 0);
   const isFrozen = user?.balance_frozen;
