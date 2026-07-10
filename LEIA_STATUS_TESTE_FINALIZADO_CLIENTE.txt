@@ -1,0 +1,38 @@
+ATUALIZAÇÃO: STATUS EXCLUSIVO PARA TESTE FINALIZADO
+
+BASE USADA:
+bitziptv1-realtime-canal-unico-sem-polling.zip
+
+REGRA APLICADA SOMENTE A USUÁRIO MARCADO COMO TESTE:
+- Quando o teste terminar, no dashboard do cliente aparece:
+  "Seu teste gratuito terminou. Ative seu plano."
+- No status lateral aparece:
+  "Aguardando ativação"
+- O status real no banco continua bloqueado para impedir acesso até o primeiro pagamento.
+- O botão de desbloqueio de confiança não aparece para teste finalizado.
+
+USUÁRIOS QUE NÃO ESTÃO MARCADOS COMO TESTE:
+- Continuam usando normalmente os textos e status padrão:
+  "Você está bloqueado por atraso!"
+  "Bloqueado"
+- Nenhuma regra normal foi alterada.
+
+ARQUIVO ALTERADO:
+- src/pages/ClientDashboard.tsx
+
+SEM POLLING:
+- Nenhuma consulta contínua foi adicionada.
+- Nenhum setInterval de rede foi adicionado.
+- Nenhuma consulta automática sem parar foi adicionada.
+
+VALIDAÇÃO:
+- Sintaxe TSX validada com esbuild.
+
+COMO PUBLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+
+Não precisa rodar SQL.
+Não precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.

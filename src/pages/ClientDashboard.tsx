@@ -1932,7 +1932,23 @@ const ClientDashboard = () => {
   // Bloqueia somente após o limite configurado pelo admin.
   const effectiveStatus =
     isPastGraceLimit && user?.iptv_status === "active" ? "blocked" : user?.iptv_status || "active";
-  const status = SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
+
+  // Regra visual exclusiva para clientes que ainda estão marcados como teste.
+  // O status real continua bloqueado no banco para impedir o acesso até o primeiro pagamento.
+  const isTrialUser = Boolean(user?.trial_enabled) && !Boolean(user?.trial_payment_confirmed);
+  const trialEndDateOnly = String(user?.trial_ends_at || "").slice(0, 10);
+  const isTrialFinished =
+    isTrialUser &&
+    (Boolean(user?.trial_expired_at) || (Boolean(trialEndDateOnly) && trialEndDateOnly < toBrazilDateOnlyString(now)));
+
+  const status = isTrialFinished
+    ? {
+        label: "Aguardando ativação",
+        color: "text-amber-400",
+        dotColor: "bg-amber-400",
+        pulse: true,
+      }
+    : SYSTEM_STATUS_MAP[effectiveStatus] || SYSTEM_STATUS_MAP.active;
   const isDueToday = daysUntilDue === 0;
 
   const formattedDueDate = formatDateBR(dueDate);
@@ -1974,15 +1990,17 @@ const ClientDashboard = () => {
     });
   };
 
-  const planSubtitle = isPastGraceLimit
-    ? "Você está bloqueado por atraso!"
-    : isOverdue
-      ? "Você está em atraso!"
-      : isDueToday
-        ? "Vence hoje!"
-        : isNearDueNotice
-          ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
-          : "Você está em dias!";
+  const planSubtitle = isTrialFinished
+    ? "Seu teste gratuito terminou. Ative seu plano."
+    : isPastGraceLimit
+      ? "Você está bloqueado por atraso!"
+      : isOverdue
+        ? "Você está em atraso!"
+        : isDueToday
+          ? "Vence hoje!"
+          : isNearDueNotice
+            ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
+            : "Você está em dias!";
   const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
   const renewalButtonMotion = {
     initial: { scale: 1 },
@@ -2064,7 +2082,13 @@ const ClientDashboard = () => {
             </h1>
             <p
               className={`mt-0.5 text-xs font-medium ${
-                isOverdue ? "text-red-400" : isDueToday || isNearDueNotice ? "text-amber-400" : "text-emerald-400"
+                isTrialFinished
+                  ? "text-amber-400"
+                  : isOverdue
+                    ? "text-red-400"
+                    : isDueToday || isNearDueNotice
+                      ? "text-amber-400"
+                      : "text-emerald-400"
               }`}
             >
               {planSubtitle}
@@ -2244,7 +2268,7 @@ const ClientDashboard = () => {
         )}
 
         {/* TRUST UNLOCK REQUEST BUTTON (only when blocked/overdue) */}
-        {(effectiveStatus === "blocked" || isOverdue) && effectiveStatus !== "trust_active" && (
+        {!isTrialFinished && (effectiveStatus === "blocked" || isOverdue) && effectiveStatus !== "trust_active" && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
             {trustPending ? (
               <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 text-center">
