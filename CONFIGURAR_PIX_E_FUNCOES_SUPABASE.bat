@@ -66,6 +66,22 @@ if not errorlevel 1 (
     exit /b 1
 )
 
+echo.
+echo [2.1/7] Conferindo certificado PIX Efí...
+if exist "%ROOT_DIR%EFI_CERTIFICATE_BASE64.txt" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$root='%ROOT_DIR%'; $envFile='%SECRETS_FILE%'; $certFile=Join-Path $root 'EFI_CERTIFICATE_BASE64.txt'; $cert=(Get-Content -Raw -Encoding UTF8 $certFile) -replace '\\s',''; if($cert.Length -lt 1000){ Write-Host 'ERRO: EFI_CERTIFICATE_BASE64.txt parece incompleto.'; exit 20 }; try{ [Convert]::FromBase64String($cert) | Out-Null } catch { Write-Host 'ERRO: certificado Base64 invalido.'; exit 21 }; $txt=Get-Content -Raw -Encoding UTF8 $envFile; if($txt -match '(?m)^EFI_CERTIFICATE_BASE64='){ $txt=[regex]::Replace($txt,'(?m)^EFI_CERTIFICATE_BASE64=.*','EFI_CERTIFICATE_BASE64='+$cert) } else { $txt=$txt.TrimEnd()+[Environment]::NewLine+'EFI_CERTIFICATE_BASE64='+$cert+[Environment]::NewLine }; if($txt -match '(?m)^EFI_CERTIFICATE_BASE64_BACKUP='){ $txt=[regex]::Replace($txt,'(?m)^EFI_CERTIFICATE_BASE64_BACKUP=.*','EFI_CERTIFICATE_BASE64_BACKUP='+$cert) } else { $txt=$txt.TrimEnd()+[Environment]::NewLine+'EFI_CERTIFICATE_BASE64_BACKUP='+$cert+[Environment]::NewLine }; Set-Content -Encoding UTF8 -NoNewline -Path $envFile -Value $txt; Write-Host 'Certificado PIX conferido e sincronizado com o arquivo de secrets.'"
+    if errorlevel 1 (
+        echo.
+        echo ERRO: Certificado PIX invalido ou incompleto.
+        echo Nao vou enviar secrets para nao quebrar o PIX.
+        echo.
+        pause
+        exit /b 1
+    )
+) else (
+    echo AVISO: EFI_CERTIFICATE_BASE64.txt nao encontrado. Vou usar o certificado do SECRETS_SUPABASE_PIX.env.
+)
+
 cd /d "%ROOT_DIR%"
 if errorlevel 1 (
     echo.

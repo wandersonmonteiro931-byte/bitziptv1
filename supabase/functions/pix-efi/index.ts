@@ -18,27 +18,55 @@ function getEnv(name: string): string {
 
 let _cachedPem: { cert: string; key: string } | null = null;
 
-function getPemCredentials(): { cert: string; key: string } {
-  if (_cachedPem) return _cachedPem;
+function normalizeCertificateBase64(value: string | null | undefined): string {
+  if (!value) return "";
 
-  // Always extract from .p12 to guarantee PKCS#8 key format (required by Deno's rustls)
-  const b64 = getEnv("EFI_CERTIFICATE_BASE64");
-  console.log("Extracting PEM from .p12 base64 (length:", b64.length, ")");
-  
+  let cleaned = String(value).trim();
+
+  // Aceita valor colado com aspas, quebra de linha, prefixo data:, PEM ou \\n escapado.
+  cleaned = cleaned.replace(/^["']|["']$/g, "");
+  cleaned = cleaned.replace(/\\r/g, "");
+  cleaned = cleaned.replace(/\\n/g, "");
+  cleaned = cleaned.replace(/\r/g, "");
+  cleaned = cleaned.replace(/\n/g, "");
+  cleaned = cleaned.replace(/-----BEGIN[^-]+-----/g, "");
+  cleaned = cleaned.replace(/-----END[^-]+-----/g, "");
+  cleaned = cleaned.replace(/^data:[^,]+,/i, "");
+  cleaned = cleaned.replace(/\s+/g, "");
+
+  return cleaned;
+}
+
+function extractPemCredentialsFromBase64(rawValue: string, sourceName: string): { cert: string; key: string } {
+  const b64 = normalizeCertificateBase64(rawValue);
+
+  console.log(`Trying Efí certificate from ${sourceName}. Raw length: ${rawValue?.length || 0}. Clean length: ${b64.length}.`);
+
+  if (b64.length < 1000) {
+    throw new Error(`Certificado ${sourceName} muito curto ou incompleto.`);
+  }
+
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64)) {
+    throw new Error(`Certificado ${sourceName} possui caracteres inválidos no Base64.`);
+  }
+
   const derBytes = forge.util.decode64(b64);
+
+  if (!derBytes || derBytes.length < 700) {
+    throw new Error(`Certificado ${sourceName} decodificado ficou incompleto.`);
+  }
+
   const asn1 = forge.asn1.fromDer(derBytes);
   const p12Password = Deno.env.get("EFI_CERTIFICATE_PASSWORD") || "";
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, p12Password);
 
-  // Extract certificate
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
   const certBag = (certBags[forge.pki.oids.certBag] || [])[0];
-  if (!certBag?.cert) throw new Error("No certificate found in .p12");
-  const cert = forge.pki.certificateToPem(certBag.cert);
+  if (!certBag?.cert) throw new Error(`No certificate found in ${sourceName}`);
 
-  // Extract ALL certificates for the full chain
   const allCertBags = certBags[forge.pki.oids.certBag] || [];
-  let fullCertChain = cert;
+  let fullCertChain = forge.pki.certificateToPem(certBag.cert);
+
   if (allCertBags.length > 1) {
     fullCertChain = allCertBags
       .filter((b: any) => b.cert)
@@ -47,31 +75,49 @@ function getPemCredentials(): { cert: string; key: string } {
     console.log(`Found ${allCertBags.length} certificates in chain`);
   }
 
-  // Extract private key in PKCS#8 format (BEGIN PRIVATE KEY)
   const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
-  if (!keyBag?.key) throw new Error("No private key found in .p12");
-  
-  // Convert to PKCS#8 format which Deno's rustls requires
+  if (!keyBag?.key) throw new Error(`No private key found in ${sourceName}`);
+
   const rsaPrivateKey = forge.pki.privateKeyToAsn1(keyBag.key);
   const privateKeyInfo = forge.pki.wrapRsaPrivateKey(rsaPrivateKey);
   const key = forge.pki.privateKeyInfoToPem(privateKeyInfo);
 
-  _cachedPem = { cert: fullCertChain, key };
-  
-  console.log("PEM extraction successful");
-  console.log("Cert starts with:", fullCertChain.substring(0, 27));
-  console.log("Key starts with:", key.substring(0, 27));
-  console.log("Cert length:", fullCertChain.length, "Key length:", key.length);
-  
-  // Log cert details for debugging
   const certObj = certBag.cert;
+  console.log("PEM extraction successful from:", sourceName);
   console.log("Cert subject:", certObj.subject.getField("CN")?.value || "unknown");
   console.log("Cert issuer:", certObj.issuer.getField("CN")?.value || "unknown");
   console.log("Cert valid from:", certObj.validity.notBefore.toISOString());
   console.log("Cert valid to:", certObj.validity.notAfter.toISOString());
-  
-  return _cachedPem;
+
+  return { cert: fullCertChain, key };
+}
+
+function getPemCredentials(): { cert: string; key: string } {
+  if (_cachedPem) return _cachedPem;
+
+  const candidates = [
+    { name: "EFI_CERTIFICATE_BASE64", value: Deno.env.get("EFI_CERTIFICATE_BASE64") },
+    { name: "EFI_CERTIFICATE_BASE64_BACKUP", value: Deno.env.get("EFI_CERTIFICATE_BASE64_BACKUP") },
+  ].filter((item) => Boolean(item.value));
+
+  const errors: string[] = [];
+
+  for (const item of candidates) {
+    try {
+      _cachedPem = extractPemCredentialsFromBase64(item.value || "", item.name);
+      return _cachedPem;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`Falha ao ler certificado ${item.name}:`, message);
+      errors.push(`${item.name}: ${message}`);
+    }
+  }
+
+  throw new Error(
+    "Certificado PIX Efí inválido ou incompleto. Rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat novamente para reenviar o certificado correto. Detalhes: " +
+      errors.join(" | "),
+  );
 }
 
 // ── mTLS HTTP via Deno.connectTls ─────────────────────────────────────────
@@ -433,9 +479,19 @@ serve(async (req) => {
       message,
       stack,
     }));
+    const lowerMessage = message.toLowerCase();
+    const friendlyMessage =
+      lowerMessage.includes("asn.1") ||
+      lowerMessage.includes("certificado pix efí") ||
+      lowerMessage.includes("certificate") ||
+      lowerMessage.includes("p12")
+        ? "Certificado PIX Efí inválido ou incompleto. Reenvie as configurações do PIX pelo arquivo CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat."
+        : message;
+
     return jsonResp({
-      error: message,
-      detail: message,
+      error: friendlyMessage,
+      detail: friendlyMessage,
+      technical_detail: message,
       hint: "Erro interno da função pix-efi. Veja Supabase > Edge Functions > pix-efi > Logs.",
     }, 500);
   }

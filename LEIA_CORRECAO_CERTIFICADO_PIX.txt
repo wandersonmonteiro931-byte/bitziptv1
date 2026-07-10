@@ -1,0 +1,32 @@
+CORREÇÃO: PIX BUGAVA AO ALTERAR VALOR DO CLIENTE
+
+BASE USADA:
+bitziptv1-pix-sem-erro-unauthorized.zip
+
+ERRO CORRIGIDO:
+Too few bytes to read ASN.1 value.
+
+CAUSA:
+Esse erro acontece quando o certificado PIX Efí chega incompleto, com quebra/aspas/espaços incorretos, ou quando o secret EFI_CERTIFICATE_BASE64 foi sobrescrito errado.
+
+O QUE FOI CORRIGIDO:
+1. pix-efi agora limpa e valida o Base64 do certificado antes de ler.
+2. pix-efi aceita certificado com aspas, quebras, espaços, \n escapado ou prefixo PEM/data.
+3. Adicionado EFI_CERTIFICATE_BASE64_BACKUP.
+4. Se o certificado principal falhar, a função tenta o backup.
+5. CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat agora valida o certificado antes de enviar secrets.
+6. O BAT sincroniza EFI_CERTIFICATE_BASE64.txt com SECRETS_SUPABASE_PIX.env automaticamente.
+7. O BAT não envia secrets se o certificado estiver incompleto.
+8. Mantida a correção do Unauthorized e dos planos do admin.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois clique em CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+   Esse passo é obrigatório porque mexeu na função pix-efi e nos secrets do certificado.
+6. Teste alterar o valor do cliente e gerar PIX.
+
+IMPORTANTE:
+Não edite o certificado manualmente. Use o EFI_CERTIFICATE_BASE64.txt que está no ZIP.
