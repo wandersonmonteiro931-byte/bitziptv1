@@ -85,7 +85,13 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       strategies: "generateSW",
       registerType: "prompt",
-      includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png", "pwa-maskable-512.png", "apple-touch-icon.png"],
+      includeAssets: [
+        "wmcplayer-favicon-v3.ico",
+        "wmcplayer-icon-192-v3.png",
+        "wmcplayer-icon-512-v3.png",
+        "wmcplayer-maskable-512-v3.png",
+        "wmcplayer-apple-touch-v3.png",
+      ],
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: "/index.html",
@@ -147,19 +153,19 @@ export default defineConfig(({ mode }) => ({
         categories: ["entertainment", "utilities"],
         icons: [
           {
-            src: "/pwa-192.png",
+            src: "/wmcplayer-icon-192-v3.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-512.png",
+            src: "/wmcplayer-icon-512-v3.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-maskable-512.png",
+            src: "/wmcplayer-maskable-512-v3.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
@@ -171,14 +177,14 @@ export default defineConfig(({ mode }) => ({
             short_name: "Início",
             description: "Abrir início do app",
             url: "/dashboard",
-            icons: [{ src: "/pwa-192.png", sizes: "192x192", type: "image/png" }],
+            icons: [{ src: "/wmcplayer-icon-192-v3.png", sizes: "192x192", type: "image/png" }],
           },
           {
             name: "AO VIVO",
             short_name: "AO VIVO",
             description: "Abrir TV ao vivo",
             url: "/tv-guide",
-            icons: [{ src: "/pwa-192.png", sizes: "192x192", type: "image/png" }],
+            icons: [{ src: "/wmcplayer-icon-192-v3.png", sizes: "192x192", type: "image/png" }],
           },
         ],
       },

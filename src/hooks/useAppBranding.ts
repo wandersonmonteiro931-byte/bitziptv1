@@ -14,7 +14,7 @@ const LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
 const LEGACY_APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
 export const APP_BRANDING_EVENT = "app-branding-updated";
 
-const DEFAULT_LOGO = "/pwa-512.png";
+const DEFAULT_LOGO = "/wmcplayer-icon-512-v3.png";
 
 const DEFAULT_BRANDING: AppBranding = {
   appName: "WMCPLAYER",
@@ -220,7 +220,7 @@ export const updateManifest = (brandingInput: AppBranding) => {
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.href = "/manifest.webmanifest";
+  manifestLink.href = "/manifest.webmanifest?v=wmcplayer-icon-v3";
   manifestLink.dataset.appName = branding.appName;
 };
 

@@ -1,12 +1,12 @@
 // PUSH NOTIFICATION HANDLERS
-// WMCFLIX: ícone push final fixo, sem logotipo antigo/cache Bitz.
-var DEFAULT_PUSH_ICON = "/pwa-512.png?v=wmcflix-push-final-2";
-var DEFAULT_PUSH_BADGE = "/pwa-192.png?v=wmcflix-push-final-2";
+// WMCPLAYER: ícone oficial fixo, sem logotipo antigo/cache Bitz.
+var DEFAULT_PUSH_ICON = "/wmcplayer-icon-512-v3.png";
+var DEFAULT_PUSH_BADGE = "/wmcplayer-icon-192-v3.png";
 
 var APP_BRANDING_CACHE = {
-  appName: "WMCFLIX",
-  appShortName: "WMCFLIX",
-  appDescription: "WMCFLIX",
+  appName: "WMCPLAYER",
+  appShortName: "WMCPLAYER",
+  appDescription: "WMCPLAYER - Programa Oficial de Fidelidade",
   logoUrl: DEFAULT_PUSH_ICON,
   faviconUrl: DEFAULT_PUSH_ICON,
 };
@@ -58,8 +58,8 @@ self.addEventListener("message", function (event) {
 
   var branding = event.data.branding || {};
   APP_BRANDING_CACHE = Object.assign({}, APP_BRANDING_CACHE, branding, {
-    appName: branding.appName || branding.app_name || "WMCFLIX",
-    appShortName: branding.appShortName || branding.app_short_name || "WMCFLIX",
+    appName: branding.appName || branding.app_name || "WMCPLAYER",
+    appShortName: branding.appShortName || branding.app_short_name || "WMCPLAYER",
     logoUrl: isUsableNotificationImage(branding.logoUrl || branding.app_logo_url)
       ? branding.logoUrl || branding.app_logo_url
       : DEFAULT_PUSH_ICON,
@@ -79,7 +79,7 @@ self.addEventListener("push", function (event) {
         data = { title: event.data ? event.data.text() : "Nova notificação" };
       }
 
-      var title = data.title || APP_BRANDING_CACHE.appName || "WMCFLIX";
+      var title = data.title || APP_BRANDING_CACHE.appName || "WMCPLAYER";
       var icon = pickNotificationIcon(data);
       var badge = pickNotificationBadge(data);
 
