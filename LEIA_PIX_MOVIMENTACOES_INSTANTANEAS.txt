@@ -1,0 +1,43 @@
+ATUALIZAÇÃO: PIX E MOVIMENTAÇÕES INSTANTÂNEAS
+
+BASE USADA:
+bitziptv1-liberacao-suporte-confirmada-corrigida.zip
+
+O QUE FOI CORRIGIDO:
+1. Confirmação do PIX chega instantaneamente ao cliente.
+2. O modal do PIX muda para pagamento confirmado sem precisar recarregar.
+3. O status Aguardando liberação aparece imediatamente após o PIX ser recebido.
+4. Ao admin confirmar/liberar, o aviso some imediatamente no cliente aberto.
+5. Mensalidades pagas atualizam instantaneamente.
+6. Movimentações do histórico/saldo atualizam instantaneamente.
+7. A tela Admin > TV atualiza pagamentos/status instantaneamente.
+8. O painel financeiro aberto de um cliente no admin atualiza instantaneamente.
+9. A tela Admin > Usuários atualiza saldo e movimentações instantaneamente.
+10. Compra de créditos via PIX também atualiza instantaneamente.
+11. Adicionado Broadcast Realtime como caminho principal, sem consulta constante ao Cloudflare.
+12. O antigo polling agressivo de 1/2 segundo foi removido. Ficou apenas verificação de segurança a cada 15 segundos caso o Realtime caia.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/pages/HistoryPage.tsx
+- src/pages/CreditsStorePage.tsx
+- src/pages/admin/AdminIptvPage.tsx
+- src/pages/admin/AdminUsersPage.tsx
+- src/pages/admin/iptv/ClientEditPanel.tsx
+- src/hooks/useRealtimeBalance.ts
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a publicação no Cloudflare.
+5. Depois execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+O passo 5 é obrigatório porque pix-efi e admin-manage-user foram alteradas.
+Não precisa rodar novo SQL.
+
+VALIDAÇÃO:
+npm run build executado com sucesso.

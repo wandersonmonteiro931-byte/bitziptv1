@@ -94,27 +94,12 @@ export function usePushNotifications(userId: string | undefined) {
 
     void setupPush();
 
-    const onFocus = () => void setupPush();
-    const onOnline = () => void setupPush();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void setupPush();
-    };
     const onControllerChange = () => void setupPush();
-
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("online", onOnline);
-    document.addEventListener("visibilitychange", onVisibility);
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-
-    const interval = window.setInterval(() => void setupPush(), 1000 * 60 * 15);
 
     return () => {
       cancelled = true;
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("online", onOnline);
-      document.removeEventListener("visibilitychange", onVisibility);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-      window.clearInterval(interval);
     };
   }, [userId]);
 }

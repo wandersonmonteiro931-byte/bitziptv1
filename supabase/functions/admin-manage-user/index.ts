@@ -61,6 +61,81 @@ const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, prof
   }
 };
 
+const sendRealtimeBroadcast = async (supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
+  await new Promise<void>((resolve) => {
+    let finished = false;
+    const channel = supabaseAdmin.channel(channelName, { config: { broadcast: { self: true } } });
+
+    const finish = async () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      try {
+        await supabaseAdmin.removeChannel(channel);
+      } catch {
+        // limpeza opcional
+      }
+      resolve();
+    };
+
+    const timeout = setTimeout(() => void finish(), 1800);
+
+    channel.subscribe(async (status: string) => {
+      if (status === "SUBSCRIBED") {
+        try {
+          await channel.send({ type: "broadcast", event: eventName, payload });
+        } finally {
+          await finish();
+        }
+      } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+        await finish();
+      }
+    });
+  });
+};
+
+const emitFinanceUpdated = async (supabaseAdmin: any, userId: string, payload: Record<string, any> = {}) => {
+  const eventPayload = {
+    user_id: userId,
+    sentAt: Date.now(),
+    ...payload,
+  };
+
+  const commands = [
+    sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-finance-${userId}`, "finance-updated", eventPayload),
+    sendRealtimeBroadcast(supabaseAdmin, "wmcplayer-admin-finance", "finance-updated", eventPayload),
+  ];
+
+  if (payload.payment_id) {
+    commands.push(
+      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-pix-payment-${payload.payment_id}`, "finance-updated", eventPayload),
+    );
+  }
+
+  if (payload.purchase_id) {
+    commands.push(
+      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-credit-pix-${payload.purchase_id}`, "finance-updated", eventPayload),
+    );
+  }
+
+  if (payload.profile_patch) {
+    commands.push(
+      sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-profile-${userId}`, "client-profile-updated", {
+        user_id: userId,
+        sentAt: eventPayload.sentAt,
+        profile: payload.profile_patch,
+        action: payload.action,
+      }),
+    );
+  }
+
+  try {
+    await Promise.all(commands);
+  } catch (err) {
+    console.warn("Falha ao enviar atualização financeira instantânea:", err instanceof Error ? err.message : String(err));
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -131,6 +206,11 @@ Deno.serve(async (req) => {
         type: "withdrawal",
         amount: Math.abs(Number(amount)),
         description: `Saque solicitado - PIX: ${pix_key} (em análise)`,
+      });
+
+      await emitFinanceUpdated(supabaseAdmin, user_id, {
+        action: "request_withdrawal",
+        source: "withdrawals",
       });
 
       return new Response(JSON.stringify({ success: true }), {
@@ -275,11 +355,24 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Create trust request
-      await supabaseAdmin.from("iptv_trust_requests").insert({
-        user_id,
-        status: "pending",
-      });
+      // Create trust request and validate the insert.
+      const { data: createdTrustRequest, error: createTrustError } = await supabaseAdmin
+        .from("iptv_trust_requests")
+        .insert({
+          user_id,
+          status: "pending",
+          requested_at: new Date().toISOString(),
+        })
+        .select("id, user_id, status, requested_at")
+        .single();
+
+      if (createTrustError || !createdTrustRequest?.id) {
+        console.error("Erro ao criar solicitação de confiança:", createTrustError);
+        return new Response(JSON.stringify({ error: createTrustError?.message || "Não foi possível criar solicitação de confiança." }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       // Notify admins via push
       try {
@@ -302,7 +395,7 @@ Deno.serve(async (req) => {
         console.error("Failed to send trust request push:", pushErr);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
+      return new Response(JSON.stringify({ success: true, request_id: createdTrustRequest.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -320,6 +413,42 @@ Deno.serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (action === "list_pending_admin_requests") {
+      const { data: trustRows, error: trustError } = await supabaseAdmin
+        .from("iptv_trust_requests")
+        .select("*")
+        .eq("status", "pending")
+        .order("requested_at", { ascending: true });
+
+      if (trustError) {
+        return new Response(JSON.stringify({ error: trustError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const userIds = Array.from(new Set(((trustRows || []) as any[]).map((item) => item.user_id).filter(Boolean)));
+      const { data: profiles } = userIds.length
+        ? await supabaseAdmin
+            .from("profiles")
+            .select("id, name, username, iptv_user, role, status, iptv_server, iptv_expiry, iptv_status")
+            .in("id", userIds)
+        : { data: [] as any[] };
+
+      const profilesById = new Map(((profiles || []) as any[]).map((profile) => [profile.id, profile]));
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          trust_requests: ((trustRows || []) as any[]).map((item) => ({
+            ...item,
+            profiles: profilesById.get(item.user_id) || null,
+          })),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     if (!action || !user_id) {
@@ -1283,7 +1412,7 @@ Deno.serve(async (req) => {
         break;
       }
       case "confirm_activation": {
-        // Admin confirms a specific paid_pending_activation payment
+        // Admin confirms the selected payment and clears every pending activation for this client.
         const { payment_id } = data;
         if (!payment_id) throw new Error("payment_id é obrigatório");
 
@@ -1291,27 +1420,66 @@ Deno.serve(async (req) => {
           .from("iptv_payments")
           .select("*")
           .eq("id", payment_id)
+          .eq("user_id", user_id)
           .eq("status", "paid_pending_activation")
           .single();
         if (!payment) throw new Error("Pagamento não encontrado ou já confirmado");
 
-        // Update payment status to confirmed (just update the existing row, no new lines)
-        await supabaseAdmin
+        const { data: pendingPayments, error: pendingPaymentsError } = await supabaseAdmin
           .from("iptv_payments")
-          .update({
-            status: "confirmed",
-            admin_id: caller.id,
-          })
-          .eq("id", payment_id);
+          .select("id, period_end")
+          .eq("user_id", user_id)
+          .eq("status", "paid_pending_activation");
 
-        // Set profile to active AND update expiry date from the payment's period_end
-        await supabaseAdmin
+        if (pendingPaymentsError) throw pendingPaymentsError;
+
+        const pendingIds = (pendingPayments || []).map((item: any) => item.id);
+        const highestPendingExpiry = (pendingPayments || [])
+          .map((item: any) => String(item.period_end || ""))
+          .filter(Boolean)
+          .sort()
+          .at(-1) || payment.period_end;
+
+        if (pendingIds.length > 0) {
+          const { error: confirmPaymentsError } = await supabaseAdmin
+            .from("iptv_payments")
+            .update({
+              status: "confirmed",
+              admin_id: caller.id,
+            })
+            .in("id", pendingIds);
+
+          if (confirmPaymentsError) throw confirmPaymentsError;
+        }
+
+        const { data: currentProfile } = await supabaseAdmin
           .from("profiles")
-          .update({
-            iptv_status: "active",
-            iptv_expiry: payment.period_end,
-          })
+          .select("iptv_expiry")
+          .eq("id", user_id)
+          .maybeSingle();
+
+        const finalExpiry = [String(currentProfile?.iptv_expiry || ""), String(highestPendingExpiry || "")]
+          .filter(Boolean)
+          .sort()
+          .at(-1) || payment.period_end;
+
+        const profilePatch = {
+          iptv_status: "active",
+          iptv_expiry: finalExpiry,
+          trial_enabled: false,
+          trial_payment_confirmed: true,
+          trial_expired_at: null,
+          trial_expired_notice_sent_at: null,
+        };
+
+        const { error: profileUpdateError } = await supabaseAdmin
+          .from("profiles")
+          .update(profilePatch)
           .eq("id", user_id);
+
+        if (profileUpdateError) throw profileUpdateError;
+
+        await emitClientProfileUpdated(supabaseAdmin, user_id, profilePatch);
 
         // Send push notifications based on DB rules for activation_confirmed
         try {
@@ -1331,7 +1499,7 @@ Deno.serve(async (req) => {
 
           const templateVars: Record<string, string> = {
             "{nome}": userProfile?.name || "",
-            "{validade}": payment.period_end ? payment.period_end.split("-").reverse().join("/") : "",
+            "{validade}": finalExpiry ? finalExpiry.split("-").reverse().join("/") : "",
             "{valor}": Number(payment.amount).toFixed(2),
             "{servidor}": userProfile?.iptv_server || "",
             "{plano_meses}": String(payment.months || 1),
@@ -1356,10 +1524,20 @@ Deno.serve(async (req) => {
           console.error("Failed to send activation push:", pushErr);
         }
 
-        result = { success: true };
+        result = {
+          success: true,
+          action: "activation_confirmed",
+          status: "confirmed",
+          iptv_status: "active",
+          payment_id,
+          payment_ids: pendingIds,
+          period_end: finalExpiry,
+          profile_patch: profilePatch,
+        };
         break;
       }
       case "remove_payment": {
+
         // Admin soft-removes a payment (hides from client, recalculates expiry)
         const { payment_id } = data;
         if (!payment_id) throw new Error("payment_id é obrigatório");
@@ -1798,6 +1976,36 @@ Deno.serve(async (req) => {
       target_id: user_id,
       details: data || {},
     });
+
+    const financeActions = new Set([
+      "update_profile",
+      "confirm_payment",
+      "register_manual_payment",
+      "reverse_payment",
+      "generate_future_invoices",
+      "mark_invoice_paid",
+      "confirm_activation",
+      "remove_payment",
+      "bulk_delete_invoices",
+      "bulk_update_invoices",
+      "regenerate_future_invoices",
+      "add_scheduled_rate",
+      "update_scheduled_rate",
+      "delete_scheduled_rate",
+      "adjust_balance",
+      "process_withdrawal",
+    ]);
+
+    if (financeActions.has(action) && user_id) {
+      await emitFinanceUpdated(supabaseAdmin, user_id, {
+        action: result?.action || action,
+        ...result,
+        result,
+        status: result?.status || result?.new_status || data?.status || data?.iptv_status,
+        payment_id: result?.payment_id || data?.payment_id,
+        profile_patch: result?.profile_patch,
+      });
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

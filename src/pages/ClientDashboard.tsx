@@ -57,6 +57,12 @@ type AppVersionState = {
 const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v2";
 const LEGACY_APP_VERSION_STORAGE_KEYS = ["wmcflix_app_version_state_v1", "bitz_app_version_state_v1"];
 const APP_VERSION_INITIAL = "v1.1";
+const FINANCE_UPDATE_EVENT = "wmcplayer-finance-updated";
+
+const dispatchFinanceUpdated = (payload: Record<string, any>) => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(FINANCE_UPDATE_EVENT, { detail: payload }));
+};
 
 const getLocalBuildId = () => String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : Date.now());
 
@@ -490,33 +496,14 @@ function BannerCarousel() {
   );
 }
 
-function PendingActivationBanner({ userId, effectiveStatus }: { userId: string | undefined; effectiveStatus: string }) {
-  const [futureExpiry, setFutureExpiry] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    const load = async () => {
-      const { data } = await supabase
-        .from("iptv_payments")
-        .select("period_end")
-        .eq("user_id", userId)
-        .eq("status", "paid_pending_activation")
-        .order("period_end", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.period_end) {
-        const [y, m, d] = data.period_end.split("-").map(Number);
-        setFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
-      } else {
-        setFutureExpiry(null);
-      }
-    };
-    load();
-
-    return () => undefined;
-  }, [userId]);
-
-  if (effectiveStatus !== "awaiting_activation" && !futureExpiry) return null;
+function PendingActivationBanner({
+  effectiveStatus,
+  futureExpiry,
+}: {
+  effectiveStatus: string;
+  futureExpiry?: string | null;
+}) {
+  if (effectiveStatus !== "awaiting_activation") return null;
 
   return (
     <motion.div
@@ -535,200 +522,55 @@ function PendingActivationBanner({ userId, effectiveStatus }: { userId: string |
   );
 }
 
-function AccessDataBlock({ user }: { user: any }) {
-  const [revealed, setRevealed] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const reveal = useCallback(() => {
-    setConfirming(false);
-    setRevealed(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setRevealed(false), 60000);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  const maskUser = (val: string) => {
-    if (!val || val.length <= 4) return val || "—";
-    return val.slice(0, 4) + "•".repeat(Math.min(val.length - 4, 6));
-  };
-
-  const clientCode = user?.iptv_client_code || "—";
-  const iptvUser = user?.iptv_user || "—";
-  const iptvPass = user?.iptv_password || "—";
-
-  return (
-    <motion.div
-      id="dados-acesso"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="rounded-2xl border border-border/40 bg-black/90 p-5"
-    >
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Lock size={13} /> Dados de Acesso
-        </div>
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-          <Shield size={9} /> Protegido
-        </span>
-      </div>
-
-      <div className="space-y-2">
-        {[
-          { label: "Código do Cliente", value: clientCode, masked: "••••••••" },
-          { label: "Usuário", value: iptvUser, masked: maskUser(iptvUser) },
-          { label: "Senha", value: iptvPass, masked: "••••••••••" },
-        ].map((field) => (
-          <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] text-muted-foreground">{field.label}</p>
-              <p className="truncate font-mono text-sm text-foreground">{revealed ? field.value : field.masked}</p>
-            </div>
-            {revealed && <CopyButton text={field.value} />}
-          </div>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {confirming ? (
-          <motion.div
-            key="confirm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4 flex items-center gap-2"
-          >
-            <button
-              onClick={reveal}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]"
-            >
-              <Eye size={16} /> Sim, mostrar
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              className="rounded-xl bg-black/80 px-4 py-2.5 text-sm text-muted-foreground"
-            >
-              Cancelar
-            </button>
-          </motion.div>
-        ) : revealed ? (
-          <motion.div
-            key="hide"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4"
-          >
-            <button
-              onClick={() => {
-                setRevealed(false);
-                if (timerRef.current) clearTimeout(timerRef.current);
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]"
-            >
-              <EyeOff size={16} /> Ocultar dados
-            </button>
-            <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="show"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mt-4"
-          >
-            <button
-              onClick={() => setConfirming(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
-            >
-              <Eye size={16} /> Mostrar dados
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-// --- Admin Notes ---
-function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
-  const [open, setOpen] = useState(false);
-  if (!notes) return null;
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]"
-      >
-        <div className="flex items-center gap-2">
-          <FileText size={14} className="text-muted-foreground" />
-          <span className="font-medium text-foreground">Observações</span>
-          {urgent && (
-            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
-              Atenção
-            </span>
-          )}
-        </div>
-        {open ? (
-          <ChevronUp size={16} className="text-muted-foreground" />
-        ) : (
-          <ChevronDown size={16} className="text-muted-foreground" />
-        )}
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div
-              className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}
-            >
-              <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
-              <button
-                onClick={() => setOpen(false)}
-                className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground"
-              >
-                Fechar
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
 // --- Payment History (Collapsible — from iptv_payments + balance_history) ---
-function PaymentHistory() {
+function PaymentHistory({ userId }: { userId?: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      const { data, error } = await (supabase as any)
-        .from("iptv_payments")
-        .select("*")
-        .in("status", ["confirmed", "paid_pending_activation"])
-        .order("payment_date", { ascending: false })
-        .limit(20);
-      if (!error) setPayments(data || []);
-    };
-    load();
+  const load = useCallback(async () => {
+    if (!userId) {
+      setPayments([]);
+      return;
+    }
 
-    return () => undefined;
-  }, []);
+    const { data, error } = await (supabase as any)
+      .from("iptv_payments")
+      .select("*")
+      .eq("user_id", userId)
+      .in("status", ["confirmed", "paid_pending_activation"])
+      .order("payment_date", { ascending: false })
+      .limit(20);
+    if (!error) setPayments(data || []);
+  }, [userId]);
+
+  useEffect(() => {
+    void load();
+    if (!userId) return;
+
+    const onFinanceUpdate = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
+      if (!payload || (payload.user_id && payload.user_id !== userId)) return;
+
+      if (payload.payment?.id) {
+        setPayments((current) => {
+          const nextPayment = payload.payment;
+          const withoutCurrent = current.filter((item) => item.id !== nextPayment.id);
+          return [nextPayment, ...withoutCurrent].slice(0, 20);
+        });
+      }
+
+      if (payload.action === "activation_confirmed" && Array.isArray(payload.payment_ids)) {
+        setPayments((current) =>
+          current.map((item) =>
+            payload.payment_ids.includes(item.id) ? { ...item, status: "confirmed" } : item,
+          ),
+        );
+      }
+    };
+
+    window.addEventListener(FINANCE_UPDATE_EVENT, onFinanceUpdate);
+    return () => window.removeEventListener(FINANCE_UPDATE_EVENT, onFinanceUpdate);
+  }, [userId, load]);
 
   return (
     <motion.div
@@ -770,7 +612,7 @@ function PaymentHistory() {
                     return (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between py-2 border-b border-border/30 last:border-0"
+                        className="flex items-center justify-between border-b border-border/30 py-2 last:border-0"
                       >
                         <div>
                           <p className="text-sm text-foreground">{formatted}</p>
@@ -1040,66 +882,33 @@ function PixModal({
     createCharge();
   }, []);
 
-  // Poll every 1s checking DB + edge function for payment confirmation
+  // Confirmação do PIX por ordem enviada pelo webhook/Edge Function.
+  // Não há polling nem consulta repetida ao Cloudflare/Supabase.
   useEffect(() => {
     if (!paymentId || paymentConfirmed) return;
 
     let active = true;
 
-    const checkPayment = async () => {
-      if (!active) return;
+    const applyPaymentCommand = (payload: any) => {
+      if (!active || !payload) return;
+      if (payload.payment_id !== paymentId) return;
+      if (!["paid_pending_activation", "confirmed"].includes(String(payload.status || ""))) return;
 
-      // 1. Always check DB first (fastest, most reliable)
-      try {
-        const { data } = await supabase.from("iptv_payments").select("status").eq("id", paymentId).maybeSingle();
-        if (data?.status && !["pending", "pix_pending"].includes(data.status)) {
-          if (active) setPaymentConfirmed(true);
-          return;
-        }
-      } catch (err) {
-        console.error("DB poll error:", err);
-      }
-
-      // 2. If still pending, actively check Efí API via edge function
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pix-efi/check-status`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-          },
-          body: JSON.stringify({ payment_id: paymentId }),
-        });
-
-        if (resp.status === 401) {
-          return;
-        }
-
-        if (true) {
-          if (resp.ok) {
-            const result = await resp.json();
-            if (result?.confirmed && active) {
-              setPaymentConfirmed(true);
-            }
-          }
-        }
-      } catch (err) {
-        // Edge function failed — DB check above is the fallback
-      }
+      if (payload.period_end) setPeriodEnd(String(payload.period_end));
+      setPaymentConfirmed(true);
+      dispatchFinanceUpdated(payload);
     };
 
-    // Check immediately, then every 1 second
-    checkPayment();
-    const poll = setInterval(checkPayment, 1000);
+    const channel = supabase
+      .channel(`wmcplayer-pix-payment-${paymentId}`)
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        applyPaymentCommand((event as any)?.payload);
+      })
+      .subscribe();
 
     return () => {
       active = false;
-      clearInterval(poll);
+      supabase.removeChannel(channel);
     };
   }, [paymentId, paymentConfirmed]);
 
@@ -1314,7 +1123,7 @@ function PixModal({
 
 // --- Main Dashboard ---
 const ClientDashboard = () => {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, applyProfilePatch } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [supportInfo, setSupportInfo] = useState<any>(null);
@@ -1559,18 +1368,10 @@ const ClientDashboard = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const scheduleRefresh = () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        refreshProfile();
-      }, 250);
-    };
-
     const applyProfileUpdatePayload = (payload: any) => {
       if (!payload || payload.user_id !== user.id) return;
-      scheduleRefresh();
+      const patch = payload.profile || payload.profile_patch;
+      if (patch && typeof patch === "object") applyProfilePatch(patch);
     };
 
     const onLocalProfileUpdate = (event: Event) => {
@@ -1579,7 +1380,6 @@ const ClientDashboard = () => {
 
     const onStorageProfileUpdate = (event: StorageEvent) => {
       if (event.key !== "wmcplayer_client_profile_update" || !event.newValue) return;
-
       try {
         applyProfileUpdatePayload(JSON.parse(event.newValue));
       } catch {
@@ -1598,12 +1398,45 @@ const ClientDashboard = () => {
       .subscribe();
 
     return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
       window.removeEventListener("wmcplayer-client-profile-update", onLocalProfileUpdate);
       window.removeEventListener("storage", onStorageProfileUpdate);
       supabase.removeChannel(profileUpdateChannel);
     };
-  }, [user?.id, refreshProfile]);
+  }, [user?.id, applyProfilePatch]);
+
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const applyFinanceCommand = (payload: any) => {
+      if (!payload || (payload.user_id && payload.user_id !== user.id)) return;
+
+      const patch = payload.profile_patch || payload.profile;
+      if (patch && typeof patch === "object") applyProfilePatch(patch);
+
+      if (payload.action === "pix_payment_received" && payload.period_end) {
+        const [year, month, day] = String(payload.period_end).split("-");
+        setPendingFutureExpiry(`${day}/${month}/${year}`);
+      }
+
+      if (payload.action === "activation_confirmed" || payload.iptv_status === "active") {
+        setPendingFutureExpiry(null);
+      }
+
+      dispatchFinanceUpdated(payload);
+    };
+
+    const financeChannel = supabase
+      .channel(`wmcplayer-finance-${user.id}`)
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        applyFinanceCommand((event as any)?.payload);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(financeChannel);
+    };
+  }, [user?.id, applyProfilePatch]);
 
 
   useEffect(() => {
@@ -1651,7 +1484,7 @@ const ClientDashboard = () => {
       window.removeEventListener("storage", onStoragePlansUpdate);
       supabase.removeChannel(planUpdateChannel);
     };
-  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
+  }, [user?.id, user?.iptv_status, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
 
   useEffect(() => {
     const cachedPlansOnOpen = readCachedRenewalPlans();
@@ -1856,10 +1689,10 @@ const ClientDashboard = () => {
     if (!user?.id || trustRequesting || trustCooldown || trustPending) return;
     setTrustRequesting(true);
     try {
-      const { error } = await supabase.functions.invoke("admin-manage-user", {
+      const { data, error } = await supabase.functions.invoke("admin-manage-user", {
         body: { action: "request_trust_unlock", user_id: user.id, data: {} },
       });
-      if (error) throw error;
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Falha ao enviar solicitação.");
       setTrustPending(true);
     } catch (err: any) {
       console.error("Trust unlock error:", err);
@@ -2076,7 +1909,7 @@ const ClientDashboard = () => {
         </motion.div>
 
         {/* Awaiting activation banner */}
-        <PendingActivationBanner userId={user?.id} effectiveStatus={effectiveStatus} />
+        <PendingActivationBanner effectiveStatus={effectiveStatus} futureExpiry={pendingFutureExpiry} />
 
         {/* BANNERS (optional, minimal) */}
         <BannerCarousel />
@@ -2377,7 +2210,7 @@ const ClientDashboard = () => {
         </motion.div>
 
         {/* PAYMENT HISTORY (collapsible) */}
-        <PaymentHistory />
+        <PaymentHistory userId={user?.id} />
 
         {/* TV APP */}
         <TvAppIcons tvApps={tvApps} userApp={user?.iptv_tv_app} />
@@ -2455,11 +2288,8 @@ const ClientDashboard = () => {
         {pixModal && (
           <PixModal
             pixModal={pixModal}
-            onClose={(confirmed?: boolean) => {
+            onClose={() => {
               setPixModal(null);
-              if (confirmed) {
-                refreshProfile();
-              }
             }}
             supportInfo={supportInfo}
             user={user}

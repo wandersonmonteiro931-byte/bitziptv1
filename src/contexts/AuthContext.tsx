@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type UserRole = "admin" | "client";
@@ -62,6 +62,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAdmin: boolean;
   refreshProfile: () => Promise<void>;
+  applyProfilePatch: (patch: Partial<Profile>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -198,6 +199,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await fetchProfile(authUser.id);
     }
   };
+
+  const applyProfilePatch = useCallback((patch: Partial<Profile>) => {
+    if (!patch || typeof patch !== "object") return;
+    setUser((current) => (current ? ({ ...current, ...patch } as Profile) : current));
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -365,7 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, login, logout, isAdmin: role === "admin", refreshProfile }}>
+    <AuthContext.Provider value={{ user, role, loading, login, logout, isAdmin: role === "admin", refreshProfile, applyProfilePatch }}>
       {children}
     </AuthContext.Provider>
   );

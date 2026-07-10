@@ -10,10 +10,51 @@ const HistoryPage = () => {
   const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    supabase.from("balance_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50)
-      .then(({ data }) => setHistory(data || []));
-  }, [user]);
+    if (!user?.id) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = async () => {
+      const { data } = await supabase
+        .from("balance_history")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setHistory(data || []);
+    };
+
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void load(), 80);
+    };
+
+    const onFinanceUpdate = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
+      if (!payload?.user_id || payload.user_id === user.id) refresh();
+    };
+
+    void load();
+    window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+
+    const channel = supabase
+      .channel(`wmcplayer-finance-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "balance_history", filter: `user_id=eq.${user.id}` },
+        refresh,
+      )
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        const payload = (event as any)?.payload;
+        if (!payload?.user_id || payload.user_id === user.id) refresh();
+      })
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   return (
     <AppLayout>

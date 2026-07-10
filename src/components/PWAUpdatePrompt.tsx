@@ -191,24 +191,9 @@ export function PWAUpdatePrompt() {
         }
       };
 
+      // Uma única verificação ao abrir/carregar o aplicativo.
+      // Não fica consultando o Cloudflare em intervalo, foco ou reconexão.
       runChecks();
-
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(runChecks, CHECK_INTERVAL_MS);
-
-      const onVisible = () => {
-        if (document.visibilityState === "visible") runChecks();
-      };
-
-      document.addEventListener("visibilitychange", onVisible);
-      window.addEventListener("focus", runChecks);
-      window.addEventListener("online", runChecks);
-
-      return () => {
-        document.removeEventListener("visibilitychange", onVisible);
-        window.removeEventListener("focus", runChecks);
-        window.removeEventListener("online", runChecks);
-      };
     },
     onRegisterError(error) {
       console.error("SW registration error:", error);
@@ -232,7 +217,6 @@ export function PWAUpdatePrompt() {
 
     return () => {
       navigator.serviceWorker?.removeEventListener("controllerchange", handleControllerChange);
-      if (intervalRef.current) clearInterval(intervalRef.current);
 
       if (showPromptRef.current) {
         globalPromptVisible = false;

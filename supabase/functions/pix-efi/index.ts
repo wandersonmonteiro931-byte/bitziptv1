@@ -329,6 +329,76 @@ function getAdminSupabase() {
   return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY")));
 }
 
+async function sendRealtimeBroadcast(adminSupa: any, channelName: string, eventName: string, payload: Record<string, any>) {
+  await new Promise<void>((resolve) => {
+    let finished = false;
+    const channel = adminSupa.channel(channelName, { config: { broadcast: { self: true } } });
+
+    const finish = async () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      try {
+        await adminSupa.removeChannel(channel);
+      } catch {
+        // limpeza opcional
+      }
+      resolve();
+    };
+
+    const timeout = setTimeout(() => void finish(), 1800);
+
+    channel.subscribe(async (status: string) => {
+      if (status === "SUBSCRIBED") {
+        try {
+          await channel.send({ type: "broadcast", event: eventName, payload });
+        } finally {
+          await finish();
+        }
+      } else if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(status)) {
+        await finish();
+      }
+    });
+  });
+}
+
+async function emitFinanceUpdated(adminSupa: any, userId: string, payload: Record<string, any> = {}) {
+  const eventPayload = { user_id: userId, sentAt: Date.now(), ...payload };
+  const commands = [
+    sendRealtimeBroadcast(adminSupa, `wmcplayer-finance-${userId}`, "finance-updated", eventPayload),
+    sendRealtimeBroadcast(adminSupa, "wmcplayer-admin-finance", "finance-updated", eventPayload),
+  ];
+
+  if (payload.payment_id) {
+    commands.push(
+      sendRealtimeBroadcast(adminSupa, `wmcplayer-pix-payment-${payload.payment_id}`, "finance-updated", eventPayload),
+    );
+  }
+
+  if (payload.purchase_id) {
+    commands.push(
+      sendRealtimeBroadcast(adminSupa, `wmcplayer-credit-pix-${payload.purchase_id}`, "finance-updated", eventPayload),
+    );
+  }
+
+  if (payload.profile_patch) {
+    commands.push(
+      sendRealtimeBroadcast(adminSupa, `wmcplayer-client-profile-${userId}`, "client-profile-updated", {
+        user_id: userId,
+        sentAt: eventPayload.sentAt,
+        profile: payload.profile_patch,
+        action: payload.action,
+      }),
+    );
+  }
+
+  try {
+    await Promise.all(commands);
+  } catch (err) {
+    console.warn("Falha ao emitir atualização PIX instantânea:", err instanceof Error ? err.message : String(err));
+  }
+}
+
 function getUserSupabase(authHeader: string) {
   return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || getEnv("SUPABASE_ANON_KEY")), {
     global: { headers: { Authorization: authHeader } },
@@ -826,16 +896,47 @@ async function confirmCreditPurchase(adminSupa: any, purchase: any) {
   }
 
   // Update user level
+  let finalLevel = "bronze";
+  let finalVip = false;
   const { data: settings } = await adminSupa.from("credit_settings").select("level_thresholds, vip_threshold").limit(1).single();
   if (settings) {
     const thresholds = settings.level_thresholds as Record<string, number>;
-    let level = "bronze";
-    if (newPoints >= (thresholds.diamante || 2000)) level = "diamante";
-    else if (newPoints >= (thresholds.ouro || 500)) level = "ouro";
-    else if (newPoints >= (thresholds.prata || 100)) level = "prata";
-    const vip = newPoints >= (settings.vip_threshold || 200);
-    await adminSupa.from("profiles").update({ user_level: level, vip_badge: vip }).eq("id", purchase.user_id);
+    if (newPoints >= (thresholds.diamante || 2000)) finalLevel = "diamante";
+    else if (newPoints >= (thresholds.ouro || 500)) finalLevel = "ouro";
+    else if (newPoints >= (thresholds.prata || 100)) finalLevel = "prata";
+    finalVip = newPoints >= (settings.vip_threshold || 200);
+    await adminSupa.from("profiles").update({ user_level: finalLevel, vip_badge: finalVip }).eq("id", purchase.user_id);
   }
+
+  await emitFinanceUpdated(adminSupa, purchase.user_id, {
+    action: "credit_purchase_confirmed",
+    source: "credit_transactions",
+    purchase_id: purchase.id,
+    status: "confirmed",
+    credits_added: totalCredits,
+    credits_after: newBalance,
+    level_points_after: newPoints,
+    user_level: finalLevel,
+    vip_badge: finalVip,
+    profile_patch: {
+      credits: newBalance,
+      level_points: newPoints,
+      user_level: finalLevel,
+      vip_badge: finalVip,
+      daily_credits_purchased: purchase.credits_amount,
+      daily_purchase_date: new Date().toISOString().slice(0, 10),
+    },
+    purchase: {
+      id: purchase.id,
+      user_id: purchase.user_id,
+      status: "confirmed",
+      credits_amount: purchase.credits_amount,
+      bonus_amount: purchase.bonus_amount,
+      total_credits: totalCredits,
+      price: purchase.price,
+      confirmed_at: new Date().toISOString(),
+    },
+  });
 
   console.log(`Credit purchase ${purchase.id} confirmed. ${totalCredits} credits added to user ${purchase.user_id}`);
 }
@@ -856,18 +957,19 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     return;
   }
 
-  // 2. Update profile: set awaiting_activation status only.
+  // 2. Atualiza o perfil e envia a ordem completa para a tela do cliente.
   // Se era usuário de teste, o 1º pagamento já tira ele do modo teste.
-  // A ativação/liberação final continua dependendo do admin.
+  const profilePatch = {
+    iptv_status: "awaiting_activation",
+    trial_enabled: false,
+    trial_payment_confirmed: true,
+    trial_expired_at: null,
+    trial_expired_notice_sent_at: null,
+  };
+
   await adminSupa
     .from("profiles")
-    .update({
-      iptv_status: "awaiting_activation",
-      trial_enabled: false,
-      trial_payment_confirmed: true,
-      trial_expired_at: null,
-      trial_expired_notice_sent_at: null,
-    })
+    .update(profilePatch)
     .eq("id", payment.user_id);
 
   // 4. Log in balance_history
@@ -955,6 +1057,36 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
   } catch (pushErr) {
     console.error("Failed to send push notification:", pushErr);
   }
+
+  const confirmedAt = new Date().toISOString();
+  const { data: profileSnapshot } = await adminSupa
+    .from("profiles")
+    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_status")
+    .eq("id", payment.user_id)
+    .maybeSingle();
+
+  await emitFinanceUpdated(adminSupa, payment.user_id, {
+    action: "pix_payment_received",
+    source: "iptv_payments",
+    payment_id: payment.id,
+    status: "paid_pending_activation",
+    iptv_status: "awaiting_activation",
+    period_end: payment.period_end,
+    profile_patch: profilePatch,
+    profile_snapshot: profileSnapshot,
+    payment: {
+      ...payment,
+      status: "paid_pending_activation",
+      payment_date: confirmedAt,
+    },
+    movement: {
+      user_id: payment.user_id,
+      amount: -Number(payment.amount || 0),
+      type: "iptv_payment",
+      description: `Pagamento TV confirmado via PIX (txid: ${payment.pix_txid || ""})`,
+      created_at: confirmedAt,
+    },
+  });
 
   console.log(`Payment ${payment.id} confirmed. Awaiting admin activation.`);
 }

@@ -28,8 +28,17 @@ import { StatsCards } from "./iptv/StatsCards";
 import { ClientEditPanel } from "./iptv/ClientEditPanel";
 import { TV_STATUSES, QUICK_FILTERS, getStatusInfo } from "./iptv/types";
 import { useAppBranding } from "@/hooks/useAppBranding";
-import { todayBRT } from "@/lib/utils";
 
+
+
+const getTodayDateBRT = () => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+};
 
 const HIDDEN_PROFILE_STATUSES = new Set(["archived", "deleted", "removed", "excluded", "excluido", "arquivado"]);
 
@@ -169,7 +178,7 @@ const AdminIptvPage = () => {
   };
 
   const loadData = async () => {
-    const [u, s, a, pa, tr, cr] = await Promise.all([
+    const [u, s, a, pa, tr, cr, adminPending] = await Promise.all([
       supabase.from("profiles").select("*").order("name"),
       supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
@@ -180,7 +189,7 @@ const AdminIptvPage = () => {
         .order("payment_date", { ascending: false }),
       supabase
         .from("iptv_trust_requests")
-        .select("*, profiles!iptv_trust_requests_user_id_fkey(name, role, status, iptv_server, iptv_expiry)")
+        .select("*")
         .eq("status", "pending")
         .order("requested_at", { ascending: true }),
       supabase
@@ -188,14 +197,30 @@ const AdminIptvPage = () => {
         .select("*, profiles!iptv_cancellation_requests_user_id_fkey(name, role, status, iptv_server, iptv_expiry)")
         .eq("status", "pending")
         .order("created_at", { ascending: true }),
+      supabase.functions
+        .invoke("admin-manage-user", {
+          body: { action: "list_pending_admin_requests", user_id: "system", data: {} },
+        })
+        .catch((error) => ({ data: null, error })),
     ]);
     const visibleProfiles = ((u.data as any[]) || []).filter(isVisibleTvClient);
+    const profilesById = new Map(visibleProfiles.map((profile: any) => [profile.id, profile]));
+
+    const directTrustRows = ((tr.data as any[]) || [])
+      .map((item) => ({ ...item, profiles: item.profiles || profilesById.get(item.user_id) }))
+      .filter((item) => item.status === "pending" && isVisibleTvClient(item.profiles));
+
+    const edgeTrustRows = (((adminPending as any)?.data?.trust_requests as any[]) || [])
+      .map((item) => ({ ...item, profiles: item.profiles || profilesById.get(item.user_id) }))
+      .filter((item) => item.status === "pending" && isVisibleTvClient(item.profiles));
+
+    const trustRows = edgeTrustRows.length > 0 ? edgeTrustRows : directTrustRows;
 
     setUsers(visibleProfiles);
     setServers(s.data || []);
     setTvApps(a.data || []);
     setPendingActivations(((pa.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
-    setTrustRequests(((tr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    setTrustRequests(trustRows);
     setCancelRequests(((cr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
     setSelectedUsers((current) => new Set(Array.from(current).filter((id) => visibleProfiles.some((client) => client.id === id))));
   };
@@ -205,13 +230,45 @@ const AdminIptvPage = () => {
   }, []);
 
   useEffect(() => {
+    const applyAdminFinanceCommand = (payload: any) => {
+      if (!payload) return;
+
+      const userId = payload.user_id;
+      const profilePatch = payload.profile_patch || payload.profile;
+
+      if (userId && profilePatch) {
+        setUsers((current) =>
+          current.map((item) => (item.id === userId ? { ...item, ...profilePatch } : item)),
+        );
+        setEditUser((current: any) => (current?.id === userId ? { ...current, ...profilePatch } : current));
+      }
+
+      if (payload.action === "pix_payment_received" && payload.payment?.id) {
+        const payment = {
+          ...payload.payment,
+          profiles: payload.profile_snapshot || null,
+        };
+        setPendingActivations((current) => {
+          const withoutCurrent = current.filter((item) => item.id !== payment.id);
+          return [payment, ...withoutCurrent];
+        });
+      }
+
+      if (payload.action === "activation_confirmed") {
+        const ids = Array.isArray(payload.payment_ids) ? payload.payment_ids : [payload.payment_id].filter(Boolean);
+        setPendingActivations((current) =>
+          current.filter((item) => item.user_id !== userId && !ids.includes(item.id)),
+        );
+      }
+    };
+
     const channel = supabase
-      .channel("admin-iptv-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => loadData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_payments" }, () => loadData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_trust_requests" }, () => loadData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "iptv_cancellation_requests" }, () => loadData())
+      .channel("wmcplayer-admin-finance")
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        applyAdminFinanceCommand((event as any)?.payload);
+      })
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -225,7 +282,16 @@ const AdminIptvPage = () => {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: "✅ Ativação confirmada!" });
-      await loadData();
+
+      const ids = Array.isArray(data?.payment_ids) ? data.payment_ids : [paymentId];
+      setPendingActivations((current) =>
+        current.filter((item) => item.user_id !== userId && !ids.includes(item.id)),
+      );
+      if (data?.profile_patch) {
+        setUsers((current) =>
+          current.map((item) => (item.id === userId ? { ...item, ...data.profile_patch } : item)),
+        );
+      }
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
@@ -322,7 +388,7 @@ const AdminIptvPage = () => {
   };
 
   const filtered = useMemo(() => {
-    const todayStr = todayBRT();
+    const todayStr = getTodayDateBRT();
     const fiveDaysStr = addDaysToDateOnly(todayStr, 5);
 
     let list = users.filter(isVisibleTvClient);

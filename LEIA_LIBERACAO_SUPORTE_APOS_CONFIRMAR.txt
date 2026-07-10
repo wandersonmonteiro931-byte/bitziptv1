@@ -1,0 +1,32 @@
+CORREÇÃO: AVISO "AGUARDANDO LIBERAÇÃO DO SUPORTE" CONTINUAVA APÓS CONFIRMAÇÃO
+
+BASE USADA:
+bitziptv1-confianca-chega-painel-admin.zip
+
+O QUE FOI CORRIGIDO:
+1. Ao confirmar a ativação no admin, todas as cobranças do cliente que ainda estavam como paid_pending_activation passam para confirmed.
+2. O perfil do cliente passa para active.
+3. A validade final é atualizada usando a maior data confirmada.
+4. O modo teste é encerrado após o pagamento/ativação confirmada.
+5. O backend envia atualização imediata para o cliente aberto.
+6. O banner "Aguardando liberação do suporte" agora só aparece quando o status real do cliente for awaiting_activation.
+7. Quando o status muda para active, o banner e a data futura pendente são limpos imediatamente.
+8. Ao recarregar ou reabrir o aplicativo, o aviso também não volta.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat é obrigatório porque admin-manage-user foi alterado.
+Não precisa rodar novo SQL.
+
+VALIDAÇÃO:
+Build executado com sucesso.

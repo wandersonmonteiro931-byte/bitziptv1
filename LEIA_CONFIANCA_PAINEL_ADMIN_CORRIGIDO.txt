@@ -1,0 +1,29 @@
+CORREÇÃO: SOLICITAÇÃO DE CONFIANÇA NÃO CHEGAVA NO PAINEL ADMIN
+
+BASE USADA:
+bitziptv1-aviso-teste-entendi-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. O cliente agora só mostra "Solicitação de confiança enviada" se a Edge Function confirmar sucesso real.
+2. A Edge Function admin-manage-user agora valida se a solicitação foi gravada no banco.
+3. A solicitação agora grava requested_at explicitamente.
+4. O painel Admin > TV agora não depende mais apenas do relacionamento FK do Supabase para mostrar confiança.
+5. O painel Admin > TV agora também busca solicitações pendentes pela Edge Function com service role.
+6. Se a consulta direta for bloqueada por RLS, FK ou cache, o fallback pela Edge Function mostra mesmo assim.
+7. O painel Admin > TV continua atualizando por realtime e também ao recarregar.
+8. Corrigido risco de tela preta por todayBRT na tela Admin > TV usando helper local.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/pages/admin/AdminIptvPage.tsx
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+Precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque a Edge Function admin-manage-user foi alterada.

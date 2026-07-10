@@ -297,6 +297,40 @@ const AdminUsersPage = () => {
     loadBillingDueDates();
   }, []);
 
+  useEffect(() => {
+    const applyFinanceCommand = (payload?: any) => {
+      if (!payload) return;
+      const userId = payload.user_id;
+      const profilePatch = payload.profile_patch || payload.profile;
+
+      if (userId && profilePatch) {
+        setUsers((current) =>
+          current.map((item) => (item.id === userId ? { ...item, ...profilePatch } : item)),
+        );
+        setEditUser((current: any) => (current?.id === userId ? { ...current, ...profilePatch } : current));
+      }
+
+      if (payload.movement && showUserHistory?.id === userId) {
+        setUserHistory((current) => [payload.movement, ...current].slice(0, 100));
+      }
+    };
+
+    const onFinanceUpdate = (event: Event) => applyFinanceCommand((event as CustomEvent)?.detail);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+
+    const channel = supabase
+      .channel("wmcplayer-admin-finance")
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        applyFinanceCommand((event as any)?.payload);
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+      supabase.removeChannel(channel);
+    };
+  }, [showUserHistory?.id]);
+
   const filtered = users.filter((u) => {
     const matchSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase());

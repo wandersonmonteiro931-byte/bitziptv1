@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Diamond, ShoppingCart, Sparkles, Copy, Check, Crown, Star, Loader2, Wallet } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTimeBRT } from "@/lib/utils";
@@ -25,7 +25,7 @@ const levelIcons: Record<string, string> = {
 };
 
 const CreditsStorePage = () => {
-  const { user, refreshProfile } = useAuth();
+  const { user, applyProfilePatch } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [copiedPix, setCopiedPix] = useState<string | null>(null);
@@ -45,7 +45,6 @@ const CreditsStorePage = () => {
   const [pixError, setPixError] = useState<string | null>(null);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(3600);
-  const pollingRef = useRef<ReturnType<typeof setInterval>>();
 
   const { data: packages = [] } = useQuery({
     queryKey: ["credit-packages"],
@@ -148,42 +147,47 @@ const CreditsStorePage = () => {
     },
   });
 
-  // Polling for payment confirmation
+  // Confirmação por ordem enviada pelo webhook/Edge Function.
+  // Não consulta status em loop e não usa polling.
   useEffect(() => {
     if (!pixModal || !pixData || paymentConfirmed) return;
 
-    const poll = async () => {
-      try {
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-        const token = (await supabase.auth.getSession()).data.session?.access_token;
+    let active = true;
+    const purchaseId = pixModal.purchaseId;
 
-        const resp = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/pix-efi/check-credit-status`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ purchase_id: pixModal.purchaseId }),
-          }
-        );
+    const applyConfirmationCommand = (payload: any) => {
+      if (!active || !payload || payload.purchase_id !== purchaseId) return;
+      if (payload.status !== "confirmed") return;
 
-        const result = await resp.json();
-        if (result.confirmed) {
-          setPaymentConfirmed(true);
-          refreshProfile();
-          queryClient.invalidateQueries({ queryKey: ["my-credit-purchases"] });
-          if (pollingRef.current) clearInterval(pollingRef.current);
-        }
-      } catch {
-        // ignore polling errors
+      setPaymentConfirmed(true);
+
+      const patch = payload.profile_patch || {};
+      if (payload.credits_after !== undefined) patch.credits = Number(payload.credits_after);
+      if (payload.level_points_after !== undefined) patch.level_points = Number(payload.level_points_after);
+      if (payload.user_level !== undefined) patch.user_level = payload.user_level;
+      if (payload.vip_badge !== undefined) patch.vip_badge = Boolean(payload.vip_badge);
+      if (Object.keys(patch).length > 0) applyProfilePatch(patch);
+
+      if (payload.purchase) {
+        queryClient.setQueryData<any[]>(["my-credit-purchases"], (current = []) => {
+          const withoutCurrent = current.filter((item) => item.id !== payload.purchase.id);
+          return [payload.purchase, ...withoutCurrent].slice(0, 10);
+        });
       }
     };
 
-    pollingRef.current = setInterval(poll, 2000);
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [pixModal?.purchaseId, pixData, paymentConfirmed]);
+    const channel = supabase
+      .channel(`wmcplayer-credit-pix-${purchaseId}`)
+      .on("broadcast", { event: "finance-updated" }, (event) => {
+        applyConfirmationCommand((event as any)?.payload);
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [pixModal?.purchaseId, pixData, paymentConfirmed, applyProfilePatch, queryClient]);
 
   // Timer countdown
   useEffect(() => {
@@ -193,7 +197,6 @@ const CreditsStorePage = () => {
   }, [pixModal, paymentConfirmed]);
 
   const closePixModal = useCallback(async () => {
-    if (pollingRef.current) clearInterval(pollingRef.current);
     // Delete unpaid purchase
     if (pixModal && !paymentConfirmed) {
       await supabase.from("credit_purchases").delete().eq("id", pixModal.purchaseId).eq("status", "pending");

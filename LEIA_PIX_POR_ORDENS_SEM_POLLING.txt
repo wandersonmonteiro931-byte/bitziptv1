@@ -1,0 +1,50 @@
+CORREÇÃO: PIX E MOVIMENTAÇÕES POR ORDENS, SEM CONSULTAS EM LOOP
+
+BASE USADA:
+bitziptv1-pix-movimentacoes-instantaneas.zip
+
+FLUXO IMPLEMENTADO:
+1. O cliente gera o PIX normalmente.
+2. A Efí confirma o pagamento pelo webhook.
+3. A Edge Function pix-efi envia uma ORDEM Realtime para a tela do PIX.
+4. A tela muda imediatamente para "Pagamento Recebido!" sem consultar status em loop.
+5. Ao fechar o PIX, a tela inicial já mostra "Aguardando liberação do suporte".
+6. Quando o suporte confirmar a ativação, admin-manage-user envia uma ORDEM Realtime ao cliente.
+7. O cliente recebe a notificação, o perfil muda para ativo e o aviso de aguardando suporte desaparece automaticamente.
+
+REMOVIDO:
+- consulta do PIX a cada 15 segundos
+- consulta de crédito a cada 15 segundos
+- consultas automáticas após cada evento financeiro
+- verificação periódica de atualização no Cloudflare
+- reinscrição Push automática a cada 15 minutos
+
+MANTIDO:
+- uma consulta inicial apenas quando a tela é aberta/logada, para carregar os dados já existentes
+- cronômetros visuais locais, que não fazem chamadas de internet
+- Supabase Broadcast/Realtime, que recebe ordens sem polling
+
+ARQUIVOS PRINCIPAIS ALTERADOS:
+- src/contexts/AuthContext.tsx
+- src/hooks/useRealtimeBalance.ts
+- src/pages/ClientDashboard.tsx
+- src/pages/CreditsStorePage.tsx
+- src/pages/admin/AdminIptvPage.tsx
+- src/pages/admin/AdminUsersPage.tsx
+- src/components/PWAUpdatePrompt.tsx
+- src/hooks/usePushNotifications.ts
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+O PASSO 5 É OBRIGATÓRIO:
+As funções pix-efi e admin-manage-user foram alteradas.
+
+VALIDAÇÃO:
+npm run build executado com sucesso.

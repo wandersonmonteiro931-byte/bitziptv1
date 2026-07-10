@@ -3,45 +3,44 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * Subscribes to realtime changes on the user's profile (balance/credits updates)
- * and triggers a profile refresh automatically.
+ * Recebe ordens financeiras enviadas pelas Edge Functions via Supabase Broadcast.
+ * Não faz polling e não consulta o banco ao receber uma atualização.
  */
 export function useRealtimeBalance() {
-  const { user, refreshProfile } = useAuth();
+  const { user, applyProfilePatch } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`balance-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "profiles",
-          filter: `id=eq.${user.id}`,
-        },
-        () => {
-          refreshProfile();
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "balance_history",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          // Just trigger a refresh — the profile UPDATE handler shows the toast
-        }
-      )
+    const applyCommand = (payload: any) => {
+      if (!payload || (payload.user_id && payload.user_id !== user.id)) return;
+
+      const patch: Record<string, any> = {
+        ...(payload.profile_patch || payload.profile || {}),
+      };
+
+      if (payload.balance_after !== undefined) patch.balance = Number(payload.balance_after);
+      if (payload.credits_after !== undefined) patch.credits = Number(payload.credits_after);
+      if (payload.level_points_after !== undefined) patch.level_points = Number(payload.level_points_after);
+      if (payload.user_level !== undefined) patch.user_level = payload.user_level;
+      if (payload.vip_badge !== undefined) patch.vip_badge = Boolean(payload.vip_badge);
+
+      if (Object.keys(patch).length > 0) applyProfilePatch(patch);
+    };
+
+    const financeChannel = supabase
+      .channel(`wmcplayer-finance-${user.id}`)
+      .on("broadcast", { event: "finance-updated" }, (event) => applyCommand((event as any)?.payload))
+      .subscribe();
+
+    const profileChannel = supabase
+      .channel(`wmcplayer-client-profile-${user.id}`)
+      .on("broadcast", { event: "client-profile-updated" }, (event) => applyCommand((event as any)?.payload))
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(financeChannel);
+      supabase.removeChannel(profileChannel);
     };
-  }, [user?.id]);
+  }, [user?.id, applyProfilePatch]);
 }

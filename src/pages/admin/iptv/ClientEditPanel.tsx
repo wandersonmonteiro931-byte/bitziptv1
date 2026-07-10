@@ -82,6 +82,15 @@ const broadcastClientProfileUpdate = (userId: string, payload: Record<string, an
   }
 };
 
+const broadcastFinanceUpdate = (userId: string, payload: Record<string, any> = {}) => {
+  const data = { user_id: userId, sentAt: Date.now(), ...payload };
+  try {
+    window.dispatchEvent(new CustomEvent("wmcplayer-finance-updated", { detail: data }));
+  } catch {
+    // opcional
+  }
+};
+
 
 const TABS = [
   { key: "overview", label: "Visão Geral", icon: User },
@@ -178,8 +187,8 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   }, [tvApps, appTitle, logoUrl]);
   const selectedTvApp = tvAppOptions.find((app) => app.name === form.iptv_tv_app);
 
-  const loadLogs = async () => {
-    if (logsLoaded) return;
+  const loadLogs = useCallback(async (force = false) => {
+    if (logsLoaded && !force) return;
     const { data } = await supabase
       .from("admin_audit_logs")
       .select("*")
@@ -188,9 +197,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       .limit(50);
     setLogs(data || []);
     setLogsLoaded(true);
-  };
+  }, [user.id, logsLoaded]);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     const { data } = await (supabase as any)
       .from("iptv_payments")
       .select("*")
@@ -200,7 +209,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       .limit(50);
     setPayments(data || []);
     setPaymentsLoaded(true);
-  };
+  }, [user.id]);
 
   const loadScheduledRates = useCallback(async () => {
     const { data } = await supabase
@@ -213,11 +222,65 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   useEffect(() => {
     if (tab === "financial") {
-      loadPayments();
-      loadScheduledRates();
+      void loadPayments();
+      void loadScheduledRates();
     }
-    if (tab === "history") loadLogs();
-  }, [tab]);
+    if (tab === "history") void loadLogs();
+  }, [tab, loadPayments, loadScheduledRates, loadLogs]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const refreshFinance = (payload?: any) => {
+      if (payload?.user_id && payload.user_id !== user.id) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void loadPayments();
+        void loadScheduledRates();
+        if (tab === "history") void loadLogs(true);
+        onSaved();
+      }, 80);
+    };
+
+    const onFinanceUpdate = (event: Event) => refreshFinance((event as CustomEvent)?.detail);
+    window.addEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+
+    const channel = supabase
+      .channel("wmcplayer-admin-finance")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "iptv_payments", filter: `user_id=eq.${user.id}` },
+        (payload) => refreshFinance({ user_id: user.id, source: "iptv_payments", row: (payload as any)?.new || (payload as any)?.old }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "balance_history", filter: `user_id=eq.${user.id}` },
+        (payload) => refreshFinance({ user_id: user.id, source: "balance_history", row: (payload as any)?.new || (payload as any)?.old }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_audit_logs", filter: `target_id=eq.${user.id}` },
+        () => { if (tab === "history") void loadLogs(true); },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+        (payload) => {
+          const next = (payload as any)?.new;
+          if (next) setForm((current) => ({ ...current, ...next }));
+          refreshFinance({ user_id: user.id, source: "profiles" });
+        },
+      )
+      .on("broadcast", { event: "finance-updated" }, (event) => refreshFinance((event as any)?.payload))
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("wmcplayer-finance-updated", onFinanceUpdate);
+      supabase.removeChannel(channel);
+    };
+  }, [user.id, tab, loadPayments, loadScheduledRates, loadLogs, onSaved]);
 
   const saveForm = async () => {
     setSaving(true);
@@ -285,6 +348,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       },
     });
 
+    broadcastFinanceUpdate(user.id, { action: "confirm_payment", status: "confirmed", period_end: periodEnd });
     toast({ title: `✅ Pagamento confirmado — ${months} mês(es) até ${periodEnd}` });
     setForm({ ...form, iptv_expiry: periodEnd, iptv_status: "active" });
     setShowConfirmPayment(false);
@@ -313,6 +377,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
         data: manualPaymentForm,
       },
     });
+    broadcastFinanceUpdate(user.id, { action: "register_manual_payment", status: "confirmed" });
     toast({ title: "✅ Pagamento manual registrado com sucesso!" });
     setShowManualPayment(false);
     setManualPaymentForm({ amount: "", payment_date: "", period_start: "", period_end: "", notes: "" });
@@ -360,6 +425,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       });
       if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message);
       const deletedCount = Number((data as any)?.deleted ?? selectedInvoices.length);
+      broadcastFinanceUpdate(user.id, { action: "bulk_delete_invoices" });
       toast({ title: `🗑️ ${deletedCount} fatura(s) excluída(s)` });
       setSelectedInvoices([]);
       await loadPayments();
@@ -379,6 +445,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     await supabase.functions.invoke("admin-manage-user", {
       body: { action: "bulk_update_invoices", user_id: user.id, data: { payment_ids: selectedInvoices, updates } },
     });
+    broadcastFinanceUpdate(user.id, { action: "bulk_update_invoices" });
     toast({ title: `✅ ${selectedInvoices.length} fatura(s) atualizada(s)` });
     setSelectedInvoices([]);
     setBulkEditMode(false);
@@ -393,6 +460,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     await supabase.functions.invoke("admin-manage-user", {
       body: { action: "regenerate_future_invoices", user_id: user.id, data: {} },
     });
+    broadcastFinanceUpdate(user.id, { action: "regenerate_future_invoices" });
     toast({ title: "🔄 Faturas pendentes excluídas e 6 novas geradas" });
     setSelectedInvoices([]);
     setPaymentsLoaded(false);
