@@ -33,6 +33,18 @@ const addDaysToDateOnly = (dateOnly: string, days: number) => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+const addMonthsToDateOnlyByFixedDay = (dateOnly: string, months: number, fixedDay?: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const safeMonths = Math.max(1, Number(months || 1));
+  const dueDay = Math.max(1, Math.min(31, Number(fixedDay || day || 1)));
+  const targetMonthIndex = (month || 1) - 1 + safeMonths;
+  const targetYear = (year || new Date().getFullYear()) + Math.floor(targetMonthIndex / 12);
+  const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDay = new Date(targetYear, normalizedMonthIndex + 1, 0).getDate();
+  const targetDay = Math.min(dueDay, lastDay);
+  return `${targetYear}-${String(normalizedMonthIndex + 1).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+};
+
 const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
 const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, profilePatch: Record<string, any>) => {
@@ -465,12 +477,62 @@ Deno.serve(async (req) => {
         // Fetch current profile to detect actual status changes
         const { data: currentProfile } = await supabaseAdmin
           .from("profiles")
-          .select("iptv_status, iptv_user, username")
+          .select("iptv_status, iptv_user, username, iptv_expiry, iptv_due_day")
           .eq("id", user_id)
           .single();
         const previousStatus = currentProfile?.iptv_status;
 
         const updateData = { ...(data || {}) };
+
+        // Ao ativar um PIX já recebido, a renovação parte do vencimento que já estava previsto.
+        // Exemplo: venceu 09/07, admin confirmou 10/07 => próximo vencimento 09/08.
+        // Nunca parte do dia em que o admin confirmou.
+        let pendingActivationPayments: any[] = [];
+        let activationFinalExpiry = "";
+        if (data?.iptv_status === "active" && updateData.trial_enabled !== true) {
+          const { data: rows, error: pendingError } = await supabaseAdmin
+            .from("iptv_payments")
+            .select("id, months, period_start, period_end, created_at")
+            .eq("user_id", user_id)
+            .eq("status", "paid_pending_activation")
+            .order("created_at", { ascending: true });
+
+          if (pendingError) throw new Error(pendingError.message);
+          pendingActivationPayments = Array.isArray(rows) ? rows : [];
+
+          if (pendingActivationPayments.length > 0) {
+            const originalScheduledExpiry = isDateOnly(currentProfile?.iptv_expiry)
+              ? String(currentProfile.iptv_expiry)
+              : isDateOnly(pendingActivationPayments[0]?.period_start)
+                ? String(pendingActivationPayments[0].period_start)
+                : brDateOnly(new Date());
+
+            const fixedDueDay = Math.max(
+              1,
+              Math.min(31, Number(String(originalScheduledExpiry).split("-")[2] || currentProfile?.iptv_due_day || 10)),
+            );
+
+            let cycleStart = originalScheduledExpiry;
+            for (const pendingPayment of pendingActivationPayments) {
+              const paymentMonths = Math.max(1, Number(pendingPayment.months || 1));
+              const correctedPeriodEnd = addMonthsToDateOnlyByFixedDay(cycleStart, paymentMonths, fixedDueDay);
+
+              const { error: paymentDateError } = await supabaseAdmin
+                .from("iptv_payments")
+                .update({ period_start: cycleStart, period_end: correctedPeriodEnd })
+                .eq("id", pendingPayment.id);
+              if (paymentDateError) throw new Error(paymentDateError.message);
+
+              pendingPayment.period_start = cycleStart;
+              pendingPayment.period_end = correctedPeriodEnd;
+              cycleStart = correctedPeriodEnd;
+            }
+
+            activationFinalExpiry = cycleStart;
+            updateData.iptv_expiry = activationFinalExpiry;
+            updateData.iptv_due_day = fixedDueDay;
+          }
+        }
 
         if (updateData.billing_due_date_id === "") {
           updateData.billing_due_date_id = null;
@@ -625,43 +687,49 @@ Deno.serve(async (req) => {
           trial_payment_confirmed: updateData.trial_payment_confirmed,
         });
 
-        // Quando o admin ativa após pagamento, confirma pagamento pendente.
-        // IMPORTANTE: se o admin estiver colocando o cliente como TESTE, não pode desmarcar trial_enabled.
+        // Quando o admin ativa após pagamento, confirma os pagamentos pendentes já corrigidos.
+        // O vencimento definitivo é o vencimento anterior + quantidade de meses comprada.
         if (data.iptv_status === "active") {
-          const { data: pendingActivationPayments } = await supabaseAdmin
-            .from("iptv_payments")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("status", "paid_pending_activation");
-
-          const hasPaidPendingActivation = Array.isArray(pendingActivationPayments) && pendingActivationPayments.length > 0;
+          const hasPaidPendingActivation = pendingActivationPayments.length > 0;
 
           if (hasPaidPendingActivation) {
-            await supabaseAdmin
+            const pendingIds = pendingActivationPayments.map((payment) => payment.id).filter(Boolean);
+            const { error: confirmPendingError } = await supabaseAdmin
               .from("iptv_payments")
               .update({ status: "confirmed", admin_id: caller.id })
-              .eq("user_id", user_id)
-              .eq("status", "paid_pending_activation");
+              .in("id", pendingIds);
+            if (confirmPendingError) throw new Error(confirmPendingError.message);
 
             // Depois que o 1º pagamento for confirmado e o admin ativar,
             // o cliente deixa de ser teste e vira usuário efetivo.
-            await supabaseAdmin
+            const { error: effectiveUserError } = await supabaseAdmin
               .from("profiles")
               .update({
+                iptv_expiry: activationFinalExpiry || updateData.iptv_expiry,
+                iptv_due_day: updateData.iptv_due_day,
+                iptv_status: "active",
                 trial_enabled: false,
                 trial_payment_confirmed: true,
                 trial_expired_at: null,
                 trial_expired_notice_sent_at: null,
               })
-              .eq("id", user_id)
-              .eq("trial_enabled", true);
+              .eq("id", user_id);
+            if (effectiveUserError) throw new Error(effectiveUserError.message);
 
-            await emitClientProfileUpdated(supabaseAdmin, user_id, {
-              iptv_status: "active",
-              trial_enabled: false,
-              trial_payment_confirmed: true,
-              trial_expired_at: null,
-              trial_expired_notice_sent_at: null,
+            await emitFinanceUpdated(supabaseAdmin, user_id, {
+              action: "activation_confirmed",
+              status: "confirmed",
+              payment_id: pendingActivationPayments[pendingActivationPayments.length - 1]?.id,
+              period_end: activationFinalExpiry || updateData.iptv_expiry,
+              profile_patch: {
+                iptv_expiry: activationFinalExpiry || updateData.iptv_expiry,
+                iptv_due_day: updateData.iptv_due_day,
+                iptv_status: "active",
+                trial_enabled: false,
+                trial_payment_confirmed: true,
+                trial_expired_at: null,
+                trial_expired_notice_sent_at: null,
+              },
             });
           }
         }
@@ -857,44 +925,86 @@ Deno.serve(async (req) => {
       }
 
       case "confirm_payment": {
-        // Admin confirms a payment and renews the plan
-        const { amount, months, notes, period_start, period_end } = data;
-        if (!amount || !months || !period_start || !period_end) {
-          throw new Error("amount, months, period_start e period_end são obrigatórios");
+        // Admin confirma um pagamento manualmente.
+        // A renovação sempre parte do vencimento previsto que já existia,
+        // mesmo que o admin confirme um ou mais dias depois.
+        const { amount, months, notes, period_start } = data;
+        if (!amount || !months) {
+          throw new Error("amount e months são obrigatórios");
         }
 
-        // Insert payment record
-        await supabaseAdmin.from("iptv_payments").insert({
-          user_id,
-          amount: Number(amount),
-          months: Number(months),
-          period_start,
-          period_end,
-          status: "confirmed",
-          payment_method: "pix",
-          admin_id: caller.id,
-          notes: notes || "",
-        });
+        const { data: paymentProfile, error: paymentProfileError } = await supabaseAdmin
+          .from("profiles")
+          .select("iptv_expiry, iptv_due_day")
+          .eq("id", user_id)
+          .single();
+        if (paymentProfileError) throw new Error(paymentProfileError.message);
 
-        // Update user profile: set new expiry date + activate
-        await supabaseAdmin
+        const scheduledPeriodStart = isDateOnly(paymentProfile?.iptv_expiry)
+          ? String(paymentProfile.iptv_expiry)
+          : isDateOnly(period_start)
+            ? String(period_start)
+            : brDateOnly(new Date());
+        const fixedDueDay = Math.max(
+          1,
+          Math.min(31, Number(String(scheduledPeriodStart).split("-")[2] || paymentProfile?.iptv_due_day || 10)),
+        );
+        const correctedPeriodEnd = addMonthsToDateOnlyByFixedDay(scheduledPeriodStart, Number(months), fixedDueDay);
+
+        const { data: insertedPayment, error: insertPaymentError } = await supabaseAdmin
+          .from("iptv_payments")
+          .insert({
+            user_id,
+            amount: Number(amount),
+            months: Number(months),
+            period_start: scheduledPeriodStart,
+            period_end: correctedPeriodEnd,
+            status: "confirmed",
+            payment_method: "pix",
+            admin_id: caller.id,
+            notes: notes || "",
+          })
+          .select("id")
+          .single();
+        if (insertPaymentError) throw new Error(insertPaymentError.message);
+
+        const { error: updatePaymentProfileError } = await supabaseAdmin
           .from("profiles")
           .update({
-            iptv_expiry: period_end,
+            iptv_expiry: correctedPeriodEnd,
+            iptv_due_day: fixedDueDay,
             iptv_status: "active",
+            trial_enabled: false,
+            trial_payment_confirmed: true,
+            trial_expired_at: null,
+            trial_expired_notice_sent_at: null,
           })
           .eq("id", user_id);
+        if (updatePaymentProfileError) throw new Error(updatePaymentProfileError.message);
 
-        // Log in balance_history for client visibility
         await supabaseAdmin.from("balance_history").insert({
           user_id,
           type: "payment",
           amount: Number(amount),
-          description: `Mensalidade confirmada - ${months} mês(es) até ${period_end}`,
+          description: `Mensalidade confirmada - ${months} mês(es) até ${correctedPeriodEnd}`,
           admin_id: caller.id,
         });
 
-        result = { success: true };
+        await emitFinanceUpdated(supabaseAdmin, user_id, {
+          action: "activation_confirmed",
+          status: "confirmed",
+          payment_id: insertedPayment?.id,
+          period_end: correctedPeriodEnd,
+          profile_patch: {
+            iptv_expiry: correctedPeriodEnd,
+            iptv_due_day: fixedDueDay,
+            iptv_status: "active",
+            trial_enabled: false,
+            trial_payment_confirmed: true,
+          },
+        });
+
+        result = { success: true, period_start: scheduledPeriodStart, period_end: correctedPeriodEnd };
         break;
       }
       case "auto_block_expired": {
@@ -1452,20 +1562,18 @@ Deno.serve(async (req) => {
           if (confirmPaymentsError) throw confirmPaymentsError;
         }
 
-        const { data: currentProfile } = await supabaseAdmin
-          .from("profiles")
-          .select("iptv_expiry")
-          .eq("id", user_id)
-          .maybeSingle();
-
-        const finalExpiry = [String(currentProfile?.iptv_expiry || ""), String(highestPendingExpiry || "")]
-          .filter(Boolean)
-          .sort()
-          .at(-1) || payment.period_end;
+        // A data de vencimento já foi prevista no momento em que a cobrança foi criada.
+        // A confirmação do admin apenas efetiva essa data; nunca soma 30 dias a partir da confirmação.
+        const finalExpiry = String(highestPendingExpiry || payment.period_end || "").slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(finalExpiry)) {
+          throw new Error("A cobrança não possui uma data de vencimento prevista válida.");
+        }
 
         const profilePatch = {
           iptv_status: "active",
           iptv_expiry: finalExpiry,
+          iptv_due_day: Math.max(1, Math.min(31, Number(finalExpiry.split("-")[2] || 10))),
+          billing_due_date_id: null,
           trial_enabled: false,
           trial_payment_confirmed: true,
           trial_expired_at: null,

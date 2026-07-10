@@ -61,6 +61,17 @@ const getDayFromDateOnly = (value: string) => {
   return Math.max(1, Math.min(31, day));
 };
 
+const addMonthsToDateOnlyByFixedDay = (dateOnly: string, months: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const safeMonths = Math.max(1, Number(months || 1));
+  const dueDay = Math.max(1, Math.min(31, Number(day || 1)));
+  const targetMonthIndex = (month || 1) - 1 + safeMonths;
+  const targetYear = (year || new Date().getFullYear()) + Math.floor(targetMonthIndex / 12);
+  const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDay = new Date(targetYear, normalizedMonthIndex + 1, 0).getDate();
+  return `${targetYear}-${String(normalizedMonthIndex + 1).padStart(2, "0")}-${String(Math.min(dueDay, lastDay)).padStart(2, "0")}`;
+};
+
 
 const broadcastClientProfileUpdate = (userId: string, payload: Record<string, any>) => {
   const data = {
@@ -324,33 +335,26 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
     const months = Number(paymentForm.months);
     const amount = paymentForm.amount ? Number(paymentForm.amount) : totalValue * months;
 
-    const startDate = new Date();
-    let periodStart: string;
-    let periodEnd: string;
+    // Mesmo vencido, a base é sempre o vencimento previsto do cliente.
+    // Ex.: venceu 09/07 e confirmou em 10/07 => renova até 09/08.
+    const periodStart = form.iptv_expiry || getTodayDateOnly();
+    const periodEnd = addMonthsToDateOnlyByFixedDay(periodStart, months);
 
-    if (form.iptv_expiry && new Date(form.iptv_expiry) > startDate) {
-      periodStart = form.iptv_expiry;
-      const end = new Date(form.iptv_expiry);
-      end.setMonth(end.getMonth() + months);
-      periodEnd = end.toISOString().split("T")[0];
-    } else {
-      periodStart = startDate.toISOString().split("T")[0];
-      const end = new Date(startDate);
-      end.setMonth(end.getMonth() + months);
-      periodEnd = end.toISOString().split("T")[0];
-    }
-
-    await supabase.functions.invoke("admin-manage-user", {
+    const { data: confirmationData, error: confirmationError } = await supabase.functions.invoke("admin-manage-user", {
       body: {
         action: "confirm_payment",
         user_id: user.id,
-        data: { amount, months, notes: paymentForm.notes, period_start: periodStart, period_end: periodEnd },
+        data: { amount, months, notes: paymentForm.notes, period_start: periodStart },
       },
     });
+    if (confirmationError || (confirmationData as any)?.error) {
+      throw new Error((confirmationData as any)?.error || confirmationError?.message || "Erro ao confirmar pagamento.");
+    }
 
-    broadcastFinanceUpdate(user.id, { action: "confirm_payment", status: "confirmed", period_end: periodEnd });
-    toast({ title: `✅ Pagamento confirmado — ${months} mês(es) até ${periodEnd}` });
-    setForm({ ...form, iptv_expiry: periodEnd, iptv_status: "active" });
+    const confirmedPeriodEnd = (confirmationData as any)?.period_end || periodEnd;
+    broadcastFinanceUpdate(user.id, { action: "confirm_payment", status: "confirmed", period_end: confirmedPeriodEnd });
+    toast({ title: `✅ Pagamento confirmado — ${months} mês(es) até ${confirmedPeriodEnd}` });
+    setForm({ ...form, iptv_expiry: confirmedPeriodEnd, iptv_status: "active" });
     setShowConfirmPayment(false);
     setPaymentForm({ months: 1, amount: "", notes: "" });
     setPaymentsLoaded(false);

@@ -1,0 +1,36 @@
+CORREÇÃO: PRÓXIMO VENCIMENTO APÓS CONFIRMAÇÃO DO PAGAMENTO
+
+BASE USADA:
+bitziptv1-data-prevista-confirmacao-admin-corrigida.zip
+
+REGRA CORRETA:
+- Vencimento previsto anterior: 09/07/2026
+- Admin confirmou em: 10/07/2026
+- Próximo vencimento após confirmação: 09/08/2026
+
+O QUE FOI CORRIGIDO:
+1. A renovação parte sempre do vencimento que já estava previsto para o cliente.
+2. A data em que o admin confirma não altera o dia de vencimento.
+3. Se o vencimento já passou, continua usando esse vencimento como início do novo ciclo.
+4. Pagamento de 1 mês: vencimento anterior + 1 mês.
+5. Pagamento de 3 meses: vencimento anterior + 3 meses.
+6. Datas como dia 29, 30 e 31 são ajustadas corretamente para o último dia do mês quando necessário.
+7. Pagamentos pendentes antigos têm period_start e period_end corrigidos no momento da ativação.
+8. O perfil, o pagamento, o cliente aberto e o painel admin recebem a mesma data final.
+9. Usuário de teste continua virando efetivo após o primeiro pagamento confirmado.
+10. Nenhum polling ou consulta contínua foi adicionado. As atualizações continuam por ordens Realtime.
+
+ARQUIVOS ALTERADOS:
+- supabase/functions/admin-manage-user/index.ts
+- src/pages/admin/iptv/ClientEditPanel.tsx
+- src/pages/ClientDashboard.tsx
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat é obrigatório porque admin-manage-user foi alterado.

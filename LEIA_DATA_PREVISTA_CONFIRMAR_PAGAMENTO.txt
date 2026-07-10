@@ -1,0 +1,35 @@
+CORREÇÃO: DATA DE VENCIMENTO PREVISTA AO CONFIRMAR PAGAMENTO
+
+BASE USADA:
+bitziptv1-dashboard-rpc-catch-corrigido.zip
+
+PROBLEMA:
+- Ao confirmar a ativação pelo admin, o sistema podia manter/calcular uma data maior baseada na data em que o admin confirmou.
+- A tela do cliente também podia continuar mostrando a linha "Nova" depois de já estar ativa.
+
+O QUE FOI CORRIGIDO:
+1. A confirmação do admin agora usa exatamente period_end da cobrança paga.
+2. A data não é mais calculada como 30 dias após o admin confirmar.
+3. A data prevista é criada junto com a cobrança e apenas efetivada na confirmação.
+4. Ao confirmar, atualiza também iptv_due_day para o dia da data prevista.
+5. O texto de data prevista só aparece enquanto o status for awaiting_activation.
+6. Ao receber a ordem activation_confirmed/active, a data pendente some imediatamente.
+7. Ao abrir o dashboard já ativo, não consulta nem mostra pagamento pendente antigo.
+8. Nenhum polling foi criado. Não há consulta contínua ao Cloudflare/Supabase.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- supabase/functions/admin-manage-user/index.ts
+
+VALIDAÇÃO:
+- Sintaxe de ambos os arquivos validada com esbuild.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+O passo 5 é obrigatório porque admin-manage-user foi alterado.
+Não precisa rodar novo SQL.

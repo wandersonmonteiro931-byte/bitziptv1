@@ -1547,7 +1547,12 @@ const ClientDashboard = () => {
     const applyProfileUpdatePayload = (payload: any) => {
       if (!payload || payload.user_id !== user.id) return;
       const patch = payload.profile || payload.profile_patch;
-      if (patch && typeof patch === "object") applyProfilePatch(patch);
+      if (patch && typeof patch === "object") {
+        applyProfilePatch(patch);
+        if (patch.iptv_status === "active") {
+          setPendingFutureExpiry(null);
+        }
+      }
     };
 
     const onLocalProfileUpdate = (event: Event) => {
@@ -1753,9 +1758,14 @@ const ClientDashboard = () => {
     };
     checkCancelStatus();
 
-    // Load pending future expiry
+    // Carrega uma única vez a data prevista somente enquanto aguarda ativação.
+    // Não existe polling nem consulta repetida.
     const loadPendingExpiry = async () => {
-      if (!user?.id) return;
+      if (!user?.id || user?.iptv_status !== "awaiting_activation") {
+        setPendingFutureExpiry(null);
+        return;
+      }
+
       const { data } = await supabase
         .from("iptv_payments")
         .select("period_end")
@@ -1764,6 +1774,7 @@ const ClientDashboard = () => {
         .order("period_end", { ascending: false })
         .limit(1)
         .maybeSingle();
+
       if (data?.period_end) {
         const [y, m, d] = data.period_end.split("-").map(Number);
         setPendingFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
@@ -1777,7 +1788,7 @@ const ClientDashboard = () => {
       // Sem realtime, sem polling e sem consulta automática.
       // As informações só são carregadas ao entrar/logar nesta tela.
     };
-  }, [user?.id, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
+  }, [user?.id, user?.iptv_status, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
 
   // Handle hash navigation (from push notifications)
   useEffect(() => {
@@ -1938,7 +1949,9 @@ const ClientDashboard = () => {
   const firstCycleCalc = calculateFirstCycleCharge(totalValue, billingCycleStart, billingDueDay);
   const firstCycleAlreadyPaid = Boolean(user?.billing_first_cycle_paid);
   const proportionalEnabled = Boolean(user?.billing_proportional_enabled);
-  const useFirstCycleProportional = proportionalEnabled && !firstCycleAlreadyPaid && firstCycleCalc.isProportional;
+  const hasFutureFirstCycleDue = !user?.iptv_expiry || parseDateOnly(user.iptv_expiry) > now;
+  const useFirstCycleProportional =
+    proportionalEnabled && !firstCycleAlreadyPaid && firstCycleCalc.isProportional && hasFutureFirstCycleDue;
   const firstCycleRenewalValue = useFirstCycleProportional ? firstCycleCalc.amount : totalValue;
 
   // Bloqueia somente após o limite configurado pelo admin.
@@ -2210,7 +2223,9 @@ const ClientDashboard = () => {
             <span className="text-sm text-muted-foreground">Próximo vencimento:</span>
             <div className="text-right">
               <span className="text-sm font-medium text-foreground">{formattedDueDate}</span>
-              {pendingFutureExpiry && <p className="text-[10px] text-blue-400 mt-0.5">Nova: {pendingFutureExpiry}</p>}
+              {effectiveStatus === "awaiting_activation" && pendingFutureExpiry && (
+                <p className="mt-0.5 text-[10px] text-blue-400">Prevista após ativação: {pendingFutureExpiry}</p>
+              )}
             </div>
           </div>
         </motion.div>
