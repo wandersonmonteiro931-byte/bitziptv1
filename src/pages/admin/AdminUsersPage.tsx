@@ -85,6 +85,73 @@ const addDaysToDateOnly = (dateOnly: string, days: number) => {
 
 const getTrialEndDate = (days: number) => addDaysToDateOnly(getTodayDateOnly(), Math.max(1, Number(days || 1)));
 
+const getDaysBetweenDateOnly = (fromDate: string, toDate: string) => {
+  const [fy, fm, fd] = String(fromDate).split("-").map(Number);
+  const [ty, tm, td] = String(toDate).split("-").map(Number);
+  const from = new Date(fy, (fm || 1) - 1, fd || 1);
+  const to = new Date(ty, (tm || 1) - 1, td || 1);
+  return Math.ceil((to.getTime() - from.getTime()) / 86400000);
+};
+
+const getAdminTrialStatus = (profile: any) => {
+  const isTrial = Boolean(profile?.trial_enabled) && !Boolean(profile?.trial_payment_confirmed);
+  if (!isTrial) return null;
+
+  const today = getTodayDateOnly();
+  const endDate = String(profile?.trial_ends_at || "").slice(0, 10);
+  const finished = Boolean(endDate) && endDate < today;
+  const duration = Math.max(
+    1,
+    Number(profile?.trial_duration_days || (endDate ? Math.max(1, getDaysBetweenDateOnly(today, endDate)) : 1)),
+  );
+
+  if (finished || profile?.iptv_status === "blocked") {
+    return {
+      label: "TESTE FINALIZADO",
+      sublabel: "Bloqueado",
+      badgeClass: "bg-destructive/15 text-destructive border border-destructive/30",
+      forcedIptvStatus: "blocked",
+    };
+  }
+
+  return {
+    label: `TESTE ${duration} DIA${duration === 1 ? "" : "S"}`,
+    sublabel: "Ativo",
+    badgeClass: "bg-amber-500/15 text-amber-300 border border-amber-500/30",
+    forcedIptvStatus: "active",
+  };
+};
+
+const prepareTrialPayload = (payload: any) => {
+  const next = { ...payload };
+
+  if (next.trial_enabled) {
+    const duration = Math.max(1, Math.min(365, Number(next.trial_duration_days || 1)));
+    const startedAt = next.trial_started_at || getTodayDateOnly();
+    const endsAt = next.trial_ends_at || getTrialEndDate(duration);
+    const finished = String(endsAt).slice(0, 10) < getTodayDateOnly();
+
+    next.trial_enabled = true;
+    next.trial_duration_days = duration;
+    next.trial_started_at = startedAt;
+    next.trial_ends_at = endsAt;
+    next.trial_payment_confirmed = false;
+    next.iptv_status = finished ? "blocked" : "active";
+
+    if (!finished) {
+      next.trial_expired_at = null;
+      next.trial_expired_notice_sent_at = null;
+    }
+  } else if (next.trial_enabled === false) {
+    // Ao desmarcar teste no admin, o cliente vira efetivo sem apagar histórico financeiro.
+    next.trial_payment_confirmed = true;
+    next.trial_expired_at = null;
+    next.trial_expired_notice_sent_at = null;
+  }
+
+  return next;
+};
+
 
 const broadcastClientProfileUpdate = (userId: string, payload: Record<string, any>) => {
   const data = {
@@ -356,6 +423,13 @@ const AdminUsersPage = () => {
       iptv_due_day: u.iptv_due_day || 10,
       billing_due_date_id: u.billing_due_date_id || "",
       billing_proportional_enabled: Boolean(u.billing_proportional_enabled),
+      trial_enabled: Boolean(u.trial_enabled),
+      trial_duration_days: Number(u.trial_duration_days || 1),
+      trial_started_at: u.trial_started_at || "",
+      trial_ends_at: u.trial_ends_at || "",
+      trial_expired_at: u.trial_expired_at || null,
+      trial_expired_notice_sent_at: u.trial_expired_notice_sent_at || null,
+      trial_payment_confirmed: Boolean(u.trial_payment_confirmed),
       iptv_client_code: u.iptv_client_code || "",
       referral_code: u.referral_code || "",
       referred_by: u.referred_by || "",
@@ -398,6 +472,8 @@ const AdminUsersPage = () => {
         profileData.billing_due_date_id = null;
         profileData.iptv_due_day = Number(profileData.iptv_due_day || 10);
       }
+
+      Object.assign(profileData, prepareTrialPayload(profileData));
 
       delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
       delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
@@ -1536,6 +1612,117 @@ const AdminUsersPage = () => {
                   </div>
                 </div>
 
+                {/* Teste do Cliente */}
+                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">🧪 Modo Teste</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Pode transformar usuário efetivo em teste sem apagar histórico. Ao vencer, bloqueia até pagar.
+                      </p>
+                    </div>
+                    {getAdminTrialStatus(editForm) && (
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase ${getAdminTrialStatus(editForm)?.badgeClass}`}>
+                        {getAdminTrialStatus(editForm)?.label}
+                      </span>
+                    )}
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-black/20 p-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editForm.trial_enabled)}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        const duration = Number(editForm.trial_duration_days || 1);
+                        setEditForm({
+                          ...editForm,
+                          trial_enabled: enabled,
+                          trial_payment_confirmed: enabled ? false : true,
+                          trial_started_at: enabled ? (editForm.trial_started_at || getTodayDateOnly()) : editForm.trial_started_at,
+                          trial_ends_at: enabled ? (editForm.trial_ends_at || getTrialEndDate(duration)) : editForm.trial_ends_at,
+                          iptv_status: enabled ? "active" : editForm.iptv_status,
+                        });
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded accent-amber-500"
+                    />
+                    <span>
+                      <span className="block text-xs font-semibold text-amber-300">Colocar este usuário como teste</span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        O histórico, pagamentos, indicações e dados do cliente serão mantidos normalmente.
+                      </span>
+                    </span>
+                  </label>
+
+                  {Boolean(editForm.trial_enabled) && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Duração (dias)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="365"
+                          value={editForm.trial_duration_days || 1}
+                          onChange={(e) => {
+                            const days = Math.max(1, Math.min(365, Number(e.target.value || 1)));
+                            setEditForm({
+                              ...editForm,
+                              trial_duration_days: days,
+                              trial_started_at: editForm.trial_started_at || getTodayDateOnly(),
+                              trial_ends_at: getTrialEndDate(days),
+                              iptv_status: "active",
+                            });
+                          }}
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Início do teste</label>
+                        <input
+                          type="date"
+                          value={editForm.trial_started_at || getTodayDateOnly()}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              trial_started_at: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-muted-foreground">Final do teste</label>
+                        <input
+                          type="date"
+                          value={editForm.trial_ends_at || getTrialEndDate(Number(editForm.trial_duration_days || 1))}
+                          onChange={(e) => {
+                            const finished = e.target.value && e.target.value < getTodayDateOnly();
+                            setEditForm({
+                              ...editForm,
+                              trial_ends_at: e.target.value,
+                              iptv_status: finished ? "blocked" : "active",
+                            });
+                          }}
+                          className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {Boolean(editForm.trial_enabled) && (
+                    <div className="rounded-lg border border-amber-500/20 bg-black/25 px-3 py-2 text-[11px] text-muted-foreground">
+                      Status ao salvar:{" "}
+                      <strong className="text-amber-300">
+                        {getAdminTrialStatus(prepareTrialPayload(editForm))?.label || "TESTE"}
+                      </strong>
+                      {" · "}
+                      <strong className={prepareTrialPayload(editForm).iptv_status === "blocked" ? "text-red-300" : "text-green-300"}>
+                        {prepareTrialPayload(editForm).iptv_status === "blocked" ? "Bloqueado" : "Ativo"}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={saveEditUser}
                   disabled={editSaving}
@@ -1618,11 +1805,28 @@ const AdminUsersPage = () => {
                     )}
                   </td>
                   <td className="hidden px-4 py-3 sm:table-cell">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[user.status] || ""}`}
-                    >
-                      {user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Bloqueado"}
-                    </span>
+                    {getAdminTrialStatus(user) ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getAdminTrialStatus(user)?.badgeClass || ""}`}>
+                          {getAdminTrialStatus(user)?.label}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            getAdminTrialStatus(user)?.forcedIptvStatus === "blocked"
+                              ? "bg-destructive/15 text-destructive"
+                              : "bg-success/15 text-success"
+                          }`}
+                        >
+                          {getAdminTrialStatus(user)?.forcedIptvStatus === "blocked" ? "Bloqueado" : "Ativo"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge[user.status] || ""}`}
+                      >
+                        {user.status === "active" ? "Ativo" : user.status === "suspended" ? "Suspenso" : "Bloqueado"}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">

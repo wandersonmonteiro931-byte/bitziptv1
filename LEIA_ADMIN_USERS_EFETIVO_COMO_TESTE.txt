@@ -1,0 +1,45 @@
+ATUALIZAÇÃO: USUÁRIO EFETIVO PODE VIRAR TESTE PELO ADMIN > USUÁRIOS
+
+BASE USADA:
+bitziptv1-dashboard-tela-preta-tdz-corrigida.zip
+
+O QUE FOI FEITO:
+1. Em Admin > Usuários, ao editar um cliente já existente, agora existe a seção "Modo Teste".
+2. Usuários já ativos/efetivos podem ser colocados como teste.
+3. O admin define:
+   - duração do teste em dias
+   - data de início do teste
+   - data final do teste
+4. Se colocar como teste ativo, o status fica:
+   - TESTE X DIAS
+   - Ativo
+5. Se o teste já terminou, o status fica:
+   - TESTE FINALIZADO
+   - Bloqueado
+6. Ao salvar um cliente como teste, o sistema não exclui histórico:
+   - mantém pagamentos
+   - mantém histórico
+   - mantém indicações
+   - mantém dados financeiros
+   - mantém dados do cliente
+7. Ao desmarcar o modo teste, o cliente vira efetivo.
+8. Ao renovar/pagar, a regra anterior continua valendo:
+   - o usuário deixa de ser teste
+   - vira efetivo
+   - o aviso de teste finalizado para de aparecer
+
+ARQUIVO ALTERADO:
+- src/pages/admin/AdminUsersPage.tsx
+
+VALIDAÇÃO:
+Build executado com sucesso.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+
+OBSERVAÇÃO:
+Não precisa rodar novo SQL se você já rodou SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql.
+Não precisa rodar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat porque esta atualização mexeu apenas na tela Admin > Usuários.
