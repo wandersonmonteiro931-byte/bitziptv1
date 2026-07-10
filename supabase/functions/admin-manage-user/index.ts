@@ -706,7 +706,26 @@ Deno.serve(async (req) => {
         break;
       }
       case "delete_user": {
-        await supabaseAdmin.auth.admin.deleteUser(user_id);
+        // Nunca deixar perfil excluído aparecendo nas telas administrativas de TV.
+        await supabaseAdmin
+          .from("profiles")
+          .update({ status: "deleted", iptv_status: "disabled" })
+          .eq("id", user_id);
+
+        try {
+          await supabaseAdmin.auth.admin.deleteUser(user_id);
+        } catch (deleteError) {
+          console.warn("Auth delete falhou, mas perfil foi marcado como deleted:", deleteError);
+        }
+
+        await supabaseAdmin.from("admin_audit_logs").insert({
+          admin_id: caller.id,
+          action: "delete_user",
+          target_table: "profiles",
+          target_id: user_id,
+          details: { deleted_at: new Date().toISOString() },
+        });
+
         result = { success: true };
         break;
       }

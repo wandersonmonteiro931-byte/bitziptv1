@@ -1,0 +1,18 @@
+ATUALIZAÇÃO APLICADA
+
+BASE USADA:
+bitziptv1-bat-cmd-corrigido.zip
+
+O QUE FOI FEITO:
+- seção dos banners / planos de renovação do dashboard redesenhada para ficar no visual do layout enviado
+- brilho adicionado nos pontos de destaque
+- card com maior desconto agora recebe destaque dourado
+- botões e caixas de total ficaram com acabamento premium
+- mantidos os textos e a lógica do sistema
+
+ARQUIVO ALTERADO PRINCIPALMENTE:
+- src/pages/ClientDashboard.tsx
+
+OBSERVAÇÃO:
+- usei a última base entregue antes desta atualização
+- build validado com sucesso

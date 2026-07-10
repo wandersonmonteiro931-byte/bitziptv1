@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Receipt,
+  Sparkles,
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -2230,18 +2231,24 @@ const ClientDashboard = () => {
               Nenhum plano de renovação enviado pelo admin ainda.
             </div>
           ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {displayedRenewalPlans.map((plan, index) => {
               const financials = getPlanFinancials(plan);
-              const premium = index % 2 === 1;
-              const badgeText =
-                financials.discountPercent > 0
-                  ? `ECONOMIZE ${formatDiscountPercent(financials.discountPercent)}%`
-                  : premium
-                    ? "MAIOR ECONOMIA"
-                    : "PLANO RECOMENDADO";
+              const maxDiscount = Math.max(
+                ...displayedRenewalPlans.map((item) => getPlanFinancials(item).discountPercent || 0),
+              );
+              const isHighlight = financials.discountPercent > 0 && financials.discountPercent === maxDiscount;
+              const badgeText = `ECONOMIZE ${formatDiscountPercent(financials.discountPercent)}%`;
               const description = `${formatDiscountPercent(financials.discountPercent)}% de desconto`;
-              const ctaText = plan.cta_text?.trim() || "Assinar agora";
+              const ctaText = plan.cta_text?.trim() || "Antecipar agora";
+              const totalFormatted = financials.finalValue.toLocaleString("pt-BR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              });
+              const discountFormatted = financials.discountValue.toLocaleString("pt-BR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              });
 
               return (
                 <motion.button
@@ -2250,55 +2257,68 @@ const ClientDashboard = () => {
                   {...renewalOptionMotion}
                   transition={{ ...renewalOptionMotion.transition, delay: 0.35 + index * 0.05 }}
                   onClick={() => openRenewalPlan(plan)}
-                  className={`group relative overflow-hidden rounded-[28px] border p-[1px] text-left transition-all duration-300 hover:-translate-y-1 ${
-                    premium
-                      ? "border-red-500/32 bg-gradient-to-br from-[#1a0707] via-[#120607] to-[#090909] hover:shadow-[0_22px_50px_rgba(255,0,0,0.18)]"
-                      : "border-red-500/22 bg-gradient-to-br from-[#140707] via-[#0e0a12] to-[#090909] hover:shadow-[0_18px_44px_rgba(255,0,0,0.14)]"
+                  className={`group relative isolate overflow-hidden rounded-[34px] border text-left transition-all duration-300 hover:-translate-y-1 ${
+                    isHighlight
+                      ? "border-[#d9ab64]/80 bg-[linear-gradient(135deg,#1d1513_0%,#38231c_52%,#1a0f0c_100%)] shadow-[0_0_0_1px_rgba(217,171,100,0.15),0_20px_60px_rgba(217,171,100,0.16)]"
+                      : "border-white/16 bg-[linear-gradient(135deg,#1a1d2a_0%,#241719_44%,#1b1114_100%)] shadow-[0_16px_48px_rgba(0,0,0,0.32)]"
                   }`}
                 >
-                  <div
-                    className={`absolute inset-0 ${
-                      premium
-                        ? "bg-[radial-gradient(circle_at_top_right,rgba(255,0,0,0.3),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.05),transparent_26%)]"
-                        : "bg-[radial-gradient(circle_at_top_right,rgba(255,0,0,0.22),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.04),transparent_26%)]"
-                    } opacity-95`}
-                  />
-                  <div className={`relative rounded-[27px] p-5 ${premium ? "bg-[linear-gradient(180deg,rgba(21,10,10,0.97),rgba(10,8,8,0.99))]" : "bg-[linear-gradient(180deg,rgba(16,16,18,0.96),rgba(8,8,10,0.98))]"}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <span className={`inline-flex rounded-full px-3 py-1 font-data text-[10px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap ${premium ? "border border-red-500/30 bg-red-500/16 text-red-100" : "border border-red-400/25 bg-red-500/10 text-red-200"}`}>
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.28]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`, backgroundSize: '26px 26px' }} />
+                  <div className={`pointer-events-none absolute inset-0 ${isHighlight ? "bg-[radial-gradient(circle_at_14%_10%,rgba(255,210,130,0.22),transparent_22%),radial-gradient(circle_at_82%_24%,rgba(214,94,33,0.16),transparent_28%),radial-gradient(circle_at_42%_90%,rgba(255,94,0,0.08),transparent_26%)]" : "bg-[radial-gradient(circle_at_14%_10%,rgba(255,255,255,0.10),transparent_18%),radial-gradient(circle_at_82%_20%,rgba(193,30,56,0.22),transparent_26%),radial-gradient(circle_at_50%_100%,rgba(255,120,0,0.06),transparent_28%)]"}`} />
+                  <div className={`pointer-events-none absolute left-[8%] top-[8%] h-20 w-24 rounded-full blur-2xl ${isHighlight ? "bg-[#d89a42]/18" : "bg-[#ff2c55]/12"}`} />
+                  <div className={`pointer-events-none absolute bottom-[7%] left-[12%] h-16 w-28 rounded-full blur-3xl ${isHighlight ? "bg-[#ff7a00]/12" : "bg-[#ff4b5c]/10"}`} />
+
+                  <div className="relative flex h-full min-h-[410px] flex-col p-6 sm:p-7">
+                    <div className="flex items-start justify-between gap-4">
+                      <span className={`inline-flex rounded-full border px-5 py-2 font-data text-[13px] font-extrabold uppercase tracking-[0.04em] shadow-[0_8px_22px_rgba(0,0,0,0.35)] ${isHighlight ? "border-[#f5d087]/70 bg-[linear-gradient(180deg,#f3c861_0%,#bf8435_100%)] text-[#442707]" : "border-[#b3535e]/70 bg-[linear-gradient(180deg,#8b1530_0%,#b44051_100%)] text-[#ffd8d8]"}`}>
                         {badgeText}
                       </span>
-                      <div className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-right shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)]">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/45">Total</p>
-                        <p className="mt-1 font-data text-2xl font-extrabold leading-none text-white">
-                          R$ {financials.finalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+                      <div className={`rounded-[24px] border px-5 py-4 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${isHighlight ? "border-[#856245]/65 bg-[linear-gradient(180deg,rgba(30,23,21,0.92),rgba(18,15,14,0.98))]" : "border-white/12 bg-[linear-gradient(180deg,rgba(20,20,24,0.9),rgba(12,12,15,0.96))]"}`}>
+                        <p className="font-data text-[13px] font-semibold uppercase tracking-[0.12em] text-white/52">Total</p>
+                        <p className="mt-2 font-data text-[34px] font-extrabold leading-none tracking-tight text-white">
+                          R$ {totalFormatted}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-5">
-                      <p className="font-data text-[11px] uppercase tracking-[0.18em] text-white/45">{financials.months} mês(es)</p>
-                      <h4 className="mt-1 font-display text-[28px] font-extrabold leading-none tracking-tight text-white">{plan.title}</h4>
-                      <p className="mt-2 text-base font-medium text-white/80">{description}</p>
+                    <div className="mt-12">
+                      <p className="font-data text-[17px] font-extrabold uppercase tracking-[0.04em] text-white/46">{financials.months} mês(es)</p>
+                      <h4 className="mt-4 font-display text-[62px] font-extrabold leading-[0.96] tracking-[-0.04em] text-white max-[1536px]:text-[54px] max-[1280px]:text-[46px] max-[640px]:text-[34px]">{plan.title}</h4>
+                      <p className="mt-4 text-[27px] font-medium leading-tight text-white/58 max-[1280px]:text-[23px] max-[640px]:text-[18px]">{description}</p>
                     </div>
 
-                    <div className={`mt-6 flex items-end justify-between gap-3 border-t pt-4 ${premium ? "border-red-500/10" : "border-white/8"}`}>
+                    <div className={`mt-10 border-t ${isHighlight ? "border-[#d0a168]/35" : "border-white/18"}`} />
+
+                    <div className="mt-8 flex items-end justify-between gap-5 max-[560px]:flex-col max-[560px]:items-start">
                       <div>
-                        <p className="font-data text-[11px] uppercase tracking-[0.18em] text-white/40">Economia</p>
-                        <p className="mt-1 font-data text-2xl font-extrabold text-red-400">
-                          R$ {financials.discountValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <p className="font-data text-[18px] font-black uppercase tracking-[0.04em] text-white/36">ECONOMIA DE</p>
+                        <p className={`mt-3 font-data text-[58px] font-extrabold leading-none tracking-[-0.04em] max-[1280px]:text-[48px] max-[640px]:text-[40px] ${isHighlight ? "text-[#f0ba63]" : "text-[#efb35d]"}`}>
+                          R$ {discountFormatted}
                         </p>
                       </div>
-                      <div className={`rounded-full px-4 py-2 font-data text-[11px] font-semibold uppercase tracking-[0.12em] ${premium ? "border border-red-500/32 bg-red-500/14 text-red-100" : "border border-red-500/25 bg-red-500/12 text-red-200"}`}>
-                        {formatDiscountPercent(financials.discountPercent)}% OFF
+
+                      <div className="flex flex-col items-end gap-3 max-[560px]:items-start">
+                        {isHighlight ? (
+                          <span className="font-data text-[18px] font-black uppercase tracking-[0.03em] text-[#c68c4f]">MAIOR DESCONTO</span>
+                        ) : null}
+                        <div className={`rounded-full border px-7 py-3 font-data text-[18px] font-extrabold uppercase tracking-[0.02em] shadow-[0_6px_18px_rgba(0,0,0,0.25)] ${isHighlight ? "border-[#d8a659]/75 text-[#f0ba63]" : "border-white/16 text-[#c78f78]"}`}>
+                          {formatDiscountPercent(financials.discountPercent)}% OFF
+                        </div>
                       </div>
                     </div>
 
-                    <div className={`mt-5 flex items-center justify-between rounded-2xl px-4 py-3 transition-all duration-300 ${premium ? "border border-red-500/24 bg-gradient-to-r from-red-600/25 to-red-500/10 group-hover:from-red-600/32 group-hover:to-red-500/14" : "border border-red-500/18 bg-red-500/8 group-hover:bg-red-500/12"}`}>
-                      <span className="text-sm font-semibold text-white">{ctaText}</span>
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/40 ${premium ? "border border-red-300/20 text-red-100" : "border border-red-400/20 text-red-300"}`}>
-                        <ChevronRight className="h-4 w-4" />
-                      </span>
+                    <div className={`relative mt-auto pt-7`}>
+                      <div className={`absolute inset-x-6 bottom-2 h-10 rounded-full blur-2xl ${isHighlight ? "bg-[#e1aa58]/20" : "bg-[#ff365c]/18"}`} />
+                      <div className={`relative flex items-center justify-between rounded-[26px] border px-8 py-6 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-300 ${isHighlight ? "border-[#e0b169]/80 bg-[linear-gradient(90deg,rgba(100,35,37,0.66),rgba(55,23,21,0.94))] group-hover:shadow-[0_0_0_1px_rgba(224,177,105,0.20),0_0_35px_rgba(224,177,105,0.16)]" : "border-[#ce6f66]/80 bg-[linear-gradient(90deg,rgba(79,18,33,0.72),rgba(60,28,28,0.92),rgba(88,47,29,0.88))] group-hover:shadow-[0_0_0_1px_rgba(255,94,94,0.22),0_0_28px_rgba(255,56,92,0.18)]"}`}>
+                        <span className="font-display text-[23px] font-semibold text-white max-[640px]:text-[18px]">{ctaText}</span>
+                        <div className="flex items-center gap-4">
+                          {isHighlight ? <Sparkles className="h-8 w-8 text-white/80 drop-shadow-[0_0_16px_rgba(255,255,255,0.38)]" /> : null}
+                          <span className={`flex h-14 w-14 items-center justify-center rounded-full border text-white shadow-[0_6px_22px_rgba(0,0,0,0.28)] ${isHighlight ? "border-[#d9a65e]/70 bg-black/16" : "border-[#cd8b76]/70 bg-black/18"}`}>
+                            <ChevronRight className="h-7 w-7" />
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.button>

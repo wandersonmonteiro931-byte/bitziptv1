@@ -1,36 +1,64 @@
 import { motion } from "framer-motion";
 import { Users, DollarSign, AlertTriangle, ShieldOff, Clock } from "lucide-react";
-import { todayBRT, nowBRT } from "@/lib/utils";
+import { todayBRT } from "@/lib/utils";
+
+
+const HIDDEN_PROFILE_STATUSES = new Set(["archived", "deleted", "removed", "excluded", "excluido", "arquivado"]);
+
+const isVisibleTvClient = (record: any) => {
+  const status = String(record?.status || "").trim().toLowerCase();
+  const role = String(record?.role || "").trim().toLowerCase();
+
+  if (role === "admin") return false;
+  if (HIDDEN_PROFILE_STATUSES.has(status)) return false;
+  if (record?.is_deleted === true || record?.deleted === true || record?.is_archived === true) return false;
+  if (record?.deleted_at || record?.archived_at) return false;
+
+  return true;
+};
+
+const normalizeDateOnly = (value: any) => String(value || "").slice(0, 10);
+
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = normalizeDateOnly(dateOnly).split("-").map(Number);
+  const base = new Date(year, (month || 1) - 1, day || 1);
+  base.setDate(base.getDate() + days);
+
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 interface StatsCardsProps {
   users: any[];
 }
 
 export function StatsCards({ users }: StatsCardsProps) {
-  const today = nowBRT();
+  const visibleUsers = users.filter(isVisibleTvClient);
   const todayStr = todayBRT();
 
-  const totalClients = users.length;
-  const activeClients = users.filter((u) => u.iptv_status === "active").length;
-  const monthlyRevenue = users
+  const totalClients = visibleUsers.length;
+  const activeClients = visibleUsers.filter((u) => u.iptv_status === "active").length;
+  const monthlyRevenue = visibleUsers
     .filter((u) => u.iptv_status === "active")
     .reduce((sum, u) => sum + Number(u.iptv_monthly_value || 0) * Number(u.iptv_connections || 1), 0);
 
   // Expiring in next 5 days
-  const fiveDaysFromNow = new Date(today);
-  fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5);
-  const fiveDaysStr = fiveDaysFromNow.toISOString().split("T")[0];
+  const fiveDaysStr = addDaysToDateOnly(todayStr, 5);
 
-  const expiringIn5Days = users.filter((u) => {
-    if (!u.iptv_expiry || u.iptv_status === "blocked") return false;
-    return u.iptv_expiry >= todayStr && u.iptv_expiry <= fiveDaysStr;
+  const expiringIn5Days = visibleUsers.filter((u) => {
+    const expiry = normalizeDateOnly(u.iptv_expiry);
+    if (!expiry || ["blocked", "disabled"].includes(String(u.iptv_status || ""))) return false;
+    return expiry >= todayStr && expiry <= fiveDaysStr;
   }).length;
 
-  const blockedClients = users.filter((u) => u.iptv_status === "blocked").length;
+  const blockedClients = visibleUsers.filter((u) => u.iptv_status === "blocked").length;
 
-  const expiredNotBlocked = users.filter((u) => {
-    if (!u.iptv_expiry) return false;
-    return u.iptv_expiry < todayStr && u.iptv_status === "active";
+  const expiredNotBlocked = visibleUsers.filter((u) => {
+    const expiry = normalizeDateOnly(u.iptv_expiry);
+    if (!expiry) return false;
+    return expiry < todayStr && u.iptv_status === "active";
   }).length;
 
   const cards = [

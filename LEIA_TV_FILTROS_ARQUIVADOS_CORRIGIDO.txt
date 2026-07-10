@@ -1,0 +1,34 @@
+CORREÇÃO: FILTROS DA SEÇÃO TV E CLIENTES ARQUIVADOS/EXCLUÍDOS
+
+BASE USADA:
+bitziptv1-banners-brilho-design-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. Filtros rápidos da tela Admin > TV corrigidos.
+2. Filtro "Vencendo em 5 dias" agora usa a mesma regra/data dos cards de estatísticas.
+3. Filtro "Vencendo Hoje" agora usa data BRT corretamente.
+4. Filtro "Vencidos" agora usa comparação por data limpa YYYY-MM-DD.
+5. Filtros avançados por data também usam data limpa.
+6. Clientes arquivados não aparecem mais na seção TV.
+7. Clientes excluídos/deletados não aparecem mais na seção TV.
+8. Perfis com status archived/deleted/removed/excluded também são ignorados.
+9. Usuário admin não entra na lista/estatísticas da TV.
+10. Cards de estatísticas agora usam a mesma lista filtrada da seção TV.
+11. Ativações pendentes, confiança e cancelamentos também ignoram cliente arquivado/excluído.
+12. Quando um usuário for excluído pela função admin-manage-user, o profile é marcado como deleted antes de apagar o auth.
+
+ARQUIVOS ALTERADOS:
+- src/pages/admin/AdminIptvPage.tsx
+- src/pages/admin/iptv/StatsCards.tsx
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+   Esse passo é obrigatório porque admin-manage-user foi alterado.
+
+VALIDAÇÃO:
+Build executado com sucesso.

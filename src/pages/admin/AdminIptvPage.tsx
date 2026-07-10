@@ -29,6 +29,37 @@ import { ClientEditPanel } from "./iptv/ClientEditPanel";
 import { TV_STATUSES, QUICK_FILTERS, getStatusInfo } from "./iptv/types";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
+
+const HIDDEN_PROFILE_STATUSES = new Set(["archived", "deleted", "removed", "excluded", "excluido", "arquivado"]);
+
+const isVisibleTvClient = (record: any) => {
+  const profile = record?.profiles || record;
+  if (!profile) return false;
+
+  const profileStatus = String(profile.status || "").trim().toLowerCase();
+  const role = String(profile.role || "").trim().toLowerCase();
+
+  if (role === "admin") return false;
+  if (HIDDEN_PROFILE_STATUSES.has(profileStatus)) return false;
+  if (profile.is_deleted === true || profile.deleted === true || profile.is_archived === true) return false;
+  if (profile.deleted_at || profile.archived_at) return false;
+
+  return true;
+};
+
+const normalizeDateOnly = (value: any) => String(value || "").slice(0, 10);
+
+const addDaysToDateOnly = (dateOnly: string, days: number) => {
+  const [year, month, day] = normalizeDateOnly(dateOnly).split("-").map(Number);
+  const base = new Date(year, (month || 1) - 1, day || 1);
+  base.setDate(base.getDate() + days);
+
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, "0");
+  const dd = String(base.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const BULK_FIELDS = [
   { value: "iptv_status", label: "Status" },
   { value: "iptv_server", label: "Servidor" },
@@ -143,26 +174,29 @@ const AdminIptvPage = () => {
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
       supabase
         .from("iptv_payments")
-        .select("*, profiles!iptv_payments_user_id_fkey(name, iptv_server, iptv_connections, iptv_expiry)")
+        .select("*, profiles!iptv_payments_user_id_fkey(name, role, status, iptv_server, iptv_connections, iptv_expiry)")
         .eq("status", "paid_pending_activation")
         .order("payment_date", { ascending: false }),
       supabase
         .from("iptv_trust_requests")
-        .select("*, profiles!iptv_trust_requests_user_id_fkey(name, iptv_server, iptv_expiry)")
+        .select("*, profiles!iptv_trust_requests_user_id_fkey(name, role, status, iptv_server, iptv_expiry)")
         .eq("status", "pending")
         .order("requested_at", { ascending: true }),
       supabase
         .from("iptv_cancellation_requests")
-        .select("*, profiles!iptv_cancellation_requests_user_id_fkey(name, iptv_server, iptv_expiry)")
+        .select("*, profiles!iptv_cancellation_requests_user_id_fkey(name, role, status, iptv_server, iptv_expiry)")
         .eq("status", "pending")
         .order("created_at", { ascending: true }),
     ]);
-    setUsers(u.data || []);
+    const visibleProfiles = ((u.data as any[]) || []).filter(isVisibleTvClient);
+
+    setUsers(visibleProfiles);
     setServers(s.data || []);
     setTvApps(a.data || []);
-    setPendingActivations(pa.data || []);
-    setTrustRequests(tr.data || []);
-    setCancelRequests(cr.data || []);
+    setPendingActivations(((pa.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    setTrustRequests(((tr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    setCancelRequests(((cr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    setSelectedUsers((current) => new Set(Array.from(current).filter((id) => visibleProfiles.some((client) => client.id === id))));
   };
 
   useEffect(() => {
@@ -287,28 +321,27 @@ const AdminIptvPage = () => {
   };
 
   const filtered = useMemo(() => {
-    const today = new Date();
-    const todayStr = today.toISOString().split("T")[0];
-    const fiveDays = new Date(today);
-    fiveDays.setDate(fiveDays.getDate() + 5);
-    const fiveDaysStr = fiveDays.toISOString().split("T")[0];
+    const todayStr = todayBRT();
+    const fiveDaysStr = addDaysToDateOnly(todayStr, 5);
 
-    let list = users;
+    let list = users.filter(isVisibleTvClient);
 
     // Quick filters
     if (activeFilter === "active") list = list.filter((u) => u.iptv_status === "active");
     else if (activeFilter === "blocked") list = list.filter((u) => u.iptv_status === "blocked");
     else if (activeFilter === "expiring")
-      list = list.filter((u) => u.iptv_expiry === todayStr && u.iptv_status === "active");
+      list = list.filter((u) => normalizeDateOnly(u.iptv_expiry) === todayStr && u.iptv_status === "active");
     else if (activeFilter === "expiring_5d")
       list = list.filter((u) => {
-        if (!u.iptv_expiry || u.iptv_status === "blocked") return false;
-        return u.iptv_expiry >= todayStr && u.iptv_expiry <= fiveDaysStr;
+        const expiry = normalizeDateOnly(u.iptv_expiry);
+        if (!expiry || ["blocked", "disabled"].includes(String(u.iptv_status || ""))) return false;
+        return expiry >= todayStr && expiry <= fiveDaysStr;
       });
     else if (activeFilter === "expired")
       list = list.filter((u) => {
-        if (!u.iptv_expiry) return false;
-        return new Date(u.iptv_expiry) < new Date();
+        const expiry = normalizeDateOnly(u.iptv_expiry);
+        if (!expiry) return false;
+        return expiry < todayStr;
       });
     else if (activeFilter === "unstable") list = list.filter((u) => u.iptv_status === "unstable");
     else if (activeFilter === "awaiting_payment") list = list.filter((u) => u.iptv_status === "awaiting_payment");
@@ -321,8 +354,8 @@ const AdminIptvPage = () => {
     if (filterValueMin) list = list.filter((u) => Number(u.iptv_monthly_value || 0) >= Number(filterValueMin));
     if (filterValueMax) list = list.filter((u) => Number(u.iptv_monthly_value || 0) <= Number(filterValueMax));
     if (filterScreens) list = list.filter((u) => Number(u.iptv_connections || 1) === Number(filterScreens));
-    if (filterExpiryFrom) list = list.filter((u) => u.iptv_expiry && u.iptv_expiry >= filterExpiryFrom);
-    if (filterExpiryTo) list = list.filter((u) => u.iptv_expiry && u.iptv_expiry <= filterExpiryTo);
+    if (filterExpiryFrom) list = list.filter((u) => normalizeDateOnly(u.iptv_expiry) && normalizeDateOnly(u.iptv_expiry) >= filterExpiryFrom);
+    if (filterExpiryTo) list = list.filter((u) => normalizeDateOnly(u.iptv_expiry) && normalizeDateOnly(u.iptv_expiry) <= filterExpiryTo);
 
     // Search
     if (search) {
