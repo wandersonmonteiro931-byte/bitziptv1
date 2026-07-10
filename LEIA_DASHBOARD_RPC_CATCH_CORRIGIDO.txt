@@ -1,0 +1,30 @@
+CORREÇÃO: DASHBOARD ERRO RPC(...).catch IS NOT A FUNCTION
+
+BASE USADA:
+bitziptv1-dashboard-accessdata-sem-polling-corrigido.zip
+
+ERRO DO CONSOLE:
+TypeError: A.rpc(...).catch is not a function
+
+CAUSA:
+O retorno de supabase.rpc() é um objeto thenable do PostgREST e não possui o método .catch diretamente.
+Isso interrompia a inicialização do dashboard.
+
+O QUE FOI CORRIGIDO:
+1. Removido .catch() diretamente do supabase.rpc().
+2. A chamada única ao abrir ficou protegida por try/catch normal.
+3. Não foi criado polling, setInterval ou consulta contínua.
+4. Mantidas todas as correções anteriores.
+
+ARQUIVO ALTERADO:
+- src/pages/ClientDashboard.tsx
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare publicar.
+5. Abra o dashboard com Ctrl+F5 ou em aba anônima caso o navegador mantenha o JavaScript antigo.
+
+OBSERVAÇÃO:
+Não precisa executar CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat nesta correção, pois somente o front-end foi alterado.

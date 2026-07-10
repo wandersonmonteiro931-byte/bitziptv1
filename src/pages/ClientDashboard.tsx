@@ -1669,7 +1669,11 @@ const ClientDashboard = () => {
     }
 
     const loadData = async () => {
-      await (supabase as any).rpc("auto_block_overdue_clients").catch(() => undefined);
+      try {
+        await (supabase as any).rpc("auto_block_overdue_clients");
+      } catch {
+        // Verificação única ao abrir; nunca cria polling nem consulta contínua.
+      }
 
       const [support, apps, platform, billingDates] = await Promise.all([
         supabase.from("support_settings").select("*").limit(1).maybeSingle(),
