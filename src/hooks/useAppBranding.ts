@@ -17,6 +17,8 @@ export const APP_MANIFEST_ENDPOINT =
   "https://vywtzzrvpdjqpcnixskz.supabase.co/functions/v1/app-manifest";
 
 const DEFAULT_LOGO = "/wmcplayer-icon-512-v3.png";
+const SOCIAL_SHARE_IMAGE_URL =
+  "https://wmcplayer-clientes-apk.pages.dev/wmcplayer-share-20260710.png";
 
 const DEFAULT_BRANDING: AppBranding = {
   appName: "WMCPLAYER",
@@ -254,10 +256,16 @@ export const applyAppBranding = (brandingInput: AppBranding) => {
   setMeta('meta[name="apple-mobile-web-app-title"]', "content", branding.appShortName);
   setMeta('meta[property="og:title"]', "content", branding.appName);
   setMeta('meta[property="og:description"]', "content", branding.appDescription);
-  setMeta('meta[property="og:image"]', "content", branding.logoUrl || DEFAULT_LOGO);
+  setMeta('meta[property="og:image"]', "content", SOCIAL_SHARE_IMAGE_URL);
+  setMeta('meta[property="og:image:secure_url"]', "content", SOCIAL_SHARE_IMAGE_URL);
+  setMeta('meta[property="og:image:type"]', "content", "image/png");
+  setMeta('meta[property="og:image:width"]', "content", "1254");
+  setMeta('meta[property="og:image:height"]', "content", "1254");
+  setMeta('meta[property="og:image:alt"]', "content", `Logotipo oficial ${branding.appName}`);
   setMeta('meta[name="twitter:title"]', "content", branding.appName);
   setMeta('meta[name="twitter:description"]', "content", branding.appDescription);
-  setMeta('meta[name="twitter:image"]', "content", branding.logoUrl || DEFAULT_LOGO);
+  setMeta('meta[name="twitter:image"]', "content", SOCIAL_SHARE_IMAGE_URL);
+  setMeta('meta[name="twitter:image:alt"]', "content", `Logotipo oficial ${branding.appName}`);
 
   setMeta('link[rel="icon"]', "href", installIcon);
   setMeta('link[rel="shortcut icon"]', "href", installIcon);

@@ -19,6 +19,9 @@ echo.
 echo Esta etapa corrige o erro:
 echo Failed to send a request to the Edge Function
 echo.
+echo IMPORTANTE: este arquivo reutiliza um unico token fixo da CLI.
+echo Ele nunca abre o login automatico se ja houver uma sessao valida.
+echo.
 
 echo [1/7] Verificando Node / NPM / NPX...
 where node
@@ -114,19 +117,69 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/7] Login no Supabase CLI...
-echo Se pedir token, abra:
-echo https://supabase.com/dashboard/account/tokens
-echo crie/copiei o token e cole aqui.
+echo [3/7] Verificando sessao existente do Supabase CLI...
+echo Nao sera criado um novo token se ja existir uma sessao valida.
 echo.
-call npx --yes supabase@latest login
-if errorlevel 1 (
+
+call npx --yes supabase@latest projects list --output json >nul 2>&1
+if not errorlevel 1 (
+    echo Sessao valida encontrada. Reutilizando o mesmo token salvo.
+    goto SUPABASE_AUTH_OK
+)
+
+echo.
+echo Nenhuma sessao valida foi encontrada neste computador.
+echo O login automatico pelo navegador foi desativado para nao criar tokens novos a cada atualizacao.
+echo.
+echo Abra a pagina abaixo e mantenha apenas UM token fixo para o WMCPLAYER:
+echo https://supabase.com/dashboard/account/tokens
+echo.
+echo Se apareceu o limite de 20 tokens:
+echo 1. Exclua os tokens antigos de login da CLI que nao usa mais.
+echo 2. Crie somente um token chamado WMCPLAYER-CLI-FIXO.
+echo 3. Copie o token e cole abaixo.
+echo.
+start "" "https://supabase.com/dashboard/account/tokens"
+
+set "SUPABASE_FIXED_TOKEN="
+set /p "SUPABASE_FIXED_TOKEN=Cole o token fixo do Supabase e pressione ENTER: "
+if not defined SUPABASE_FIXED_TOKEN (
     echo.
-    echo ERRO: Falha no login do Supabase CLI.
+    echo ERRO: Nenhum token foi informado.
+    echo O processo foi cancelado sem criar um novo token.
     echo.
     pause
     exit /b 1
 )
+
+echo.
+echo Salvando o token fixo no armazenamento seguro do Supabase CLI...
+call npx --yes supabase@latest login --token "!SUPABASE_FIXED_TOKEN!"
+set "SUPABASE_FIXED_TOKEN="
+if errorlevel 1 (
+    echo.
+    echo ERRO: O token informado nao foi aceito.
+    echo Nenhum login automatico sera tentado para evitar criar outro token.
+    echo Confira o token em:
+    echo https://supabase.com/dashboard/account/tokens
+    echo.
+    pause
+    exit /b 1
+)
+
+call npx --yes supabase@latest projects list --output json >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ERRO: O token foi salvo, mas a sessao nao conseguiu acessar os projetos.
+    echo Confira se o token pertence a conta correta e tem acesso ao projeto.
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Token fixo salvo com sucesso. As proximas atualizacoes reutilizarao este mesmo token.
+
+:SUPABASE_AUTH_OK
 
 echo.
 echo [4/7] Enviando secrets para o Supabase...

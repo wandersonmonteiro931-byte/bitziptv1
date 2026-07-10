@@ -12,3 +12,6 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+/wmcplayer-share-20260710.png
+  Cache-Control: public, max-age=31536000, immutable
+

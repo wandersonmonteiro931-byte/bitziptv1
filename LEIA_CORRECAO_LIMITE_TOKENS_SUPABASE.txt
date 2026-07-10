@@ -1,0 +1,26 @@
+CORRECAO DO LIMITE DE 20 TOKENS DO SUPABASE
+
+BASE USADA:
+bitziptv1-manifesto-instalacao-identidade-admin-corrigido.zip
+
+CAUSA:
+O arquivo CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat executava o login automatico do Supabase CLI em todas as atualizacoes. Cada novo login pelo navegador podia criar outro token pessoal na conta, ate atingir o limite de 20.
+
+CORRECAO:
+1. O BAT verifica primeiro se ja existe uma sessao valida.
+2. Se existir, reutiliza o mesmo token salvo e nao abre o navegador.
+3. Se nao existir, nunca inicia o login automatico.
+4. Abre a pagina de tokens e solicita um unico token fixo chamado WMCPLAYER-CLI-FIXO.
+5. O token e armazenado pelo proprio Supabase CLI e reutilizado nas proximas versoes.
+6. Nenhum token novo e criado pelo BAT automaticamente.
+
+PARA CORRIGIR AGORA:
+1. Execute CORRIGIR_LIMITE_TOKENS_SUPABASE.bat.
+2. Exclua os tokens antigos da CLI na pagina que abrir.
+3. Crie somente um token chamado WMCPLAYER-CLI-FIXO.
+4. Copie o token.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+6. Cole o token quando solicitado.
+
+IMPORTANTE:
+Nao e necessario criar e apagar um token a cada nova versao. O procedimento correto e manter apenas um token fixo e reutiliza-lo. Isso evita o limite e reduz o risco de perder o acesso.
