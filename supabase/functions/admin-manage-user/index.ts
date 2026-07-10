@@ -56,13 +56,17 @@ const sendRealtimeBroadcast = async (_supabaseAdmin: any, channelName: string, e
   }
 
   const endpoint = `${supabaseUrl}/realtime/v1/api/broadcast/${encodeURIComponent(channelName)}/events/${encodeURIComponent(eventName)}`;
+  const realtimeHeaders: Record<string, string> = {
+    apikey: serviceKey,
+    "Content-Type": "application/json",
+  };
+  if (serviceKey.split(".").length === 3) {
+    realtimeHeaders.Authorization = `Bearer ${serviceKey}`;
+  }
+
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: realtimeHeaders,
     body: JSON.stringify(payload),
   });
 
@@ -80,13 +84,17 @@ const sendRealtimeBatch = async (messages: Array<{ topic: string; event: string;
 
   for (let index = 0; index < messages.length; index += 100) {
     const batch = messages.slice(index, index + 100);
+    const realtimeHeaders: Record<string, string> = {
+      apikey: serviceKey,
+      "Content-Type": "application/json",
+    };
+    if (serviceKey.split(".").length === 3) {
+      realtimeHeaders.Authorization = `Bearer ${serviceKey}`;
+    }
+
     const response = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
       method: "POST",
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: realtimeHeaders,
       body: JSON.stringify({ messages: batch }),
     });
 

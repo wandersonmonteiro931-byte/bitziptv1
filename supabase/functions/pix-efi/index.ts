@@ -274,6 +274,82 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+let _webhookEnsuredAt = 0;
+let _webhookEnsurePromise: Promise<{ webhookUrl: string; data: any }> | null = null;
+const WEBHOOK_ENSURE_TTL_MS = 10 * 60 * 1000;
+
+function getSupabaseServerKey(): string {
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SECRET_KEY") ||
+    getEnv("SUPABASE_SERVICE_ROLE_KEY");
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(hash))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function getWebhookHmacToken(): Promise<string> {
+  const pixKey = getEnv("EFI_PIX_KEY");
+  const serverKey = getSupabaseServerKey();
+  return (await sha256Hex(`${pixKey}|${serverKey}|wmcplayer-pix-webhook`)).slice(0, 48);
+}
+
+async function getWebhookUrl(): Promise<string> {
+  const supabaseUrl = getEnv("SUPABASE_URL").replace(/\/$/, "");
+  const hmac = await getWebhookHmacToken();
+  // ignorar= impede a Efí de acrescentar /pix e mantém uma única rota estável.
+  return `${supabaseUrl}/functions/v1/pix-efi/webhook?hmac=${hmac}&ignorar=`;
+}
+
+async function configureWebhook(accessToken: string): Promise<{ webhookUrl: string; data: any }> {
+  const pixKey = getEnv("EFI_PIX_KEY");
+  const webhookUrl = await getWebhookUrl();
+
+  const resp = await mtlsFetchWithRetry(`/v2/webhook/${encodeURIComponent(pixKey)}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      // Supabase Edge Functions não exigem certificado de cliente na entrada.
+      // A Efí permite registrar em hospedagem compartilhada com skip-mTLS.
+      "x-skip-mtls-checking": "true",
+    },
+    body: JSON.stringify({ webhookUrl }),
+  });
+
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`Falha ao registrar webhook Efí (${resp.status}): ${resp.body}`);
+  }
+
+  let data: any = {};
+  try {
+    data = resp.body ? JSON.parse(resp.body) : {};
+  } catch {
+    data = { raw: resp.body };
+  }
+
+  _webhookEnsuredAt = Date.now();
+  console.log("Webhook Efí configurado:", JSON.stringify({ webhookUrl, response: data }));
+  return { webhookUrl, data };
+}
+
+async function ensureWebhookConfigured(accessToken: string): Promise<{ webhookUrl: string; data: any }> {
+  if (_webhookEnsuredAt && Date.now() - _webhookEnsuredAt < WEBHOOK_ENSURE_TTL_MS) {
+    return { webhookUrl: await getWebhookUrl(), data: { cached: true } };
+  }
+
+  if (_webhookEnsurePromise) return await _webhookEnsurePromise;
+
+  _webhookEnsurePromise = configureWebhook(accessToken).finally(() => {
+    _webhookEnsurePromise = null;
+  });
+
+  return await _webhookEnsurePromise;
+}
+
 interface CobPayload {
   calendario: { expiracao: number };
   devedor?: { cpf?: string; nome?: string };
@@ -334,13 +410,20 @@ async function sendRealtimeBroadcast(_adminSupa: any, channelName: string, event
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY");
   const endpoint = `${supabaseUrl}/realtime/v1/api/broadcast/${encodeURIComponent(channelName)}/events/${encodeURIComponent(eventName)}`;
 
+  const realtimeHeaders: Record<string, string> = {
+    apikey: serviceKey,
+    "Content-Type": "application/json",
+  };
+
+  // Chaves novas sb_secret_* não são JWT e não podem ser usadas como Bearer.
+  // Para chave legada JWT, o Authorization continua permitido.
+  if (serviceKey.split(".").length === 3) {
+    realtimeHeaders.Authorization = `Bearer ${serviceKey}`;
+  }
+
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: realtimeHeaders,
     body: JSON.stringify(payload),
   });
 
@@ -460,8 +543,15 @@ serve(async (req) => {
 
     // ── Webhook (public, called by Efí) ──
     if (isWebhook && (req.method === "POST" || req.method === "GET")) {
+      const receivedHmac = url.searchParams.get("hmac") || "";
+      const expectedHmac = await getWebhookHmacToken();
+
+      if (!receivedHmac || receivedHmac !== expectedHmac) {
+        console.warn("Webhook Efí rejeitado: HMAC ausente ou inválido.");
+        return jsonResp({ error: "Webhook não autorizado" }, 401);
+      }
+
       if (req.method === "GET") {
-        // Efí sends GET to verify webhook URL exists
         return jsonResp({ ok: true });
       }
       return await handleWebhook(req);
@@ -510,6 +600,10 @@ serve(async (req) => {
 
     if (path === "register-webhook") {
       return await handleRegisterWebhook(userId);
+    }
+
+    if (path === "reconcile-pending-payments") {
+      return await handleReconcilePendingPayments(userId);
     }
 
     if (path === "check-webhook") {
@@ -581,6 +675,9 @@ async function handleCreateCharge(userId: string, body: any) {
   const accessToken = await getAccessToken();
   console.log("Efí OAuth token OK.");
 
+  // Evento único: garante o webhook antes de gerar a cobrança. Não usa polling.
+  await ensureWebhookConfigured(accessToken);
+
   const cobPayload: CobPayload = {
     calendario: { expiracao: 3600 },
     valor: { original: Number(amount).toFixed(2) },
@@ -627,32 +724,105 @@ async function handleCreateCharge(userId: string, body: any) {
   });
 }
 
+async function reconcilePendingPaymentsForAdmin(adminSupa: any, accessToken: string) {
+  const { data: pendingPayments, error: paymentError } = await adminSupa
+    .from("iptv_payments")
+    .select("*")
+    .in("status", ["pending", "pix_pending"])
+    .not("pix_txid", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(200);
+
+  if (paymentError) throw paymentError;
+
+  const { data: pendingCredits, error: creditError } = await adminSupa
+    .from("credit_purchases")
+    .select("*")
+    .eq("status", "pending")
+    .not("pix_txid", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(200);
+
+  if (creditError) throw creditError;
+
+  let recoveredPayments = 0;
+  let recoveredCredits = 0;
+  const errors: string[] = [];
+
+  for (const payment of pendingPayments || []) {
+    try {
+      const resp = await mtlsFetchWithRetry(`/v2/cob/${encodeURIComponent(payment.pix_txid)}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (resp.status >= 200 && resp.status < 300) {
+        const cob = JSON.parse(resp.body);
+        if (cob.status === "CONCLUIDA") {
+          await confirmPaymentAndUpdateExpiry(adminSupa, payment);
+          recoveredPayments += 1;
+        }
+      }
+    } catch (err) {
+      errors.push(`Pagamento ${payment.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  for (const purchase of pendingCredits || []) {
+    try {
+      const resp = await mtlsFetchWithRetry(`/v2/cob/${encodeURIComponent(purchase.pix_txid)}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (resp.status >= 200 && resp.status < 300) {
+        const cob = JSON.parse(resp.body);
+        if (cob.status === "CONCLUIDA") {
+          await confirmCreditPurchase(adminSupa, purchase);
+          recoveredCredits += 1;
+        }
+      }
+    } catch (err) {
+      errors.push(`Crédito ${purchase.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return {
+    checked_payments: (pendingPayments || []).length,
+    checked_credits: (pendingCredits || []).length,
+    recovered_payments: recoveredPayments,
+    recovered_credits: recoveredCredits,
+    errors,
+  };
+}
+
 async function handleRegisterWebhook(userId: string) {
   const adminSupa = getAdminSupabase();
   const { data: isAdmin } = await adminSupa.rpc("has_role", { _role: "admin", _user_id: userId });
   if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
-  const pixKey = getEnv("EFI_PIX_KEY");
   const accessToken = await getAccessToken();
-  const supabaseUrl = getEnv("SUPABASE_URL");
-  const webhookUrl = `${supabaseUrl}/functions/v1/pix-efi/webhook`;
+  const registered = await configureWebhook(accessToken);
 
-  const resp = await mtlsFetchWithRetry(`/v2/webhook/${pixKey}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ webhookUrl }),
+  // Recupera, por comando único do admin, PIX já pagos que perderam o callback.
+  const reconciliation = await reconcilePendingPaymentsForAdmin(adminSupa, accessToken);
+
+  return jsonResp({
+    ok: true,
+    webhookUrl: registered.webhookUrl,
+    data: registered.data,
+    reconciliation,
   });
+}
 
-  if (resp.status < 200 || resp.status >= 300) {
-    return jsonResp({ error: `Falha ao registrar webhook (${resp.status}): ${resp.body}` }, 400);
-  }
+async function handleReconcilePendingPayments(userId: string) {
+  const adminSupa = getAdminSupabase();
+  const { data: isAdmin } = await adminSupa.rpc("has_role", { _role: "admin", _user_id: userId });
+  if (!isAdmin) return jsonResp({ error: "Admin only" }, 403);
 
-  const data = JSON.parse(resp.body);
-  console.log("Webhook registered:", JSON.stringify(data));
-  return jsonResp({ ok: true, webhookUrl, data });
+  const accessToken = await getAccessToken();
+  const reconciliation = await reconcilePendingPaymentsForAdmin(adminSupa, accessToken);
+  return jsonResp({ ok: true, reconciliation });
 }
 
 async function handleCheckWebhook(userId: string) {
@@ -663,7 +833,7 @@ async function handleCheckWebhook(userId: string) {
   const pixKey = getEnv("EFI_PIX_KEY");
   const accessToken = await getAccessToken();
 
-  const resp = await mtlsFetchWithRetry(`/v2/webhook/${pixKey}`, {
+  const resp = await mtlsFetchWithRetry(`/v2/webhook/${encodeURIComponent(pixKey)}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -673,7 +843,7 @@ async function handleCheckWebhook(userId: string) {
   }
 
   const data = JSON.parse(resp.body);
-  return jsonResp({ ok: true, data });
+  return jsonResp({ ok: true, expectedWebhookUrl: await getWebhookUrl(), data });
 }
 
 // Consulta manual de diagnóstico. Nunca chamar em intervalo automático.
@@ -744,6 +914,9 @@ async function handleCreateCreditCharge(userId: string, body: any) {
 
   const pixKey = getEnv("EFI_PIX_KEY");
   const accessToken = await getAccessToken();
+
+  // Evento único: garante o webhook antes de gerar a cobrança. Não usa polling.
+  await ensureWebhookConfigured(accessToken);
 
   const cobPayload: CobPayload = {
     calendario: { expiracao: 3600 },
@@ -824,12 +997,14 @@ async function handleCheckCreditStatus(userId: string, body: any) {
 
 async function confirmCreditPurchase(adminSupa: any, purchase: any) {
   // ATOMIC GUARD
-  const { data: updated } = await adminSupa
+  const { data: updated, error: updateError } = await adminSupa
     .from("credit_purchases")
     .update({ status: "confirmed", confirmed_at: new Date().toISOString() })
     .eq("id", purchase.id)
     .eq("status", "pending")
     .select("id");
+
+  if (updateError) throw updateError;
 
   if (!updated || updated.length === 0) {
     console.log(`Credit purchase ${purchase.id} already processed — skipping.`);
@@ -926,8 +1101,10 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     .in("status", ["pending", "pix_pending"])
     .select("id");
 
-  // If no rows were updated, another process already handled this payment
-  if (updateErr || !updated || updated.length === 0) {
+  if (updateErr) throw updateErr;
+
+  // If no rows were updated, another process already handled this payment.
+  if (!updated || updated.length === 0) {
     console.log(`Payment ${payment.id} already processed by another request — skipping.`);
     return;
   }
@@ -955,84 +1132,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     description: `Pagamento TV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
 
-  // 5. Send automatic push notifications based on DB rules
-  try {
-    const supabaseUrl = getEnv("SUPABASE_URL");
-    const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY"));
-
-    // Get user profile for template variables
-    const { data: userProfile } = await adminSupa.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", payment.user_id).single();
-
-    // Load active rules for payment_received event
-    const { data: rules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "payment_received").eq("is_active", true);
-
-    const templateVars: Record<string, string> = {
-      "{nome}": userProfile?.name || "",
-      "{valor}": Number(payment.amount).toFixed(2),
-      "{servidor}": userProfile?.iptv_server || "",
-      "{plano_meses}": String(payment.months || 1),
-      "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
-      "{validade}": userProfile?.iptv_expiry ? userProfile.iptv_expiry.split("-").reverse().join("/") : "",
-    };
-
-    for (const rule of (rules || [])) {
-      let title = rule.title_template;
-      let body = rule.body_template;
-      for (const [key, val] of Object.entries(templateVars)) {
-        title = title.replaceAll(key, val);
-        body = body.replaceAll(key, val);
-      }
-
-      await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-        body: JSON.stringify({
-          action: "send_to_user",
-          user_id: payment.user_id,
-          title, body, url: rule.click_url || "/",
-        }),
-      });
-    }
-
-    console.log(`Push notifications sent to user ${payment.user_id} (${(rules || []).length} rules)`);
-
-    // Notify admins about new support request
-    try {
-      const { data: adminRules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "new_support_request").eq("is_active", true);
-      if (adminRules && adminRules.length > 0) {
-        // Get all admin user IDs
-        const { data: adminRoles } = await adminSupa.from("user_roles").select("user_id").eq("role", "admin");
-        const adminVars: Record<string, string> = {
-          "{nome}": userProfile?.name || "",
-          "{valor}": Number(payment.amount).toFixed(2),
-          "{servidor}": userProfile?.iptv_server || "",
-          "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
-          "{validade}": "", "{plano_meses}": "",
-        };
-        for (const rule of adminRules) {
-          let at = rule.title_template;
-          let ab = rule.body_template;
-          for (const [key, val] of Object.entries(adminVars)) {
-            at = at.replaceAll(key, val);
-            ab = ab.replaceAll(key, val);
-          }
-          for (const admin of (adminRoles || [])) {
-            await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
-              body: JSON.stringify({ action: "send_to_user", user_id: admin.user_id, title: at, body: ab, url: rule.click_url || "/admin/iptv" }),
-            });
-          }
-        }
-        console.log(`Admin notified about new support request from ${payment.user_id}`);
-      }
-    } catch (adminPushErr) {
-      console.error("Failed to notify admin:", adminPushErr);
-    }
-  } catch (pushErr) {
-    console.error("Failed to send push notification:", pushErr);
-  }
-
+  // 5. Envia primeiro as ordens Realtime. A tela não depende da entrega do Push.
   const confirmedAt = new Date().toISOString();
   const { data: profileSnapshot } = await adminSupa
     .from("profiles")
@@ -1063,69 +1163,183 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     },
   });
 
+  // 6. Envia Push. Regras personalizadas têm prioridade; se não houver regra, usa mensagem padrão.
+  try {
+    const supabaseUrl = getEnv("SUPABASE_URL");
+    const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY"));
+
+    // Get user profile for template variables
+    const { data: userProfile } = await adminSupa.from("profiles").select("name, iptv_server, iptv_expiry").eq("id", payment.user_id).single();
+
+    // Load active rules for payment_received event
+    const { data: rules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "payment_received").eq("is_active", true);
+
+    const templateVars: Record<string, string> = {
+      "{nome}": userProfile?.name || "",
+      "{valor}": Number(payment.amount).toFixed(2),
+      "{servidor}": userProfile?.iptv_server || "",
+      "{plano_meses}": String(payment.months || 1),
+      "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
+      "{validade}": userProfile?.iptv_expiry ? userProfile.iptv_expiry.split("-").reverse().join("/") : "",
+    };
+
+    const clientRules = (rules && rules.length > 0)
+      ? rules
+      : [{
+          title_template: "Pagamento PIX recebido",
+          body_template: "Olá {nome}! Recebemos seu pagamento de R$ {valor}. Aguarde a ativação do suporte.",
+          click_url: "/dashboard",
+        }];
+
+    for (const rule of clientRules) {
+      let title = rule.title_template;
+      let body = rule.body_template;
+      for (const [key, val] of Object.entries(templateVars)) {
+        title = title.replaceAll(key, val);
+        body = body.replaceAll(key, val);
+      }
+
+      await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+        body: JSON.stringify({
+          action: "send_to_user",
+          user_id: payment.user_id,
+          title, body, url: rule.click_url || "/dashboard",
+        }),
+      });
+    }
+
+    console.log(`Push enviado ao cliente ${payment.user_id} (${clientRules.length} mensagem(ns))`);
+
+    // Notify admins about new support request
+    try {
+      const { data: adminRules } = await adminSupa.from("notification_rules").select("*").eq("trigger_event", "new_support_request").eq("is_active", true);
+      const { data: adminRoles } = await adminSupa.from("user_roles").select("user_id").eq("role", "admin");
+      const adminVars: Record<string, string> = {
+        "{nome}": userProfile?.name || "",
+        "{valor}": Number(payment.amount).toFixed(2),
+        "{servidor}": userProfile?.iptv_server || "",
+        "{data_pagamento}": new Date().toLocaleDateString("pt-BR"),
+        "{validade}": "", "{plano_meses}": String(payment.months || 1),
+      };
+      const rulesForAdmin = (adminRules && adminRules.length > 0)
+        ? adminRules
+        : [{
+            title_template: "PIX recebido — ativação pendente",
+            body_template: "{nome} pagou R$ {valor}. Abra a seção TV para confirmar a ativação.",
+            click_url: "/admin/iptv",
+          }];
+
+      for (const rule of rulesForAdmin) {
+        let at = rule.title_template;
+        let ab = rule.body_template;
+        for (const [key, val] of Object.entries(adminVars)) {
+          at = at.replaceAll(key, val);
+          ab = ab.replaceAll(key, val);
+        }
+        for (const admin of (adminRoles || [])) {
+          await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+            body: JSON.stringify({ action: "send_to_user", user_id: admin.user_id, title: at, body: ab, url: rule.click_url || "/admin/iptv" }),
+          });
+        }
+      }
+      console.log(`Admin(s) notificado(s) sobre o PIX de ${payment.user_id}`);
+    } catch (adminPushErr) {
+      console.error("Failed to notify admin:", adminPushErr);
+    }
+  } catch (pushErr) {
+    console.error("Failed to send push notification:", pushErr);
+  }
+
   console.log(`Payment ${payment.id} confirmed. Awaiting admin activation.`);
 }
 
 async function handleWebhook(req: Request) {
-  // Efí sends PIX webhook notifications as POST /pix
-  // The body contains an array of pix received
+  // A Efí chama esta rota por evento. Não existe polling.
   try {
-    const body = await req.json();
-    console.log("PIX webhook received:", JSON.stringify(body));
-
-    const pixArray = body.pix || [];
-    if (pixArray.length === 0) {
-      // Could be a test notification from Efí
-      return jsonResp({ ok: true });
+    const rawBody = await req.text();
+    if (!rawBody.trim()) {
+      // Notificação de teste usada no cadastro do webhook.
+      return jsonResp({ ok: true, test: true });
     }
 
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return jsonResp({ error: "JSON de webhook inválido" }, 400);
+    }
+
+    console.log("PIX webhook received:", JSON.stringify(body));
+
+    const pixArray = Array.isArray(body?.pix) ? body.pix : [];
+    if (pixArray.length === 0) {
+      return jsonResp({ ok: true, empty: true });
+    }
+
+    const expectedPixKey = getEnv("EFI_PIX_KEY");
     const adminSupa = getAdminSupabase();
+    let processed = 0;
 
     for (const pix of pixArray) {
-      const txid = pix.txid;
+      const txid = String(pix?.txid || "").trim();
       if (!txid) continue;
 
-      // Check iptv_payments first
-      const { data: payment } = await adminSupa
+      if (pix?.chave && String(pix.chave) !== expectedPixKey) {
+        console.warn(`Webhook ignorado: chave PIX divergente para txid ${txid}.`);
+        continue;
+      }
+
+      const { data: payment, error: paymentLookupError } = await adminSupa
         .from("iptv_payments")
         .select("*")
         .eq("pix_txid", txid)
-        .single();
+        .maybeSingle();
+
+      if (paymentLookupError) throw paymentLookupError;
 
       if (payment) {
-        if (!["pending", "pix_pending"].includes(payment.status)) {
+        if (["pending", "pix_pending"].includes(payment.status)) {
+          await confirmPaymentAndUpdateExpiry(adminSupa, payment);
+          processed += 1;
+          console.log(`Payment ${payment.id} confirmed via webhook`);
+        } else {
           console.log(`Payment ${payment.id} already processed (status: ${payment.status})`);
-          continue;
         }
-        await confirmPaymentAndUpdateExpiry(adminSupa, payment);
-        console.log(`Payment ${payment.id} confirmed via webhook`);
         continue;
       }
 
-      // Check credit_purchases
-      const { data: creditPurchase } = await adminSupa
+      const { data: creditPurchase, error: creditLookupError } = await adminSupa
         .from("credit_purchases")
         .select("*")
         .eq("pix_txid", txid)
-        .single();
+        .maybeSingle();
+
+      if (creditLookupError) throw creditLookupError;
 
       if (creditPurchase) {
-        if (creditPurchase.status !== "pending") {
+        if (creditPurchase.status === "pending") {
+          await confirmCreditPurchase(adminSupa, creditPurchase);
+          processed += 1;
+          console.log(`Credit purchase ${creditPurchase.id} confirmed via webhook`);
+        } else {
           console.log(`Credit purchase ${creditPurchase.id} already processed`);
-          continue;
         }
-        await confirmCreditPurchase(adminSupa, creditPurchase);
-        console.log(`Credit purchase ${creditPurchase.id} confirmed via webhook`);
         continue;
       }
 
-      console.log(`No payment or credit purchase found for txid: ${txid}`);
+      console.warn(`No payment or credit purchase found for txid: ${txid}`);
     }
 
-    return jsonResp({ ok: true });
+    return jsonResp({ ok: true, processed });
   } catch (err) {
-    console.error("Webhook error:", err);
-    return jsonResp({ ok: true }); // Always return 200 to Efí
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Webhook processing error:", message);
+    // Retorna erro para a Efí tentar novamente automaticamente.
+    return jsonResp({ error: "Falha temporária ao processar webhook", detail: message }, 500);
   }
 }
 

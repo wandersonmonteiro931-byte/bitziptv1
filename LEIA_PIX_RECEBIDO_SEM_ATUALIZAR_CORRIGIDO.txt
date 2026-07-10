@@ -1,0 +1,40 @@
+CORREÇÃO: PIX FOI RECEBIDO NA EFÍ, MAS CLIENTE E ADMIN NÃO ATUALIZARAM
+
+BASE USADA:
+bitziptv1-pwa-err-failed-entrada-atualizacao-corrigido.zip
+
+CAUSA PRINCIPAL CORRIGIDA:
+- O webhook estava sendo registrado em uma hospedagem que não exige certificado mTLS na entrada,
+  mas o cadastro na Efí não enviava o cabeçalho x-skip-mtls-checking=true.
+- Assim, o PIX era recebido na conta Efí, porém o callback não chegava ao Supabase.
+- As ordens Realtime também enviavam a nova chave sb_secret como Bearer, o que podia impedir a entrega.
+
+O QUE FOI CORRIGIDO:
+1. Webhook Efí registrado com x-skip-mtls-checking=true.
+2. URL protegida por HMAC próprio e parâmetro ignorar=.
+3. Antes de gerar qualquer novo PIX, o sistema garante o webhook por uma ação única.
+4. Nenhum polling, setInterval de rede ou consulta contínua foi adicionado.
+5. Webhook retorna erro 500 quando ocorrer falha real, permitindo que a Efí tente novamente.
+6. Ordem Realtime é enviada antes das notificações Push.
+7. Realtime REST usa apenas apikey para chave sb_secret; Bearer só é usado para chave JWT legada.
+8. Cliente recebe ordem imediata: Pagamento recebido / aguardando ativação.
+9. Painel admin recebe a cobrança pendente de ativação imediatamente.
+10. Cliente e admin recebem Push padrão mesmo se não houver regra personalizada cadastrada.
+11. O botão Admin > TV agora aparece como "Configurar/recuperar PIX".
+12. Ao clicar nesse botão, o sistema também consulta UMA VEZ os PIX pendentes e recupera os que já foram pagos.
+
+COMO RECUPERAR O PIX DE R$ 0,02 QUE JÁ FOI PAGO:
+1. Publique esta atualização no GitHub/Cloudflare.
+2. Rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+3. Abra Admin > TV.
+4. Clique uma única vez em "Configurar/recuperar PIX".
+5. O pagamento já recebido será localizado pelo txid, marcado como recebido e enviado para o cliente/admin.
+
+ARQUIVOS ALTERADOS:
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+- src/pages/admin/AdminIptvPage.tsx
+
+VALIDAÇÃO:
+- Sintaxe TypeScript/TSX validada com sucesso.
+- Não foi adicionado polling.

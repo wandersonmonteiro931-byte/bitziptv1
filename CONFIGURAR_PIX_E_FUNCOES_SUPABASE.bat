@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 title WMCPLAYER - Configurar PIX e Edge Functions Supabase
@@ -182,8 +182,12 @@ echo.
 echo Agora teste novamente no site:
 echo https://wmcplayer-clientes-apk.pages.dev/dashboard
 echo.
-echo Se ainda der erro no PIX, o proximo passo sera olhar o log da funcao pix-efi
-echo dentro do Supabase:
+echo.
+echo PASSO FINAL OBRIGATORIO PARA RECUPERAR PIX JA PAGO:
+echo 1. Abra o painel Admin ^> TV
+echo 2. Clique uma unica vez em Configurar/recuperar PIX
+echo.
+echo Se ainda der erro no PIX, veja o log:
 echo Edge Functions ^> pix-efi ^> Logs
 echo.
 pause

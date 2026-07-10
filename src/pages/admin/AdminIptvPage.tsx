@@ -165,10 +165,21 @@ const AdminIptvPage = () => {
       const { data, error } = await supabase.functions.invoke("pix-efi/register-webhook", { method: "POST" });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "✅ Webhook configurado!", description: "O webhook PIX foi registrado automaticamente na Efí." });
+
+      const recoveredPayments = Number(data?.reconciliation?.recovered_payments || 0);
+      const recoveredCredits = Number(data?.reconciliation?.recovered_credits || 0);
+      await loadData();
+
+      toast({
+        title: "✅ Webhook PIX configurado!",
+        description:
+          recoveredPayments || recoveredCredits
+            ? `${recoveredPayments} pagamento(s) e ${recoveredCredits} compra(s) de crédito já pagos foram recuperados.`
+            : "Webhook Efí confirmado. Nenhum PIX pago estava pendente de recuperação.",
+      });
     } catch (err: any) {
       toast({
-        title: "❌ Erro ao configurar webhook",
+        title: "❌ Erro ao configurar/recuperar PIX",
         description: err.message || "Tente novamente mais tarde.",
         variant: "destructive",
       });
@@ -577,7 +588,7 @@ const AdminIptvPage = () => {
             disabled={webhookLoading}
             className="flex items-center gap-1.5 rounded-xl bg-accent/15 px-3 py-2.5 text-xs font-semibold text-accent-foreground hover:bg-accent/25 transition-colors disabled:opacity-50"
           >
-            {webhookLoading ? <Loader2 size={14} className="animate-spin" /> : <Webhook size={14} />} Webhook PIX
+            {webhookLoading ? <Loader2 size={14} className="animate-spin" /> : <Webhook size={14} />} Configurar/recuperar PIX
           </button>
           <button
             onClick={() =>
