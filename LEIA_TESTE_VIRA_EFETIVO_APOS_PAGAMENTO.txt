@@ -1,0 +1,31 @@
+ATUALIZAÇÃO: TESTE VIRA USUÁRIO EFETIVO APÓS O 1º PAGAMENTO
+
+BASE USADA:
+bitziptv1-usuario-teste-bloqueio-automatico.zip
+
+O QUE FOI CORRIGIDO:
+1. Usuário criado como teste deixa de ser teste após o 1º pagamento confirmado.
+2. Quando o PIX for confirmado, o sistema marca:
+   - trial_enabled = false
+   - trial_payment_confirmed = true
+   - remove aviso de teste vencido
+3. Depois que o admin ativar/liberar o cliente, também garante:
+   - trial_enabled = false
+   - trial_payment_confirmed = true
+   - cliente vira efetivo
+4. O aviso "TESTE FINALIZADO" não aparece mais depois que o cliente pagar.
+5. O cliente não volta para teste após recarregar ou entrar novamente.
+
+ARQUIVOS ALTERADOS:
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+IMPORTANTE:
+Não precisa rodar novo SQL se você já rodou o SQL_USUARIO_TESTE_BLOQUEIO_AUTOMATICO.sql da versão anterior.

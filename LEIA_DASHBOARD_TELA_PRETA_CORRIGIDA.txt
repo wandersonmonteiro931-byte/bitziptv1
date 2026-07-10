@@ -1,0 +1,30 @@
+CORREÇÃO: DASHBOARD TELA PRETA
+
+BASE USADA:
+bitziptv1-teste-vira-efetivo-apos-primeiro-pagamento.zip
+
+ERRO DO CONSOLE:
+ReferenceError: Cannot access before initialization
+
+CAUSA:
+A verificação de teste vencido estava sendo chamada antes da função estar inicializada no ClientDashboard.tsx.
+Isso fazia a tela /dashboard ficar preta/travada.
+
+O QUE FOI CORRIGIDO:
+1. A função isTrialExpiredNow foi movida para antes do useEffect que usa ela.
+2. O aviso TESTE FINALIZADO continua funcionando.
+3. O usuário de teste continua virando efetivo após o primeiro pagamento.
+4. Mantidas as correções anteriores.
+
+ARQUIVO ALTERADO:
+- src/pages/ClientDashboard.tsx
+
+VALIDAÇÃO:
+Build executado com sucesso.
+
+COMO APLICAR:
+1. Extraia este ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat se ainda não rodou na versão anterior.

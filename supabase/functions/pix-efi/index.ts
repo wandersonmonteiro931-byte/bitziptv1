@@ -856,12 +856,17 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     return;
   }
 
-  // 2. Update profile: set awaiting_activation status only
-  // The iptv_expiry is NOT updated here — it will only be updated when the admin confirms the activation
+  // 2. Update profile: set awaiting_activation status only.
+  // Se era usuário de teste, o 1º pagamento já tira ele do modo teste.
+  // A ativação/liberação final continua dependendo do admin.
   await adminSupa
     .from("profiles")
-    .update({ 
-      iptv_status: "awaiting_activation" 
+    .update({
+      iptv_status: "awaiting_activation",
+      trial_enabled: false,
+      trial_payment_confirmed: true,
+      trial_expired_at: null,
+      trial_expired_notice_sent_at: null,
     })
     .eq("id", payment.user_id);
 

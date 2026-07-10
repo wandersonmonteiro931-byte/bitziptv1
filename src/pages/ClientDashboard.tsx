@@ -1343,6 +1343,18 @@ const ClientDashboard = () => {
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
   const [appVersion, setAppVersion] = useState(() => getCurrentAppVersion());
 
+  const isTrialExpiredNow = useCallback(() => {
+    const profile: any = user;
+    if (!profile?.trial_enabled || profile?.trial_payment_confirmed) return false;
+    if (!profile?.trial_ends_at) return false;
+    return String(profile.trial_ends_at).slice(0, 10) < toBrazilDateOnlyString(new Date());
+  }, [user]);
+
+  const trialFinalMessage = {
+    title: "TESTE FINALIZADO...",
+    body: `Olá ${user?.name || "cliente"}!\nSeu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1400,18 +1412,6 @@ const ClientDashboard = () => {
       setTimeout(done, timeoutMs);
     });
   }, []);
-
-  const isTrialExpiredNow = useCallback(() => {
-    const profile: any = user;
-    if (!profile?.trial_enabled || profile?.trial_payment_confirmed) return false;
-    if (!profile?.trial_ends_at) return false;
-    return String(profile.trial_ends_at).slice(0, 10) < toBrazilDateOnlyString(new Date());
-  }, [user]);
-
-  const trialFinalMessage = {
-    title: "TESTE FINALIZADO...",
-    body: `Olá ${user?.name || "cliente"}!\nSeu período de teste terminou. Realize o pagamento do seu plano e continue aproveitando o melhor da TV!`,
-  };
 
   const normalizeRenewalPlans = useCallback((rows: any[] = []) => {
     return rows.map((plan) => ({

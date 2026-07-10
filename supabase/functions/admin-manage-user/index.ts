@@ -475,11 +475,15 @@ Deno.serve(async (req) => {
             .eq("user_id", user_id)
             .eq("status", "paid_pending_activation");
 
+          // Depois que o 1º pagamento for confirmado e o admin ativar,
+          // o cliente deixa de ser teste e vira usuário efetivo.
           await supabaseAdmin
             .from("profiles")
             .update({
+              trial_enabled: false,
               trial_payment_confirmed: true,
               trial_expired_at: null,
+              trial_expired_notice_sent_at: null,
             })
             .eq("id", user_id)
             .eq("trial_enabled", true);
@@ -534,6 +538,16 @@ Deno.serve(async (req) => {
           } catch (pushErr) {
             console.error("Failed to send manual status push:", pushErr);
           }
+        }
+
+        if (data.iptv_status === "active") {
+          await emitClientProfileUpdated(supabaseAdmin, user_id, {
+            iptv_status: "active",
+            trial_enabled: false,
+            trial_payment_confirmed: true,
+            trial_expired_at: null,
+            trial_expired_notice_sent_at: null,
+          });
         }
 
         result = { success: true };
