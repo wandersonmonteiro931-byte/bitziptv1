@@ -57,13 +57,6 @@ type AppVersionState = {
 const APP_VERSION_STORAGE_KEY = "wmcflix_app_version_state_v2";
 const LEGACY_APP_VERSION_STORAGE_KEYS = ["wmcflix_app_version_state_v1", "bitz_app_version_state_v1"];
 const APP_VERSION_INITIAL = "v1.1";
-const FINANCE_UPDATE_EVENT = "wmcplayer-finance-updated";
-
-const dispatchFinanceUpdated = (payload: Record<string, any>) => {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(FINANCE_UPDATE_EVENT, { detail: payload }));
-};
-
 const getLocalBuildId = () => String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : Date.now());
 
 const incrementAppVersion = (version: string) => {
@@ -1072,7 +1065,6 @@ function PixModal({
 
       if (payload.period_end) setPeriodEnd(String(payload.period_end));
       setPaymentConfirmed(true);
-      dispatchFinanceUpdated(payload);
     };
 
     window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
@@ -1578,19 +1570,35 @@ const ClientDashboard = () => {
     const applyFinanceCommand = (payload: any) => {
       if (!payload || (payload.user_id && payload.user_id !== user.id)) return;
 
-      const patch = payload.profile_patch || payload.profile;
-      if (patch && typeof patch === "object") applyProfilePatch(patch);
+      const receivedPayment =
+        payload.action === "pix_payment_received" || payload.status === "paid_pending_activation";
 
-      if (payload.action === "pix_payment_received" && payload.period_end) {
-        const [year, month, day] = String(payload.period_end).split("-");
-        setPendingFutureExpiry(`${day}/${month}/${year}`);
+      const patch: Record<string, any> = {
+        ...(payload.profile_patch || payload.profile || {}),
+      };
+
+      if (receivedPayment) {
+        patch.iptv_status = payload.iptv_status || "awaiting_activation";
+        patch.trial_enabled = false;
+        patch.trial_payment_confirmed = true;
+        patch.trial_expired_at = null;
+        patch.trial_expired_notice_sent_at = null;
+      }
+
+      if (Object.keys(patch).length > 0) applyProfilePatch(patch);
+
+      if (receivedPayment) {
+        trialExpiredNoticeDismissedRef.current = true;
+        setTrialExpiredNoticeOpen(false);
+        if (payload.period_end) {
+          const [year, month, day] = String(payload.period_end).split("-");
+          setPendingFutureExpiry(`${day}/${month}/${year}`);
+        }
       }
 
       if (payload.action === "activation_confirmed" || payload.iptv_status === "active") {
         setPendingFutureExpiry(null);
       }
-
-      dispatchFinanceUpdated(payload);
     };
 
     const onFinanceCommand = (event: Event) => applyFinanceCommand((event as CustomEvent)?.detail);
@@ -1932,6 +1940,7 @@ const ClientDashboard = () => {
   // Bloqueia somente após o limite configurado pelo admin.
   const effectiveStatus =
     isPastGraceLimit && user?.iptv_status === "active" ? "blocked" : user?.iptv_status || "active";
+  const isAwaitingActivation = effectiveStatus === "awaiting_activation";
 
   // Regra visual exclusiva para clientes que ainda estão marcados como teste.
   // O status real continua bloqueado no banco para impedir o acesso até o primeiro pagamento.
@@ -1990,17 +1999,19 @@ const ClientDashboard = () => {
     });
   };
 
-  const planSubtitle = isTrialFinished
-    ? "Seu teste gratuito terminou. Ative seu plano."
-    : isPastGraceLimit
-      ? "Você está bloqueado por atraso!"
-      : isOverdue
-        ? "Você está em atraso!"
-        : isDueToday
-          ? "Vence hoje!"
-          : isNearDueNotice
-            ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
-            : "Você está em dias!";
+  const planSubtitle = isAwaitingActivation
+    ? "Pagamento recebido. Aguardando ativação do suporte."
+    : isTrialFinished
+      ? "Seu teste gratuito terminou. Ative seu plano."
+      : isPastGraceLimit
+        ? "Você está bloqueado por atraso!"
+        : isOverdue
+          ? "Você está em atraso!"
+          : isDueToday
+            ? "Vence hoje!"
+            : isNearDueNotice
+              ? `Vence em ${daysUntilDue} ${daysUntilDue === 1 ? "dia" : "dias"}!`
+              : "Você está em dias!";
   const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
   const renewalButtonMotion = {
     initial: { scale: 1 },
@@ -2082,10 +2093,12 @@ const ClientDashboard = () => {
             </h1>
             <p
               className={`mt-0.5 text-xs font-medium ${
-                isTrialFinished
-                  ? "text-amber-400"
-                  : isOverdue
-                    ? "text-red-400"
+                isAwaitingActivation
+                  ? "text-blue-400"
+                  : isTrialFinished
+                    ? "text-amber-400"
+                    : isOverdue
+                      ? "text-red-400"
                     : isDueToday || isNearDueNotice
                       ? "text-amber-400"
                       : "text-emerald-400"
@@ -2132,7 +2145,9 @@ const ClientDashboard = () => {
               )}
             </div>
             <div className="text-right">
-              {isOverdue ? (
+              {isAwaitingActivation ? (
+                <span className="text-sm font-semibold text-blue-400">Pagamento recebido</span>
+              ) : isOverdue ? (
                 <span className="text-sm font-semibold text-destructive">Vencido</span>
               ) : isDueToday ? (
                 <span className="text-sm font-semibold text-destructive">Vence hoje</span>
@@ -2230,7 +2245,7 @@ const ClientDashboard = () => {
         </motion.div>
 
         {/* COUNTDOWN WARNING (only if close to due) */}
-        {daysUntilDue <= 7 && (
+        {!isAwaitingActivation && daysUntilDue <= 7 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

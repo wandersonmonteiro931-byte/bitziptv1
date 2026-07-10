@@ -735,6 +735,15 @@ async function reconcilePendingPaymentsForAdmin(adminSupa: any, accessToken: str
 
   if (paymentError) throw paymentError;
 
+  const { data: paidPendingActivation, error: paidPendingError } = await adminSupa
+    .from("iptv_payments")
+    .select("*")
+    .eq("status", "paid_pending_activation")
+    .order("payment_date", { ascending: true })
+    .limit(200);
+
+  if (paidPendingError) throw paidPendingError;
+
   const { data: pendingCredits, error: creditError } = await adminSupa
     .from("credit_purchases")
     .select("*")
@@ -746,6 +755,7 @@ async function reconcilePendingPaymentsForAdmin(adminSupa: any, accessToken: str
   if (creditError) throw creditError;
 
   let recoveredPayments = 0;
+  let repairedPaidProfiles = 0;
   let recoveredCredits = 0;
   const errors: string[] = [];
 
@@ -765,6 +775,17 @@ async function reconcilePendingPaymentsForAdmin(adminSupa: any, accessToken: str
       }
     } catch (err) {
       errors.push(`Pagamento ${payment.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Comando único do admin: repara pagamentos já recebidos cujo perfil
+  // ainda permaneceu bloqueado/teste por uma versão anterior.
+  for (const payment of paidPendingActivation || []) {
+    try {
+      const result = await syncPaidAwaitingActivationProfile(adminSupa, payment, true);
+      if (!result.skippedActive) repairedPaidProfiles += 1;
+    } catch (err) {
+      errors.push(`Perfil do pagamento ${payment.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -791,6 +812,7 @@ async function reconcilePendingPaymentsForAdmin(adminSupa: any, accessToken: str
     checked_payments: (pendingPayments || []).length,
     checked_credits: (pendingCredits || []).length,
     recovered_payments: recoveredPayments,
+    repaired_paid_profiles: repairedPaidProfiles,
     recovered_credits: recoveredCredits,
     errors,
   };
@@ -1091,6 +1113,67 @@ async function confirmCreditPurchase(adminSupa: any, purchase: any) {
   console.log(`Credit purchase ${purchase.id} confirmed. ${totalCredits} credits added to user ${purchase.user_id}`);
 }
 
+const PAID_AWAITING_ACTIVATION_PROFILE_PATCH = {
+  iptv_status: "awaiting_activation",
+  trial_enabled: false,
+  trial_payment_confirmed: true,
+  trial_expired_at: null,
+  trial_expired_notice_sent_at: null,
+};
+
+async function syncPaidAwaitingActivationProfile(
+  adminSupa: any,
+  payment: any,
+  emitRepairCommand = false,
+) {
+  const { data: currentProfile, error: currentProfileError } = await adminSupa
+    .from("profiles")
+    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_status, trial_enabled, trial_payment_confirmed")
+    .eq("id", payment.user_id)
+    .maybeSingle();
+
+  if (currentProfileError) throw currentProfileError;
+
+  // Nunca rebaixa para aguardando ativação um cliente que já foi ativado pelo admin.
+  if (currentProfile?.iptv_status === "active" && currentProfile?.trial_enabled !== true) {
+    return { profilePatch: null, profileSnapshot: currentProfile, skippedActive: true };
+  }
+
+  const { data: updatedProfile, error: profileUpdateError } = await adminSupa
+    .from("profiles")
+    .update(PAID_AWAITING_ACTIVATION_PROFILE_PATCH)
+    .eq("id", payment.user_id)
+    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_status, trial_enabled, trial_payment_confirmed, trial_expired_at, trial_expired_notice_sent_at")
+    .maybeSingle();
+
+  if (profileUpdateError) throw profileUpdateError;
+
+  if (emitRepairCommand) {
+    await emitFinanceUpdated(adminSupa, payment.user_id, {
+      action: "pix_payment_received",
+      source: "iptv_payments",
+      payment_id: payment.id,
+      status: "paid_pending_activation",
+      iptv_status: "awaiting_activation",
+      period_end: payment.period_end,
+      profile_patch: PAID_AWAITING_ACTIVATION_PROFILE_PATCH,
+      profile_snapshot: updatedProfile || currentProfile,
+      payment: {
+        ...payment,
+        status: "paid_pending_activation",
+        payment_date: payment.payment_date || new Date().toISOString(),
+      },
+      repaired: true,
+    });
+  }
+
+  return {
+    profilePatch: PAID_AWAITING_ACTIVATION_PROFILE_PATCH,
+    profileSnapshot: updatedProfile || currentProfile,
+    skippedActive: false,
+  };
+}
+
 // Shared function: confirm payment, update expiry, set awaiting_activation
 async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
   // ATOMIC GUARD: Only update if the PIX charge is still waiting to prevent duplicate processing
@@ -1103,26 +1186,29 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
 
   if (updateErr) throw updateErr;
 
-  // If no rows were updated, another process already handled this payment.
+  // Se outro callback já marcou como pago, garante que o perfil também entrou
+  // no fluxo padrão de aguardando ativação. Isso corrige pagamentos após teste
+  // que ficaram com o perfil visualmente bloqueado.
   if (!updated || updated.length === 0) {
-    console.log(`Payment ${payment.id} already processed by another request — skipping.`);
+    const { data: currentPayment } = await adminSupa
+      .from("iptv_payments")
+      .select("*")
+      .eq("id", payment.id)
+      .maybeSingle();
+
+    if (currentPayment?.status === "paid_pending_activation") {
+      await syncPaidAwaitingActivationProfile(adminSupa, currentPayment, true);
+      console.log(`Payment ${payment.id} already paid; profile/status repaired.`);
+    } else {
+      console.log(`Payment ${payment.id} already processed by another request — skipping.`);
+    }
     return;
   }
 
   // 2. Atualiza o perfil e envia a ordem completa para a tela do cliente.
   // Se era usuário de teste, o 1º pagamento já tira ele do modo teste.
-  const profilePatch = {
-    iptv_status: "awaiting_activation",
-    trial_enabled: false,
-    trial_payment_confirmed: true,
-    trial_expired_at: null,
-    trial_expired_notice_sent_at: null,
-  };
-
-  await adminSupa
-    .from("profiles")
-    .update(profilePatch)
-    .eq("id", payment.user_id);
+  const profilePatch = PAID_AWAITING_ACTIVATION_PROFILE_PATCH;
+  const syncedProfile = await syncPaidAwaitingActivationProfile(adminSupa, payment, false);
 
   // 4. Log in balance_history
   await adminSupa.from("balance_history").insert({
@@ -1134,11 +1220,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
 
   // 5. Envia primeiro as ordens Realtime. A tela não depende da entrega do Push.
   const confirmedAt = new Date().toISOString();
-  const { data: profileSnapshot } = await adminSupa
-    .from("profiles")
-    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_status")
-    .eq("id", payment.user_id)
-    .maybeSingle();
+  const profileSnapshot = syncedProfile.profileSnapshot;
 
   await emitFinanceUpdated(adminSupa, payment.user_id, {
     action: "pix_payment_received",

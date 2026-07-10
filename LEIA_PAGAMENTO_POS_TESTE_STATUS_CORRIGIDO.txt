@@ -1,0 +1,51 @@
+CORREÇÃO: PAGAMENTO APÓS TESTE DEVE ENTRAR NO FLUXO PADRÃO
+
+BASE USADA:
+bitziptv1-pix-webhook-bat-corrigido.zip
+
+O QUE FOI CORRIGIDO:
+1. Quando um cliente com teste finalizado paga o PIX, ele deixa imediatamente de ser teste.
+2. O status passa para:
+   - Aguardando Ativação
+   - Pagamento recebido. Aguardando ativação do suporte.
+3. O cliente deixa de aparecer como:
+   - Bloqueado
+   - Você está bloqueado por atraso!
+4. O aviso TESTE FINALIZADO fecha automaticamente após o pagamento.
+5. O perfil recebe:
+   - iptv_status = awaiting_activation
+   - trial_enabled = false
+   - trial_payment_confirmed = true
+   - trial_expired_at = null
+6. O painel admin recebe a ordem do pagamento imediatamente.
+7. Depois que o admin confirmar, o status passa para Ativo/Online.
+8. Corrigido um erro de eventos duplicados que redisparava o mesmo comando financeiro e podia impedir a atualização da tela.
+9. Nenhum polling, setInterval de rede ou consulta contínua foi adicionado.
+10. O comando manual Configurar/recuperar PIX também repara pagamentos já recebidos que ainda ficaram bloqueados por versões anteriores.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/hooks/useRealtimeBalance.ts
+- supabase/functions/pix-efi/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a publicação no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+6. Para corrigir um PIX já recebido que ainda está bloqueado:
+   - abra Admin > TV
+   - clique uma única vez em Configurar/recuperar PIX
+
+FLUXO CORRETO:
+Teste finalizado
+-> cliente paga
+-> Pagamento recebido / Aguardando Ativação
+-> admin confirma
+-> Ativo / Online
+
+VALIDAÇÃO:
+- ClientDashboard.tsx: sintaxe validada com esbuild.
+- useRealtimeBalance.ts: sintaxe validada com esbuild.
+- pix-efi/index.ts: sintaxe validada com esbuild.

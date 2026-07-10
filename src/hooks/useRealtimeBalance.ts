@@ -49,6 +49,16 @@ export function useRealtimeBalance() {
         ...(payload.profile_patch || payload.profile || {}),
       };
 
+      // Pagamento recebido após teste: a ordem Realtime precisa tirar o cliente
+      // imediatamente do estado de teste/bloqueado e colocá-lo no fluxo padrão.
+      if (payload.action === "pix_payment_received" || payload.status === "paid_pending_activation") {
+        patch.iptv_status = payload.iptv_status || "awaiting_activation";
+        patch.trial_enabled = false;
+        patch.trial_payment_confirmed = true;
+        patch.trial_expired_at = null;
+        patch.trial_expired_notice_sent_at = null;
+      }
+
       if (payload.balance_after !== undefined) patch.balance = Number(payload.balance_after);
       if (payload.credits_after !== undefined) patch.credits = Number(payload.credits_after);
       if (payload.level_points_after !== undefined) patch.level_points = Number(payload.level_points_after);
