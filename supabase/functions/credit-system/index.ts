@@ -86,6 +86,26 @@ Deno.serve(async (req) => {
       return !!roleData;
     };
 
+    const { data: callerProfile } = await supabase
+      .from("profiles")
+      .select("status, iptv_status")
+      .eq("id", caller.id)
+      .maybeSingle();
+
+    const normalizeAccessStatus = (value: unknown) =>
+      String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const callerStatus = normalizeAccessStatus(callerProfile?.status);
+    const callerTvStatus = normalizeAccessStatus(callerProfile?.iptv_status);
+    const callerDisabled =
+      ["disabled", "inactive", "deactivated", "desativado", "suspended", "suspenso", "archived", "arquivado", "deleted", "removed", "excluded", "excluido", "blocked", "bloqueado", "pending", "pendente"].includes(callerStatus) ||
+      ["disabled", "inactive", "deactivated", "desativado"].includes(callerTvStatus);
+
+    if (callerDisabled && !(await isAdmin())) {
+      return new Response(JSON.stringify({ error: "Usuário desativado." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Helper: log transaction
     const logTransaction = async (userId: string, type: string, amount: number, balanceAfter: number, description: string, metadata: any = {}, adminId?: string) => {
       await supabase.from("credit_transactions").insert({

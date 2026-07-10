@@ -578,6 +578,27 @@ function isPixClientAction(path: string): boolean {
   return ["create-charge", "check-status", "create-credit-charge", "check-credit-status"].includes(path);
 }
 
+async function ensurePixUserAccessEnabled(userId: string) {
+  const adminSupa = getAdminSupabase();
+  const { data: profile, error } = await adminSupa
+    .from("profiles")
+    .select("status, iptv_status")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!profile) throw new Error("Perfil não encontrado.");
+
+  const normalize = (value: unknown) =>
+    String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const accountStatus = normalize(profile.status);
+  const tvStatus = normalize(profile.iptv_status);
+  const deniedAccount = ["disabled", "inactive", "deactivated", "desativado", "suspended", "suspenso", "archived", "arquivado", "deleted", "removed", "excluded", "excluido", "blocked", "bloqueado", "pending", "pendente"].includes(accountStatus);
+  const deniedTv = ["disabled", "inactive", "deactivated", "desativado"].includes(tvStatus);
+
+  if (deniedAccount || deniedTv) throw new Error("Usuário desativado.");
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -621,11 +642,7 @@ serve(async (req) => {
     // Para PIX do cliente, nunca retornamos "Unauthorized" direto: resolvemos o usuário pelo pagamento já criado.
     const body = await readJsonBody(req);
     const authHeader = req.headers.get("Authorization");
-    let userId = await getUserIdFromAuthHeader(authHeader);
-
-    if (!userId && isPixClientAction(path)) {
-      userId = await getUserIdFromRecord(path, body);
-    }
+    const userId = await getUserIdFromAuthHeader(authHeader);
 
     if (!userId) {
       console.warn("PIX auth failed without record fallback:", JSON.stringify({
@@ -638,6 +655,14 @@ serve(async (req) => {
         error: "Sessão temporariamente inválida. Atualize a tela e tente novamente.",
         detail: "AUTH_TEMPORARILY_UNAVAILABLE",
       }, 401);
+    }
+
+    if (isPixClientAction(path)) {
+      await ensurePixUserAccessEnabled(userId);
+      const ownerId = await getUserIdFromRecord(path, body);
+      if (ownerId && ownerId !== userId) {
+        return jsonResp({ error: "Pagamento não pertence ao usuário autenticado." }, 403);
+      }
     }
 
     if (path === "create-charge") {

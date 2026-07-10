@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TV_STATUSES, getStatusInfo } from "./types";
 import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { invokeAuthenticatedFunction } from "@/lib/edgeFunctions";
 
 
 const getTodayDateOnly = () => {
@@ -281,16 +282,28 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
         payload.iptv_due_day = Number(payload.iptv_due_day || 10);
       }
 
-      const res = await supabase.functions.invoke("admin-manage-user", {
-        body: { action: "update_profile", user_id: user.id, data: payload },
-      });
-
-      if (res.error || (res.data as any)?.error) {
-        throw new Error((res.data as any)?.error || res.error?.message || "Erro ao salvar alterações.");
+      // Não tenta alterar e-mail/senha do Auth quando esses campos não mudaram.
+      // Isso evitava falhas 4xx/5xx ao salvar somente status, servidor ou aplicativo.
+      if (String(payload.iptv_user || "").trim() === String(user.iptv_user || "").trim()) {
+        delete payload.iptv_user;
+      }
+      if (String(payload.iptv_password || "") === String(user.iptv_password || "")) {
+        delete payload.iptv_password;
       }
 
-      broadcastClientProfileUpdate(user.id, payload);
-      setForm({ ...form, ...payload });
+      const result = await invokeAuthenticatedFunction<any>("admin-manage-user", {
+        action: "update_profile",
+        user_id: user.id,
+        data: payload,
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.error || "O servidor não confirmou a atualização.");
+      }
+
+      const savedPatch = { ...payload, ...(result?.profile_patch || {}) };
+      broadcastClientProfileUpdate(user.id, savedPatch);
+      setForm({ ...form, ...savedPatch });
       toast({ title: "✅ Dados atualizados para " + user.name, description: "Atualizado em todo o app: Admin > Usuários, Admin > TV e painel do cliente." });
       onSaved();
     } catch (err: any) {

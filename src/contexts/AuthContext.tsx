@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { AUTH_NOTICE_STORAGE_KEY, getUserAccessDeniedMessage, isUserAccessDisabled } from "@/lib/accessStatus";
 
 export type UserRole = "admin" | "client";
 
@@ -117,8 +118,13 @@ async function retryQuery<T>(operation: () => Promise<T>): Promise<T> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
+  const userRef = useRef<Profile | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   const fetchProfile = async (userId: string): Promise<FetchProfileResult> => {
     try {
@@ -150,12 +156,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { profile: null, role: null, error: "Perfil do usuário não encontrado." };
       }
 
-      // If user is archived, force logout
-      if (profile.status === "archived") {
+      const accessDeniedMessage = getUserAccessDeniedMessage(profile);
+      if (accessDeniedMessage) {
         setUser(null);
         setRole(null);
+        try {
+          sessionStorage.setItem(AUTH_NOTICE_STORAGE_KEY, accessDeniedMessage);
+        } catch {
+          // O navegador pode bloquear sessionStorage em modo privado.
+        }
+        await supabase.removeAllChannels().catch(() => undefined);
         await supabase.auth.signOut({ scope: "local" });
-        return { profile: null, role: null, error: "Seu acesso está arquivado. Entre em contato com o suporte." };
+        return { profile: null, role: null, error: accessDeniedMessage };
       }
 
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -202,7 +214,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyProfilePatch = useCallback((patch: Partial<Profile>) => {
     if (!patch || typeof patch !== "object") return;
-    setUser((current) => (current ? ({ ...current, ...patch } as Profile) : current));
+    const current = userRef.current;
+    if (!current) return;
+
+    const next = { ...current, ...patch } as Profile;
+    const deniedMessage = getUserAccessDeniedMessage(next);
+
+    if (deniedMessage) {
+      try {
+        sessionStorage.setItem(AUTH_NOTICE_STORAGE_KEY, deniedMessage);
+      } catch {
+        // Sem armazenamento disponível.
+      }
+      userRef.current = null;
+      setUser(null);
+      setRole(null);
+      void supabase.removeAllChannels().catch(() => undefined);
+      void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      return;
+    }
+
+    userRef.current = next;
+    setUser(next);
   }, []);
 
   useEffect(() => {

@@ -1,0 +1,109 @@
+AUDITORIA GERAL WMCPLAYER - ACESSO, ADMIN, PWA, MOBILE E PAGAMENTOS
+
+BASE UTILIZADA:
+bitziptv1-console-referenceerror-tdz-corrigido.zip
+
+CORRECOES PRINCIPAIS
+
+1. USUARIO DESATIVADO
+- Usuario com iptv_status=disabled nao consegue mais entrar.
+- Usuario com status suspenso/desativado/arquivado/bloqueado/pendente tambem respeita a regra correta.
+- Mensagem exata para desativado: Usuario desativado.
+- Se o admin desativar enquanto o cliente estiver com o app aberto, a ordem Realtime encerra a sessao e remove o acesso.
+- Cliente bloqueado apenas por atraso continua podendo entrar para renovar, porque iptv_status=blocked nao e tratado como usuario desativado.
+
+2. ADMIN > TV - ERRO AO SALVAR
+- O painel nao tenta mais alterar e-mail e senha do Auth quando esses dados nao foram modificados.
+- A Edge Function recebe o token da sessao explicitamente.
+- O erro real retornado pela Edge Function aparece no painel, em vez da mensagem generica non-2xx.
+- Status Desativado sincroniza o status geral do usuario para suspenso.
+- Status Ativo reativa conta suspensa/desativada.
+- A resposta devolve profile_patch confirmado pelo servidor.
+
+3. SEGURANCA DAS EDGE FUNCTIONS
+- Saque so pode ser solicitado pelo proprio usuario autenticado.
+- Usuario desativado nao pode solicitar saque.
+- PIX exige sessao autenticada e valida se o pagamento pertence ao usuario.
+- Usuario desativado nao pode gerar nova cobranca PIX por uma sessao antiga.
+- Sistema de creditos e jogo da memoria recusam usuario desativado.
+- Acoes administrativas continuam exigindo perfil admin.
+
+4. PIX E PAGAMENTOS
+- Mantido o webhook da Efi como fonte da confirmacao.
+- Mantido o fluxo por ordens Realtime, sem polling.
+- Mantida a validacao de propriedade do pagamento.
+- Nenhuma consulta automatica sem parar foi adicionada.
+
+5. IPHONE, IPAD E ANDROID
+- Removida a limpeza destrutiva de cache ao instalar o PWA.
+- A instalacao nao apaga caches nem interrompe a navegacao.
+- Permissao de notificacao passou a ser verificada por eventos de foco/retorno, sem timer.
+- Navegadores/iPhones antigos sem suporte a Push nao ficam presos em tela de bloqueio.
+- Manifesto aceita qualquer orientacao para evitar incompatibilidade em tablets e celulares.
+- Mantidos viewport-fit=cover e safe areas para iPhone.
+- Mantidos redirects do Cloudflare para atualizar rotas sem ERR_FAILED/404.
+
+6. PROTECAO CONTRA TELA PRETA
+- Adicionado Error Boundary global com botao Recarregar aplicativo.
+- Mantida verificacao TDZ antes do build.
+- Adicionada auditoria automatica antes de cada build.
+
+7. REALTIME E CONSUMO
+- Confirmado apenas 1 canal Realtime no front-end.
+- Auditoria bloqueia build se aparecer mais de 1 canal.
+- Auditoria bloqueia setInterval com consultas de rede.
+- Timers restantes sao apenas cronometros locais de tela/jogos.
+
+8. GITHUB E ARQUIVOS BAT
+- Auditoria verifica BOM UTF-8 nos arquivos BAT.
+- Secrets continuam protegidos pelo .gitignore e nao devem ser removidos da lista de ignorados.
+
+ARQUIVOS PRINCIPAIS ALTERADOS
+- src/lib/accessStatus.ts
+- src/lib/edgeFunctions.ts
+- src/contexts/AuthContext.tsx
+- src/pages/LoginPage.tsx
+- src/components/ProtectedRoute.tsx
+- src/components/AppErrorBoundary.tsx
+- src/components/InstallGate.tsx
+- src/components/NotificationGate.tsx
+- src/pages/admin/iptv/ClientEditPanel.tsx
+- src/main.tsx
+- supabase/functions/admin-manage-user/index.ts
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/credit-system/index.ts
+- supabase/functions/memory-game/index.ts
+- scripts/audit-project.cjs
+- src/test/accessStatus.test.ts
+- package.json
+- vite.config.ts
+
+VALIDACOES EXECUTADAS
+- Sintaxe de todos os arquivos TS/TSX do front-end e Edge Functions: OK.
+- Verificacao TDZ em todo src: OK.
+- Auditoria automatica: OK.
+- Apenas 1 canal Realtime: OK.
+- Nenhum polling de rede em setInterval: OK.
+- Nenhum segredo de servidor em src/public: OK.
+- Arquivos BAT sem BOM: OK.
+
+COMO PUBLICAR
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare concluir o deploy.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+6. Feche e reabra o navegador/PWA.
+7. No computador, use Ctrl+F5 uma vez.
+
+TESTES OBRIGATORIOS APOS PUBLICAR
+- Desativar usuario no Admin > TV e tentar login: deve mostrar Usuario desativado.
+- Desativar usuario com app aberto: deve sair automaticamente.
+- Reativar e entrar novamente: deve funcionar.
+- Salvar servidor/status/app no painel: nao deve retornar non-2xx.
+- Gerar PIX, pagar, receber ordem Aguardando Ativacao e confirmar no admin.
+- Instalar/abrir no Android Chrome.
+- Adicionar a Tela de Inicio e abrir no iPhone Safari.
+
+OBSERVACAO
+A auditoria de codigo foi concluida. A integracao real com Efi, Push, Supabase e Cloudflare precisa do teste final apos o deploy porque depende dos servicos e credenciais da conta.

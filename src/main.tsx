@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { AppErrorBoundary } from "./components/AppErrorBoundary.tsx";
 
 // O PWA não limpa cache, não desregistra Service Worker e não força
 // recarregamentos durante a abertura. Isso evita ERR_FAILED ao abrir,
@@ -34,4 +35,8 @@ document.head.appendChild(style);
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Elemento #root não encontrado.");
 
-createRoot(rootElement).render(<App />);
+createRoot(rootElement).render(
+  <AppErrorBoundary>
+    <App />
+  </AppErrorBoundary>,
+);

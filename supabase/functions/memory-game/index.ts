@@ -36,6 +36,25 @@ Deno.serve(async (req) => {
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("status, iptv_status")
+      .eq("id", user.id)
+      .maybeSingle();
+    const normalizeAccessStatus = (value: unknown) =>
+      String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const accountStatus = normalizeAccessStatus(profile?.status);
+    const tvStatus = normalizeAccessStatus(profile?.iptv_status);
+    const disabled =
+      ["disabled", "inactive", "deactivated", "desativado", "suspended", "suspenso", "archived", "arquivado", "deleted", "removed", "excluded", "excluido", "blocked", "bloqueado", "pending", "pendente"].includes(accountStatus) ||
+      ["disabled", "inactive", "deactivated", "desativado"].includes(tvStatus);
+    if (disabled) {
+      return new Response(JSON.stringify({ error: "Usuário desativado." }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const { action, duration_seconds, pairs_found } = body;
 

@@ -141,7 +141,7 @@ export default defineConfig(({ mode }) => ({
         background_color: "#000000",
         display: "standalone",
         display_override: ["standalone", "fullscreen"],
-        orientation: "portrait",
+        orientation: "any",
         start_url: "/",
         scope: "/",
         categories: ["entertainment", "utilities"],

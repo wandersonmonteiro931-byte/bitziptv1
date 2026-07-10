@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:tdz": "node scripts/check-tdz.cjs",
-    "prebuild": "npm run check:tdz"
+    "prebuild": "npm run audit && npm run check:tdz",
+    "audit": "node scripts/audit-project.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

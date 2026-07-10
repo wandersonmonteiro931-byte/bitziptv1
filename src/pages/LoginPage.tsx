@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { AUTH_NOTICE_STORAGE_KEY, getUserAccessDeniedMessage } from "@/lib/accessStatus";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Lock, User, Loader2, MessageCircle, Shield, AlertTriangle } from "lucide-react";
 
@@ -26,11 +27,23 @@ const LoginPage = () => {
   const [lockoutEnd, setLockoutEnd] = useState<number | null>(null);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const [supportLink, setSupportLink] = useState("https://wa.me/5562995657915");
-  const { login, isAdmin, user } = useAuth();
+  const { login, logout, isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const { appName, logoUrl } = useAppBranding();
   const appTitle = appName || "Bitz TV";
   const appTitleUpper = appTitle.toUpperCase();
+
+  useEffect(() => {
+    try {
+      const notice = sessionStorage.getItem(AUTH_NOTICE_STORAGE_KEY);
+      if (notice) {
+        sessionStorage.removeItem(AUTH_NOTICE_STORAGE_KEY);
+        setError(notice);
+      }
+    } catch {
+      // Sem armazenamento disponível.
+    }
+  }, []);
 
   // Fetch support link
   useEffect(() => {
@@ -90,6 +103,9 @@ const LoginPage = () => {
           for (const emailCandidate of candidateList) {
             lastResult = await login(emailCandidate, password);
             if (!lastResult.error) return lastResult;
+            if (/usuário desativado|usuario desativado|acesso arquivado|acesso suspenso/i.test(lastResult.error)) {
+              return lastResult;
+            }
           }
 
           return lastResult;
@@ -139,13 +155,10 @@ const LoginPage = () => {
           return;
         }
 
-        if (result.profile?.status === "blocked") {
-          setError("Seu acesso está bloqueado. Entre em contato com o suporte.");
-          setSubmitting(false);
-          return;
-        }
-        if (result.profile?.status === "pending") {
-          setError("Seu pagamento foi identificado. Aguarde liberação do sistema.");
+        const accessDeniedMessage = getUserAccessDeniedMessage(result.profile);
+        if (accessDeniedMessage) {
+          await logout();
+          setError(accessDeniedMessage);
           setSubmitting(false);
           return;
         }
@@ -163,20 +176,18 @@ const LoginPage = () => {
 
   // Redirect when authenticated
   useEffect(() => {
-    if (user) {
-      if (user.status === "blocked") {
-        setError("Seu acesso está bloqueado. Entre em contato com o suporte.");
-        setSubmitting(false);
-        return;
-      }
-      if (user.status === "pending") {
-        setError("Seu pagamento foi identificado. Aguarde liberação do sistema.");
-        setSubmitting(false);
-        return;
-      }
-      navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
+    if (!user) return;
+
+    const accessDeniedMessage = getUserAccessDeniedMessage(user);
+    if (accessDeniedMessage) {
+      setError(accessDeniedMessage);
+      setSubmitting(false);
+      void logout();
+      return;
     }
-  }, [user, isAdmin, navigate]);
+
+    navigate(isAdmin ? "/admin" : "/dashboard", { replace: true });
+  }, [user, isAdmin, navigate, logout]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black p-4">

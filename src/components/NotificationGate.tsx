@@ -22,11 +22,21 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
     setPermission(Notification.permission);
   }, []);
 
-  // Check on mount and every 5 seconds
+  // Verifica ao abrir e quando o usuário volta ao aplicativo.
+  // Não usa timer/polling.
   useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkPermission();
+    };
     checkPermission();
-    const interval = setInterval(checkPermission, 5000);
-    return () => clearInterval(interval);
+    window.addEventListener("focus", checkPermission);
+    window.addEventListener("pageshow", checkPermission);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", checkPermission);
+      window.removeEventListener("pageshow", checkPermission);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [checkPermission]);
 
   const handleRequest = async () => {
@@ -46,8 +56,9 @@ export const NotificationGate = ({ children }: { children: React.ReactNode }) =>
     return null;
   }
 
-  // ONLY allow through if explicitly granted
-  if (permission === "granted") {
+  // Navegadores sem Push (especialmente iPhones antigos) continuam tendo acesso.
+  // O recurso fica indisponível, mas o aplicativo não trava.
+  if (permission === "granted" || permission === "unsupported") {
     return <>{children}</>;
   }
 

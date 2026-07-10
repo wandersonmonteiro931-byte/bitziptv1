@@ -47,6 +47,38 @@ const addMonthsToDateOnlyByFixedDay = (dateOnly: string, months: number, fixedDa
 
 const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 
+const normalizeStatus = (value: unknown) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const DISABLED_ACCOUNT_STATUSES = new Set([
+  "disabled", "inactive", "deactivated", "desativado", "suspended", "suspenso",
+  "archived", "arquivado", "deleted", "removed", "excluded", "excluido",
+  "blocked", "bloqueado", "pending", "pendente",
+]);
+
+const REACTIVATABLE_ACCOUNT_STATUSES = new Set([
+  "disabled", "inactive", "deactivated", "desativado", "suspended", "suspenso",
+]);
+
+const isAccessDisabled = (profile: any) =>
+  DISABLED_ACCOUNT_STATUSES.has(normalizeStatus(profile?.status)) ||
+  ["disabled", "inactive", "deactivated", "desativado"].includes(normalizeStatus(profile?.iptv_status));
+
+const TV_STATUS_ALIASES: Record<string, string> = {
+  inactive: "disabled",
+  deactivated: "disabled",
+  desativado: "disabled",
+};
+
+const ALLOWED_TV_STATUSES = new Set([
+  "active", "blocked", "disabled", "awaiting_activation", "awaiting_payment",
+  "maintenance", "unstable", "trust_active",
+]);
+
 const sendRealtimeBroadcast = async (_supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
   const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
@@ -184,15 +216,23 @@ Deno.serve(async (req) => {
 
     // request_withdrawal does NOT require admin role — it's called by the user
     if (action === "request_withdrawal") {
-      const { amount, pix_key } = data;
+      if (!user_id || user_id !== caller.id) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { amount, pix_key } = data || {};
       if (!amount || !pix_key) throw new Error("amount e pix_key são obrigatórios");
 
       const { data: profile } = await supabaseAdmin
         .from("profiles")
-        .select("balance, balance_frozen")
+        .select("balance, balance_frozen, status, iptv_status")
         .eq("id", user_id)
         .single();
       if (!profile) throw new Error("Usuário não encontrado");
+      if (isAccessDisabled(profile)) throw new Error("Usuário desativado.");
       if (profile.balance_frozen) throw new Error("Saldo congelado. Saques bloqueados.");
       if (Number(profile.balance) < Number(amount)) throw new Error("Saldo insuficiente");
       if (Number(amount) < 30) throw new Error("Valor mínimo de R$ 30,00");
@@ -591,19 +631,34 @@ Deno.serve(async (req) => {
         // Fetch current profile to detect actual status changes
         const { data: currentProfile } = await supabaseAdmin
           .from("profiles")
-          .select("iptv_status, iptv_user, username, iptv_expiry, iptv_due_day")
+          .select("status, iptv_status, iptv_user, username, iptv_expiry, iptv_due_day")
           .eq("id", user_id)
           .single();
         const previousStatus = currentProfile?.iptv_status;
 
         const updateData = { ...(data || {}) };
 
+        if (updateData.iptv_status !== undefined) {
+          const normalizedStatus = normalizeStatus(updateData.iptv_status);
+          updateData.iptv_status = TV_STATUS_ALIASES[normalizedStatus] || normalizedStatus;
+          if (!ALLOWED_TV_STATUSES.has(updateData.iptv_status)) {
+            throw new Error(`Status inválido: ${String(data?.iptv_status || "")}`);
+          }
+
+          // Desativado é bloqueio de conta. Bloqueado continua podendo entrar para pagar.
+          if (updateData.iptv_status === "disabled") {
+            updateData.status = "suspended";
+          } else if (updateData.iptv_status === "active" && REACTIVATABLE_ACCOUNT_STATUSES.has(normalizeStatus(currentProfile?.status))) {
+            updateData.status = "active";
+          }
+        }
+
         // Ao ativar um PIX já recebido, a renovação parte do vencimento que já estava previsto.
         // Exemplo: venceu 09/07, admin confirmou 10/07 => próximo vencimento 09/08.
         // Nunca parte do dia em que o admin confirmou.
         let pendingActivationPayments: any[] = [];
         let activationFinalExpiry = "";
-        if (data?.iptv_status === "active" && updateData.trial_enabled !== true) {
+        if (updateData.iptv_status === "active" && updateData.trial_enabled !== true) {
           const { data: rows, error: pendingError } = await supabaseAdmin
             .from("iptv_payments")
             .select("id, months, period_start, period_end, created_at")
@@ -689,14 +744,17 @@ Deno.serve(async (req) => {
           const loginIdentifier = updateData.iptv_user.trim();
           updateData.username = loginIdentifier;
 
-          const loginEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
-          const { error: authEmailError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-            email: loginEmail,
-            email_confirm: true,
-          } as any);
+          const previousLogin = String(currentProfile?.iptv_user || currentProfile?.username || "").trim();
+          if (loginIdentifier !== previousLogin) {
+            const loginEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
+            const { error: authEmailError } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+              email: loginEmail,
+              email_confirm: true,
+            } as any);
 
-          if (authEmailError) {
-            throw new Error(`Erro ao atualizar login do cliente: ${authEmailError.message}`);
+            if (authEmailError) {
+              throw new Error(`Erro ao atualizar login do cliente: ${authEmailError.message}`);
+            }
           }
         }
 
@@ -794,6 +852,7 @@ Deno.serve(async (req) => {
           billing_proportional_enabled: updateData.billing_proportional_enabled,
           iptv_monthly_value: updateData.iptv_monthly_value,
           iptv_connections: updateData.iptv_connections,
+          status: updateData.status,
           iptv_status: updateData.iptv_status,
           trial_enabled: updateData.trial_enabled,
           trial_ends_at: updateData.trial_ends_at,
@@ -803,7 +862,7 @@ Deno.serve(async (req) => {
 
         // Quando o admin ativa após pagamento, confirma os pagamentos pendentes já corrigidos.
         // O vencimento definitivo é o vencimento anterior + quantidade de meses comprada.
-        if (data.iptv_status === "active") {
+        if (updateData.iptv_status === "active") {
           const hasPaidPendingActivation = pendingActivationPayments.length > 0;
 
           if (hasPaidPendingActivation) {
@@ -881,11 +940,11 @@ Deno.serve(async (req) => {
         }
 
         // Send push notification ONLY when the status actually changed (not on regular edits)
-        const statusActuallyChanged = data.iptv_status && data.iptv_status !== previousStatus;
+        const statusActuallyChanged = updateData.iptv_status && updateData.iptv_status !== previousStatus;
         const isTrialStatusSave = updateData.trial_enabled === true;
-        if (!isTrialStatusSave && statusActuallyChanged && (data.iptv_status === "blocked" || data.iptv_status === "active")) {
+        if (!isTrialStatusSave && statusActuallyChanged && (updateData.iptv_status === "blocked" || updateData.iptv_status === "active" || updateData.iptv_status === "disabled")) {
           try {
-            const triggerEvent = data.iptv_status === "blocked" ? "user_blocked" : "activation_confirmed";
+            const triggerEvent = updateData.iptv_status === "active" ? "activation_confirmed" : "user_blocked";
             const { data: userProfile } = await supabaseAdmin
               .from("profiles")
               .select("name, iptv_server, iptv_expiry")
@@ -925,14 +984,14 @@ Deno.serve(async (req) => {
                   }),
                 });
               }
-              console.log(`Manual ${data.iptv_status} push sent to user ${user_id} (${rules.length} rules)`);
+              console.log(`Manual ${updateData.iptv_status} push sent to user ${user_id} (${rules.length} rules)`);
             }
           } catch (pushErr) {
             console.error("Failed to send manual status push:", pushErr);
           }
         }
 
-        if (data.iptv_status === "active" && updateData.trial_enabled !== true) {
+        if (updateData.iptv_status === "active" && updateData.trial_enabled !== true) {
           await emitClientProfileUpdated(supabaseAdmin, user_id, {
             iptv_status: "active",
             trial_enabled: false,
@@ -942,7 +1001,20 @@ Deno.serve(async (req) => {
           });
         }
 
-        result = { success: true };
+        result = {
+          success: true,
+          profile_patch: {
+            status: updateData.status,
+            iptv_status: updateData.iptv_status,
+            iptv_expiry: updateData.iptv_expiry,
+            iptv_due_day: updateData.iptv_due_day,
+            billing_due_date_id: updateData.billing_due_date_id,
+            iptv_server: updateData.iptv_server,
+            iptv_tv_app: updateData.iptv_tv_app,
+            iptv_connections: updateData.iptv_connections,
+            iptv_monthly_value: updateData.iptv_monthly_value,
+          },
+        };
         break;
       }
       case "set_referrer_by_code": {
@@ -2267,7 +2339,9 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    const message = err instanceof Error ? err.message : String(err || "Erro interno.");
+    console.error("admin-manage-user:", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
