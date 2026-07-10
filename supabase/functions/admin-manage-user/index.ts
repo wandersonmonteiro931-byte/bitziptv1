@@ -438,28 +438,89 @@ Deno.serve(async (req) => {
     }
 
     if (action === "list_pending_admin_requests") {
-      const { data: trustRows, error: trustError } = await supabaseAdmin
-        .from("iptv_trust_requests")
-        .select("*")
-        .eq("status", "pending")
-        .order("requested_at", { ascending: true });
+      const [{ data: trustRows, error: trustError }, { data: pendingPaymentRows, error: paymentError }] = await Promise.all([
+        supabaseAdmin
+          .from("iptv_trust_requests")
+          .select("*")
+          .eq("status", "pending")
+          .order("requested_at", { ascending: true }),
+        supabaseAdmin
+          .from("iptv_payments")
+          .select("*")
+          .eq("status", "paid_pending_activation")
+          .order("payment_date", { ascending: false }),
+      ]);
 
-      if (trustError) {
-        return new Response(JSON.stringify({ error: trustError.message }), {
+      if (trustError || paymentError) {
+        return new Response(JSON.stringify({ error: trustError?.message || paymentError?.message }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const userIds = Array.from(new Set(((trustRows || []) as any[]).map((item) => item.user_id).filter(Boolean)));
+      const userIds = Array.from(
+        new Set(
+          [...((trustRows || []) as any[]), ...((pendingPaymentRows || []) as any[])]
+            .map((item) => item.user_id)
+            .filter(Boolean),
+        ),
+      );
+
       const { data: profiles } = userIds.length
         ? await supabaseAdmin
             .from("profiles")
-            .select("id, name, username, iptv_user, role, status, iptv_server, iptv_expiry, iptv_status")
+            .select("id, name, username, iptv_user, role, status, iptv_server, iptv_connections, iptv_expiry, iptv_due_day, iptv_status")
             .in("id", userIds)
         : { data: [] as any[] };
 
       const profilesById = new Map(((profiles || []) as any[]).map((profile) => [profile.id, profile]));
+
+      // Calcula a data prevista correta para exibição no admin sem depender
+      // de um period_end antigo gravado por versões anteriores.
+      const paymentGroups = new Map<string, any[]>();
+      for (const payment of (pendingPaymentRows || []) as any[]) {
+        const list = paymentGroups.get(payment.user_id) || [];
+        list.push(payment);
+        paymentGroups.set(payment.user_id, list);
+      }
+
+      const normalizedPending: any[] = [];
+      for (const [pendingUserId, payments] of paymentGroups.entries()) {
+        const profile: any = profilesById.get(pendingUserId);
+        const ordered = [...payments].sort((a, b) =>
+          String(a.payment_date || a.created_at || "").localeCompare(String(b.payment_date || b.created_at || "")),
+        );
+
+        let cycleStart = isDateOnly(profile?.iptv_expiry)
+          ? String(profile.iptv_expiry)
+          : isDateOnly(ordered[0]?.period_start)
+            ? String(ordered[0].period_start)
+            : brDateOnly(new Date());
+
+        const fixedDueDay = Math.max(
+          1,
+          Math.min(31, Number(profile?.iptv_due_day || cycleStart.split("-")[2] || 10)),
+        );
+
+        for (const payment of ordered) {
+          const periodEnd = addMonthsToDateOnlyByFixedDay(
+            cycleStart,
+            Math.max(1, Number(payment.months || 1)),
+            fixedDueDay,
+          );
+          normalizedPending.push({
+            ...payment,
+            period_start: cycleStart,
+            period_end: periodEnd,
+            profiles: profile || null,
+          });
+          cycleStart = periodEnd;
+        }
+      }
+
+      normalizedPending.sort((a, b) =>
+        String(b.payment_date || b.created_at || "").localeCompare(String(a.payment_date || a.created_at || "")),
+      );
 
       return new Response(
         JSON.stringify({
@@ -468,6 +529,7 @@ Deno.serve(async (req) => {
             ...item,
             profiles: profilesById.get(item.user_id) || null,
           })),
+          pending_activations: normalizedPending,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -1589,18 +1651,52 @@ Deno.serve(async (req) => {
 
         const { data: pendingPayments, error: pendingPaymentsError } = await supabaseAdmin
           .from("iptv_payments")
-          .select("id, period_end")
+          .select("id, months, period_start, period_end, payment_date, created_at")
           .eq("user_id", user_id)
-          .eq("status", "paid_pending_activation");
+          .eq("status", "paid_pending_activation")
+          .order("payment_date", { ascending: true })
+          .order("created_at", { ascending: true });
 
         if (pendingPaymentsError) throw pendingPaymentsError;
 
+        const { data: activationProfile, error: activationProfileError } = await supabaseAdmin
+          .from("profiles")
+          .select("iptv_expiry, iptv_due_day")
+          .eq("id", user_id)
+          .maybeSingle();
+        if (activationProfileError) throw activationProfileError;
+
         const pendingIds = (pendingPayments || []).map((item: any) => item.id);
-        const highestPendingExpiry = (pendingPayments || [])
-          .map((item: any) => String(item.period_end || ""))
-          .filter(Boolean)
-          .sort()
-          .at(-1) || payment.period_end;
+        let cycleStart = isDateOnly(activationProfile?.iptv_expiry)
+          ? String(activationProfile.iptv_expiry)
+          : isDateOnly((pendingPayments || [])[0]?.period_start)
+            ? String((pendingPayments || [])[0].period_start)
+            : isDateOnly(payment.period_start)
+              ? String(payment.period_start)
+              : brDateOnly(new Date());
+
+        const fixedDueDay = Math.max(
+          1,
+          Math.min(31, Number(activationProfile?.iptv_due_day || cycleStart.split("-")[2] || 10)),
+        );
+
+        for (const pendingPayment of pendingPayments || []) {
+          const correctedPeriodEnd = addMonthsToDateOnlyByFixedDay(
+            cycleStart,
+            Math.max(1, Number(pendingPayment.months || 1)),
+            fixedDueDay,
+          );
+
+          const { error: dateUpdateError } = await supabaseAdmin
+            .from("iptv_payments")
+            .update({ period_start: cycleStart, period_end: correctedPeriodEnd })
+            .eq("id", pendingPayment.id);
+          if (dateUpdateError) throw dateUpdateError;
+
+          pendingPayment.period_start = cycleStart;
+          pendingPayment.period_end = correctedPeriodEnd;
+          cycleStart = correctedPeriodEnd;
+        }
 
         if (pendingIds.length > 0) {
           const { error: confirmPaymentsError } = await supabaseAdmin
@@ -1614,9 +1710,9 @@ Deno.serve(async (req) => {
           if (confirmPaymentsError) throw confirmPaymentsError;
         }
 
-        // A data de vencimento já foi prevista no momento em que a cobrança foi criada.
-        // A confirmação do admin apenas efetiva essa data; nunca soma 30 dias a partir da confirmação.
-        const finalExpiry = String(highestPendingExpiry || payment.period_end || "").slice(0, 10);
+        // A confirmação usa sempre: vencimento anterior + quantidade de meses pagos.
+        // Nunca usa o dia em que o admin confirmou e nunca usa uma data padrão diferente.
+        const finalExpiry = String(cycleStart || payment.period_end || "").slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(finalExpiry)) {
           throw new Error("A cobrança não possui uma data de vencimento prevista válida.");
         }

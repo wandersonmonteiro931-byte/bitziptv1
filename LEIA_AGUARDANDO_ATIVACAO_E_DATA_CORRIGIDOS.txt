@@ -1,0 +1,66 @@
+CORREÇÃO: AGUARDANDO ATIVAÇÃO NO ADMIN + DATA PREVISTA CORRETA
+
+BASE USADA:
+bitziptv1-finance-update-event-refresh-corrigido.zip
+
+ERRO 1 CORRIGIDO:
+O pagamento recebido não aparecia em Admin > TV como Aguardando Ativação.
+
+AGORA:
+- Admin > TV busca os pagamentos aguardando ativação pela Edge Function com service role.
+- Não depende apenas da consulta direta/RLS/FK do navegador.
+- Ao receber uma ordem Realtime, o pagamento também entra imediatamente na seção.
+- Ao abrir ou recarregar o painel, os pagamentos pendentes continuam aparecendo.
+- A seção agora se chama Aguardando Ativação.
+
+ERRO 2 CORRIGIDO:
+A data prevista usava uma data padrão errada, como dia 1, no lugar do vencimento real do cliente.
+
+AGORA A REGRA É:
+- vencimento anterior + quantidade de meses pagos;
+- nunca usa a data em que o PIX foi pago;
+- nunca usa a data em que o admin confirmou;
+- nunca troca pelo primeiro dia padrão cadastrado;
+- preserva o dia efetivo salvo no perfil do cliente.
+
+EXEMPLOS:
+- vencimento anterior 09/07/2026 + 1 mês = 09/08/2026;
+- vencimento anterior 10/07/2026 + 1 mês = 10/08/2026;
+- vencimento anterior 31/01/2026 + 1 mês = último dia válido de fevereiro.
+
+TAMBÉM FOI CORRIGIDO:
+- o backend recalcula e grava period_start/period_end corretos ao gerar o PIX;
+- o backend devolve a data canônica para o modal do PIX;
+- a tela do cliente mostra a previsão correta enquanto aguarda ativação;
+- o histórico mostra a data correta para pagamentos aguardando ativação;
+- ao confirmar no admin, o backend recalcula todas as cobranças pendentes em sequência e efetiva a data correta;
+- pagamentos antigos com period_end incorreto são corrigidos ao confirmar ou ao usar Configurar/recuperar PIX.
+
+ARQUIVOS ALTERADOS:
+- src/lib/billing.ts
+- src/pages/ClientDashboard.tsx
+- src/pages/admin/AdminIptvPage.tsx
+- supabase/functions/pix-efi/index.ts
+- supabase/functions/admin-manage-user/index.ts
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra a pasta bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a publicação no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+6. Abra Admin > TV.
+7. O pagamento já recebido deve aparecer em Aguardando Ativação.
+8. Confirme a ativação pelo botão Confirmar.
+
+IMPORTANTE:
+- Não foi adicionado polling.
+- Não foi adicionado setInterval de rede.
+- Não existe consulta contínua ao Cloudflare/Supabase.
+- As atualizações instantâneas continuam por ordens Realtime.
+- As consultas acontecem somente ao abrir/recarregar a tela ou em ação explícita.
+
+VALIDAÇÃO:
+- npm run build: SUCESSO.
+- ClientDashboard/AdminIptvPage: compilação Vite/TypeScript OK.
+- pix-efi/admin-manage-user: sintaxe validada com esbuild.

@@ -693,7 +693,14 @@ function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) 
 }
 
 // --- Payment History (Collapsible — from iptv_payments + balance_history) ---
-function PaymentHistory({ userId }: { userId?: string }) {
+function PaymentHistory({
+  user,
+  billingDueDay,
+}: {
+  user?: any;
+  billingDueDay: number;
+}) {
+  const userId = user?.id as string | undefined;
   const [payments, setPayments] = useState<any[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -776,9 +783,25 @@ function PaymentHistory({ userId }: { userId?: string }) {
                   {payments.map((p) => {
                     const date = new Date(p.payment_date);
                     const formatted = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
-                    const endParts = p.period_end?.split("-");
-                    const endFormatted = endParts ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
                     const isPendingActivation = p.status === "paid_pending_activation";
+                    let displayedPeriodEnd = String(p.period_end || "");
+
+                    // Enquanto aguarda ativação, a data exibida deve ser calculada
+                    // a partir do vencimento efetivo do perfil, nunca do dia do pagamento
+                    // nem de uma data padrão arbitrária.
+                    if (isPendingActivation && user?.iptv_expiry) {
+                      const fixedStart = getFixedBillingCycleStartDate(user, billingDueDay);
+                      displayedPeriodEnd = toDateOnlyString(
+                        addBillingMonthsByFixedDay(
+                          parseDateOnly(fixedStart),
+                          Math.max(1, Number(p.months || 1)),
+                          billingDueDay,
+                        ),
+                      );
+                    }
+
+                    const endParts = displayedPeriodEnd?.split("-");
+                    const endFormatted = endParts?.length === 3 ? `${endParts[2]}/${endParts[1]}/${endParts[0]}` : "";
                     return (
                       <div
                         key={p.id}
@@ -1039,6 +1062,7 @@ function PixModal({
           throw new Error(friendlyMessage);
         }
 
+        if (data?.period_end) setPeriodEnd(String(data.period_end));
         setPixData(data);
         setTimeLeft(data.expiracao || 3600);
       } catch (err: any) {
@@ -1762,15 +1786,23 @@ const ClientDashboard = () => {
 
       const { data } = await supabase
         .from("iptv_payments")
-        .select("period_end")
+        .select("months, period_end")
         .eq("user_id", user.id)
         .eq("status", "paid_pending_activation")
-        .order("period_end", { ascending: false })
+        .order("payment_date", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (data?.period_end) {
-        const [y, m, d] = data.period_end.split("-").map(Number);
+      if (data) {
+        const fixedStart = getFixedBillingCycleStartDate(user, billingDueDay);
+        const expectedEnd = toDateOnlyString(
+          addBillingMonthsByFixedDay(
+            parseDateOnly(fixedStart),
+            Math.max(1, Number(data.months || 1)),
+            billingDueDay,
+          ),
+        );
+        const [y, m, d] = expectedEnd.split("-").map(Number);
         setPendingFutureExpiry(`${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`);
       } else {
         setPendingFutureExpiry(null);
@@ -1782,7 +1814,16 @@ const ClientDashboard = () => {
       // Sem realtime, sem polling e sem consulta automática.
       // As informações só são carregadas ao entrar/logar nesta tela.
     };
-  }, [user?.id, user?.iptv_status, loadRenewalPlansOnce, applyRenewalPlansFromAdmin, readCachedRenewalPlans]);
+  }, [
+    user?.id,
+    user?.iptv_status,
+    user?.iptv_expiry,
+    user?.iptv_due_day,
+    billingDueDay,
+    loadRenewalPlansOnce,
+    applyRenewalPlansFromAdmin,
+    readCachedRenewalPlans,
+  ]);
 
   // Handle hash navigation (from push notifications)
   useEffect(() => {
@@ -1916,7 +1957,9 @@ const ClientDashboard = () => {
 
   const now = parseDateOnly(toBrazilDateOnlyString(new Date()));
   const selectedBillingDueDate = pickBillingDueDate(billingDueDates, user);
-  const billingDueDay = Number(selectedBillingDueDate?.day_of_month || user?.iptv_due_day || 10);
+  // O dia salvo diretamente no perfil é a fonte principal.
+  // A tabela de datas padrão só entra como apoio quando o perfil não possui dia próprio.
+  const billingDueDay = Number(user?.iptv_due_day || selectedBillingDueDate?.day_of_month || 10);
   const billingGraceDays = getBillingGraceDays(selectedBillingDueDate, user, 5);
 
   let dueDate: Date;
@@ -2430,7 +2473,7 @@ const ClientDashboard = () => {
         </motion.div>
 
         {/* PAYMENT HISTORY (collapsible) */}
-        <PaymentHistory userId={user?.id} />
+        <PaymentHistory user={user} billingDueDay={billingDueDay} />
 
         {/* TV APP */}
         <TvAppIcons tvApps={tvApps} userApp={user?.iptv_tv_app} />

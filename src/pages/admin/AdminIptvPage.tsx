@@ -227,10 +227,25 @@ const AdminIptvPage = () => {
 
     const trustRows = edgeTrustRows.length > 0 ? edgeTrustRows : directTrustRows;
 
+    const directPendingRows = ((pa.data as any[]) || [])
+      .map((item) => ({ ...item, profiles: item.profiles || profilesById.get(item.user_id) }))
+      .filter((item) => item.status === "paid_pending_activation" && isVisibleTvClient(item.profiles));
+
+    const edgePendingSource = (adminPending as any)?.data?.pending_activations;
+    const edgePendingRows = Array.isArray(edgePendingSource)
+      ? edgePendingSource
+          .map((item: any) => ({ ...item, profiles: item.profiles || profilesById.get(item.user_id) }))
+          .filter((item: any) => item.status === "paid_pending_activation" && isVisibleTvClient(item.profiles))
+      : null;
+
+    // A Edge Function usa service role e é a fonte autoritativa.
+    // A consulta direta fica apenas como compatibilidade caso a função ainda não esteja publicada.
+    const pendingRows = edgePendingRows !== null ? edgePendingRows : directPendingRows;
+
     setUsers(visibleProfiles);
     setServers(s.data || []);
     setTvApps(a.data || []);
-    setPendingActivations(((pa.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    setPendingActivations(pendingRows);
     setTrustRequests(trustRows);
     setCancelRequests(((cr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
     setSelectedUsers((current) => new Set(Array.from(current).filter((id) => visibleProfiles.some((client) => client.id === id))));
@@ -631,10 +646,10 @@ const AdminIptvPage = () => {
         >
           <div className="mb-3 flex items-center gap-2">
             <AlertCircle size={16} className="text-amber-400" />
-            <h3 className="text-sm font-bold text-amber-400">Aguardando Suporte ({pendingActivations.length})</h3>
+            <h3 className="text-sm font-bold text-amber-400">Aguardando Ativação ({pendingActivations.length})</h3>
           </div>
           <p className="mb-3 text-[10px] text-muted-foreground">
-            Pagamentos PIX recebidos. Confirme após atualizar o servidor.
+            Pagamentos PIX recebidos. Confirme a ativação após atualizar o servidor.
           </p>
           <div className="space-y-2">
             {pendingActivations.map((p) => {

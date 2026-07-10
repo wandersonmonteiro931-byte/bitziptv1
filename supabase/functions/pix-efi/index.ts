@@ -16,6 +16,64 @@ function getEnv(name: string): string {
   return v;
 }
 
+const isDateOnly = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
+const addMonthsToDateOnlyByFixedDay = (dateOnly: string, months: number, fixedDay?: number) => {
+  const [year, month, day] = String(dateOnly).split("-").map(Number);
+  const safeMonths = Math.max(1, Number(months || 1));
+  const dueDay = Math.max(1, Math.min(31, Number(fixedDay || day || 1)));
+  const targetMonthIndex = (month || 1) - 1 + safeMonths;
+  const targetYear = (year || new Date().getFullYear()) + Math.floor(targetMonthIndex / 12);
+  const normalizedMonthIndex = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDay = new Date(targetYear, normalizedMonthIndex + 1, 0).getDate();
+  const targetDay = Math.min(dueDay, lastDay);
+  return `${targetYear}-${String(normalizedMonthIndex + 1).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+};
+
+async function normalizeIptvPaymentPeriod(adminSupa: any, payment: any, suppliedProfile?: any) {
+  if (!payment?.id) return payment;
+
+  // O primeiro ciclo proporcional possui período explícito e não deve ser recalculado.
+  const isFirstProportional = String(payment?.notes || "").toLowerCase().includes("primeiro pagamento proporcional");
+  if (isFirstProportional && isDateOnly(payment?.period_start) && isDateOnly(payment?.period_end)) {
+    return payment;
+  }
+
+  let profile = suppliedProfile;
+  if (!profile) {
+    const { data, error } = await adminSupa
+      .from("profiles")
+      .select("id, iptv_expiry, iptv_due_day, billing_due_date_id, iptv_status, trial_enabled")
+      .eq("id", payment.user_id)
+      .maybeSingle();
+    if (error) throw error;
+    profile = data;
+  }
+
+  const start = isDateOnly(profile?.iptv_expiry)
+    ? String(profile.iptv_expiry)
+    : isDateOnly(payment?.period_start)
+      ? String(payment.period_start)
+      : isDateOnly(payment?.period_end)
+        ? String(payment.period_end)
+        : new Date().toISOString().slice(0, 10);
+
+  const startDay = Number(start.split("-")[2] || 10);
+  const fixedDay = Math.max(1, Math.min(31, Number(profile?.iptv_due_day || startDay || 10)));
+  const months = Math.max(1, Number(payment?.months || 1));
+  const end = addMonthsToDateOnlyByFixedDay(start, months, fixedDay);
+
+  if (payment.period_start !== start || payment.period_end !== end) {
+    const { error } = await adminSupa
+      .from("iptv_payments")
+      .update({ period_start: start, period_end: end })
+      .eq("id", payment.id);
+    if (error) throw error;
+  }
+
+  return { ...payment, period_start: start, period_end: end };
+}
+
 let _cachedPem: { cert: string; key: string } | null = null;
 
 function normalizeCertificateBase64(value: string | null | undefined): string {
@@ -656,7 +714,7 @@ async function handleCreateCharge(userId: string, body: any) {
   const adminSupa = getAdminSupabase();
   const { data: paymentOwner } = await adminSupa
     .from("iptv_payments")
-    .select("id,user_id")
+    .select("*")
     .eq("id", payment_id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -664,6 +722,10 @@ async function handleCreateCharge(userId: string, body: any) {
   if (!paymentOwner) {
     return jsonResp({ error: "Pagamento não encontrado para este cliente." }, 404);
   }
+
+  // O servidor é a fonte de verdade para o período.
+  // Calcula a renovação a partir do vencimento efetivo do perfil, preservando o dia fixo.
+  const canonicalPayment = await normalizeIptvPaymentPeriod(adminSupa, paymentOwner);
 
   const pixKey = getEnv("EFI_PIX_KEY");
   console.log("EFI_PIX_KEY loaded:", JSON.stringify({
@@ -710,6 +772,8 @@ async function handleCreateCharge(userId: string, body: any) {
       pix_location: cob.loc.location,
       pix_copia_cola: qr.qrcode,
       status: "pix_pending",
+      period_start: canonicalPayment.period_start,
+      period_end: canonicalPayment.period_end,
     })
     .eq("id", payment_id);
 
@@ -721,6 +785,8 @@ async function handleCreateCharge(userId: string, body: any) {
     qrcode_image: qr.imagemQrcode,
     location: cob.loc.location,
     expiracao: cob.calendario.expiracao,
+    period_start: canonicalPayment.period_start,
+    period_end: canonicalPayment.period_end,
   });
 }
 
@@ -1128,15 +1194,17 @@ async function syncPaidAwaitingActivationProfile(
 ) {
   const { data: currentProfile, error: currentProfileError } = await adminSupa
     .from("profiles")
-    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_status, trial_enabled, trial_payment_confirmed")
+    .select("id, name, username, iptv_client_code, iptv_server, iptv_connections, iptv_expiry, iptv_due_day, iptv_status, trial_enabled, trial_payment_confirmed")
     .eq("id", payment.user_id)
     .maybeSingle();
 
   if (currentProfileError) throw currentProfileError;
 
+  payment = await normalizeIptvPaymentPeriod(adminSupa, payment, currentProfile);
+
   // Nunca rebaixa para aguardando ativação um cliente que já foi ativado pelo admin.
   if (currentProfile?.iptv_status === "active" && currentProfile?.trial_enabled !== true) {
-    return { profilePatch: null, profileSnapshot: currentProfile, skippedActive: true };
+    return { profilePatch: null, profileSnapshot: currentProfile, payment, skippedActive: true };
   }
 
   const { data: updatedProfile, error: profileUpdateError } = await adminSupa
@@ -1170,12 +1238,15 @@ async function syncPaidAwaitingActivationProfile(
   return {
     profilePatch: PAID_AWAITING_ACTIVATION_PROFILE_PATCH,
     profileSnapshot: updatedProfile || currentProfile,
+    payment,
     skippedActive: false,
   };
 }
 
 // Shared function: confirm payment, update expiry, set awaiting_activation
 async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
+  payment = await normalizeIptvPaymentPeriod(adminSupa, payment);
+
   // ATOMIC GUARD: Only update if the PIX charge is still waiting to prevent duplicate processing
   const { data: updated, error: updateErr } = await adminSupa
     .from("iptv_payments")
@@ -1209,6 +1280,7 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
   // Se era usuário de teste, o 1º pagamento já tira ele do modo teste.
   const profilePatch = PAID_AWAITING_ACTIVATION_PROFILE_PATCH;
   const syncedProfile = await syncPaidAwaitingActivationProfile(adminSupa, payment, false);
+  payment = syncedProfile.payment || payment;
 
   // 4. Log in balance_history
   await adminSupa.from("balance_history").insert({

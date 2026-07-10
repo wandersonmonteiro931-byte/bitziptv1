@@ -128,7 +128,10 @@ export const pickBillingDueDate = (dueDates: BillingDueDate[], user: any): Billi
   const byDay = active.find((item) => Number(item.day_of_month) === Number(user?.iptv_due_day));
   if (byDay) return byDay;
 
-  return active[0] || null;
+  // Se o cliente possui um dia próprio que não está na lista padrão,
+  // não substitua silenciosamente pelo primeiro vencimento cadastrado.
+  // Isso preserva a data efetiva definida pelo admin ou pelo período de teste.
+  return null;
 };
 
 export const getBillingGraceDays = (dueDate: BillingDueDate | null, user: any, fallback = 5) => {
