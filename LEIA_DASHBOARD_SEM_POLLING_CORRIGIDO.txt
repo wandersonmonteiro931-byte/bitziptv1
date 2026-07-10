@@ -1,0 +1,45 @@
+CORREÇÃO: DASHBOARD TELA PRETA + REGRA SEM POLLING
+
+BASE USADA:
+bitziptv1-pix-por-ordens-sem-polling.zip
+
+ERRO CORRIGIDO:
+ReferenceError: AccessDataBlock is not defined
+
+O QUE FOI CORRIGIDO:
+1. Restaurado o componente AccessDataBlock.
+2. Restaurado o componente AdminNotesBlock, que também estava ausente.
+3. Removidas as consultas automáticas em segundo plano da Edge Function pix-efi.
+4. O PIX agora depende exclusivamente do webhook da Efí para confirmação.
+5. Após o webhook, a Edge Function envia ordens Realtime/Broadcast para cliente e admin.
+6. Removidos resíduos de verificação periódica do PWA.
+7. Endpoints de consulta de status ficam apenas para diagnóstico ou ação manual; nunca em timer.
+8. Criado o arquivo REGRA_OBRIGATORIA_SEM_POLLING_CLOUDFLARE.txt dentro do projeto.
+
+REGRA PERMANENTE:
+Nunca criar polling, setInterval de rede, loops ou consultas repetidas ao Cloudflare, Supabase ou Efí.
+Consultas somente ao abrir/login/recarregar ou por clique manual.
+Atualizações devem chegar por Webhook, Realtime/Broadcast, Push ou ação explícita do usuário/admin.
+
+ARQUIVOS ALTERADOS:
+- src/pages/ClientDashboard.tsx
+- src/components/PWAUpdatePrompt.tsx
+- supabase/functions/pix-efi/index.ts
+- REGRA_OBRIGATORIA_SEM_POLLING_CLOUDFLARE.txt
+
+VALIDAÇÃO:
+- ClientDashboard.tsx validado por esbuild.
+- PWAUpdatePrompt.tsx validado por esbuild.
+- pix-efi/index.ts validado por esbuild.
+- scheduleBackgroundCheck removido.
+- AccessDataBlock restaurado.
+- AdminNotesBlock restaurado.
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+O passo 5 é obrigatório porque pix-efi foi alterada.

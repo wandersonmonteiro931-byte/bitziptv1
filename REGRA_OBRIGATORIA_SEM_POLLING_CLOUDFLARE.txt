@@ -1,0 +1,21 @@
+REGRA OBRIGATÓRIA DO PROJETO WMCPLAYER
+
+NUNCA criar consultas automáticas repetidas, polling, setInterval de rede ou loops para consultar Cloudflare, Supabase ou Efí.
+
+FLUXO OBRIGATÓRIO:
+1. Consulta única ao entrar, abrir, recarregar ou ao clicar manualmente em atualizar/verificar.
+2. Mudanças posteriores devem chegar por ordens/eventos:
+   - Webhook Efí
+   - Supabase Realtime/Broadcast
+   - Push Notification
+   - ação explícita do usuário/admin
+3. PIX:
+   - cliente gera a cobrança uma única vez
+   - Efí confirma pelo webhook
+   - Edge Function altera banco e envia ordem Realtime
+   - tela aplica o payload recebido, sem consultar status em loop
+4. Ativação pelo suporte:
+   - admin confirma
+   - Edge Function envia notificação e ordem Realtime
+   - tela atualiza automaticamente pelo payload recebido
+5. Endpoints de consulta de status só podem existir para diagnóstico ou clique manual. Nunca podem ser chamados por timer.

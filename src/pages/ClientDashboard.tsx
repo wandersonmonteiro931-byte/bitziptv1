@@ -523,6 +523,182 @@ function PendingActivationBanner({
 }
 
 // --- Payment History (Collapsible — from iptv_payments + balance_history) ---
+function AccessDataBlock({ user }: { user: any }) {
+  const [revealed, setRevealed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const reveal = useCallback(() => {
+    setConfirming(false);
+    setRevealed(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setRevealed(false), 60000);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const maskUser = (val: string) => {
+    if (!val || val.length <= 4) return val || "—";
+    return val.slice(0, 4) + "•".repeat(Math.min(val.length - 4, 6));
+  };
+
+  const clientCode = user?.iptv_client_code || "—";
+  const iptvUser = user?.iptv_user || "—";
+  const iptvPass = user?.iptv_password || "—";
+
+  return (
+    <motion.div
+      id="dados-acesso"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="rounded-2xl border border-border/40 bg-black/90 p-5"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Lock size={13} /> Dados de Acesso
+        </div>
+        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+          <Shield size={9} /> Protegido
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {[
+          { label: "Código do Cliente", value: clientCode, masked: "••••••••" },
+          { label: "Usuário", value: iptvUser, masked: maskUser(iptvUser) },
+          { label: "Senha", value: iptvPass, masked: "••••••••••" },
+        ].map((field) => (
+          <div key={field.label} className="flex items-center justify-between rounded-xl bg-muted/20 px-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-muted-foreground">{field.label}</p>
+              <p className="truncate font-mono text-sm text-foreground">{revealed ? field.value : field.masked}</p>
+            </div>
+            {revealed && <CopyButton text={field.value} />}
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {confirming ? (
+          <motion.div
+            key="confirm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4 flex items-center gap-2"
+          >
+            <button
+              onClick={reveal}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-all active:scale-[0.98]"
+            >
+              <Eye size={16} /> Sim, mostrar
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-xl bg-black/80 px-4 py-2.5 text-sm text-muted-foreground"
+            >
+              Cancelar
+            </button>
+          </motion.div>
+        ) : revealed ? (
+          <motion.div
+            key="hide"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => {
+                setRevealed(false);
+                if (timerRef.current) clearTimeout(timerRef.current);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground active:scale-[0.98]"
+            >
+              <EyeOff size={16} /> Ocultar dados
+            </button>
+            <p className="mt-1 text-center text-[10px] text-muted-foreground/40">Oculta automaticamente em 60s</p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="show"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-4"
+          >
+            <button
+              onClick={() => setConfirming(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5 text-sm font-medium text-primary active:scale-[0.98]"
+            >
+              <Eye size={16} /> Mostrar dados
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// --- Admin Notes ---
+function AdminNotesBlock({ notes, urgent }: { notes: string; urgent: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!notes) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-2">
+          <FileText size={14} className="text-muted-foreground" />
+          <span className="font-medium text-foreground">Observações</span>
+          {urgent && (
+            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive">
+              Atenção
+            </span>
+          )}
+        </div>
+        {open ? (
+          <ChevronUp size={16} className="text-muted-foreground" />
+        ) : (
+          <ChevronDown size={16} className="text-muted-foreground" />
+        )}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div
+              className={`mt-1 rounded-2xl border p-4 ${urgent ? "border-destructive/15 bg-destructive/5" : "border-border bg-card"}`}
+            >
+              <div className="whitespace-pre-wrap text-sm text-foreground">{notes}</div>
+              <button
+                onClick={() => setOpen(false)}
+                className="mt-3 w-full rounded-xl bg-muted/20 py-2 text-xs text-muted-foreground"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// --- Payment History (Collapsible — from iptv_payments + balance_history) ---
 function PaymentHistory({ userId }: { userId?: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);

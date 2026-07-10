@@ -12,7 +12,6 @@ type RemoteVersion = {
   version?: string;
 };
 
-const CHECK_INTERVAL_MS = 12000;
 const UPDATE_HANDLED_KEY = "wmcflix_pwa_update_handled_build";
 const UPDATE_LOCK_UNTIL_KEY = "wmcflix_pwa_update_lock_until";
 const AUTO_UPDATE_ATTEMPT_KEY = "wmcflix_pwa_auto_update_attempt";
@@ -106,7 +105,6 @@ export function PWAUpdatePrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [remoteBuild, setRemoteBuild] = useState<number | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const reloadingRef = useRef(false);
   const showPromptRef = useRef(false);
@@ -231,11 +229,6 @@ export function PWAUpdatePrompt() {
     setUpdating(true);
     lockUpdatePrompt(5);
     markUpdateHandled(remoteBuild);
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
 
     const registration = registrationRef.current;
 
