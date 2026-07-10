@@ -1,0 +1,43 @@
+CORREÇÃO: DATA DE PAGAMENTO VALE EM TODO O APP
+
+BASE USADA:
+bitziptv1-data-pagamento-admin-atualiza-tudo.zip
+
+O QUE FOI REFORÇADO:
+1. Se a data for alterada em Admin > Usuários, vale em todo o app.
+2. Se a data for alterada em Admin > TV, vale em todo o app.
+3. As duas telas agora usam a mesma regra:
+   - data exata digitada manda em tudo
+   - se escolher regra/padrão sem digitar data, calcula a próxima data pelo dia da regra
+4. Ao salvar, atualiza:
+   - profiles.iptv_expiry
+   - profiles.iptv_due_day
+   - profiles.billing_due_date_id
+   - profiles.billing_cycle_started_at quando necessário
+   - painel do cliente
+   - cálculo de vencimento/bloqueio
+   - cobrança/PIX
+5. Ao salvar em qualquer uma das duas telas, é enviado um aviso interno para as abas abertas atualizarem.
+6. O painel do cliente escuta essa atualização e recarrega o perfil.
+7. O backend admin-manage-user também envia broadcast de perfil atualizado.
+8. Mantidas as correções anteriores:
+   - fonte profissional
+   - termo antigo removido do visual
+   - PIX/certificado Efí
+   - Unauthorized
+   - planos do admin
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+   Esse passo é obrigatório porque admin-manage-user foi alterado.
+
+COMO TESTAR:
+1. Abra o cliente em uma janela.
+2. Abra Admin > Usuários em outra janela.
+3. Altere a data e salve.
+4. O cliente deve atualizar ao receber o aviso ou ao recarregar.
+5. Depois teste o mesmo em Admin > TV.

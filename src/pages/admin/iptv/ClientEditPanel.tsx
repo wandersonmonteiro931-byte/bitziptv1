@@ -32,6 +32,57 @@ import { TV_STATUSES, getStatusInfo } from "./types";
 import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 import { useAppBranding } from "@/hooks/useAppBranding";
 
+
+const getTodayDateOnly = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getNextDateByDay = (day: number) => {
+  const today = new Date(`${getTodayDateOnly()}T00:00:00`);
+  const safeDay = Math.max(1, Math.min(31, Number(day || 10)));
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  let due = new Date(today.getFullYear(), today.getMonth(), Math.min(safeDay, lastDay));
+
+  if (due < today) {
+    const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    due = new Date(next.getFullYear(), next.getMonth(), Math.min(safeDay, nextLastDay));
+  }
+
+  const offset = due.getTimezoneOffset();
+  return new Date(due.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getDayFromDateOnly = (value: string) => {
+  if (!value) return 0;
+  const day = Number(String(value).split("-")[2] || 0);
+  return Math.max(1, Math.min(31, day));
+};
+
+
+const broadcastClientProfileUpdate = (userId: string, payload: Record<string, any>) => {
+  const data = {
+    user_id: userId,
+    sentAt: Date.now(),
+    profile: payload,
+  };
+
+  try {
+    localStorage.setItem("wmcplayer_client_profile_update", JSON.stringify(data));
+  } catch {
+    // opcional
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent("wmcplayer-client-profile-update", { detail: data }));
+  } catch {
+    // opcional
+  }
+};
+
+
 const TABS = [
   { key: "overview", label: "Visão Geral", icon: User },
   { key: "financial", label: "Financeiro", icon: Wallet },
@@ -100,7 +151,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
   const totalValue = Number(form.iptv_monthly_value) * Number(form.iptv_connections);
   const statusInfo = getStatusInfo(form.iptv_status);
   const selectedBillingDueDate = billingDueDates.find((item: any) => item.id === (form as any).billing_due_date_id);
-  const fixedBillingDay = Number(selectedBillingDueDate?.day_of_month || (form as any).iptv_due_day || 10);
+  const fixedBillingDay = Number(form.iptv_expiry ? getDayFromDateOnly(form.iptv_expiry) : selectedBillingDueDate?.day_of_month || (form as any).iptv_due_day || 10);
   const fixedBillingGraceDays = Number(selectedBillingDueDate?.grace_days ?? 5);
 
   useEffect(() => {
@@ -170,12 +221,39 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
 
   const saveForm = async () => {
     setSaving(true);
-    await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "update_profile", user_id: user.id, data: form },
-    });
-    toast({ title: "✅ Dados atualizados para " + user.name });
-    setSaving(false);
-    onSaved();
+    try {
+      const payload: any = { ...form };
+
+      // Data exata sempre manda em tudo: validade, dia financeiro e tela do cliente.
+      if (payload.iptv_expiry) {
+        payload.iptv_due_day = getDayFromDateOnly(payload.iptv_expiry);
+      } else if (payload.billing_due_date_id) {
+        const selected = billingDueDates.find((item: any) => item.id === payload.billing_due_date_id);
+        const day = Number(selected?.day_of_month || payload.iptv_due_day || 10);
+        payload.iptv_due_day = day;
+        payload.iptv_expiry = getNextDateByDay(day);
+      } else {
+        payload.billing_due_date_id = null;
+        payload.iptv_due_day = Number(payload.iptv_due_day || 10);
+      }
+
+      const res = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "update_profile", user_id: user.id, data: payload },
+      });
+
+      if (res.error || (res.data as any)?.error) {
+        throw new Error((res.data as any)?.error || res.error?.message || "Erro ao salvar alterações.");
+      }
+
+      broadcastClientProfileUpdate(user.id, payload);
+      setForm({ ...form, ...payload });
+      toast({ title: "✅ Dados atualizados para " + user.name, description: "Atualizado em todo o app: Admin > Usuários, Admin > TV e painel do cliente." });
+      onSaved();
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar alterações", description: err.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const confirmPayment = async () => {
@@ -573,10 +651,12 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                           value={(form as any).billing_due_date_id || ""}
                           onChange={(e) => {
                             const selected = billingDueDates.find((item: any) => item.id === e.target.value);
+                            const nextDay = Number(selected?.day_of_month || (form as any).iptv_due_day || 10);
                             setForm({
                               ...form,
                               billing_due_date_id: e.target.value,
-                              iptv_due_day: selected?.day_of_month || (form as any).iptv_due_day,
+                              iptv_due_day: nextDay,
+                              iptv_expiry: form.iptv_expiry || getNextDateByDay(nextDay),
                             } as any);
                           }}
                           className={inputCls}
@@ -588,8 +668,20 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                             </option>
                           ))}
                         </select>
+                        <input
+                          type="date"
+                          value={form.iptv_expiry || ""}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              iptv_expiry: e.target.value,
+                              iptv_due_day: e.target.value ? getDayFromDateOnly(e.target.value) : (form as any).iptv_due_day,
+                            } as any)
+                          }
+                          className={inputCls + " mt-2 border-red-500/40"}
+                        />
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          Ao salvar, a validade do cliente passa a ser: Todo dia {fixedBillingDay}.
+                          A data digitada é obrigatória para fixar o vencimento. Ao salvar, atualiza validade, dia financeiro, cobrança e painel do cliente.
                         </p>
                       </div>
                     )}

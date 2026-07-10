@@ -206,8 +206,13 @@ Deno.serve(async (req) => {
     };
 
     const billingStart = brDateOnly(new Date());
+    const explicitExpiry = /^\d{4}-\d{2}-\d{2}$/.test(String(iptv_expiry || "")) ? String(iptv_expiry) : "";
+    if (explicitExpiry) {
+      selectedDueDay = Math.max(1, Math.min(31, Number(explicitExpiry.split("-")[2] || selectedDueDay || 10)));
+    }
+
     // O primeiro proporcional começa no dia do cadastro do usuário em data comercial do Brasil.
-    const calculatedExpiry = makeDueDate(new Date(billingStart + "T00:00:00"), selectedDueDay);
+    const calculatedExpiry = explicitExpiry || makeDueDate(new Date(billingStart + "T00:00:00"), selectedDueDay);
 
     // Create profile
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
@@ -218,7 +223,7 @@ Deno.serve(async (req) => {
       iptv_password: iptv_password || userPassword,
       iptv_server: iptv_server || "",
       iptv_app: iptv_app || "",
-      iptv_expiry: iptv_expiry || calculatedExpiry,
+      iptv_expiry: calculatedExpiry,
       billing_due_date_id: billingDueDateId,
       billing_cycle_started_at: billingStart,
       billing_first_cycle_paid: false,

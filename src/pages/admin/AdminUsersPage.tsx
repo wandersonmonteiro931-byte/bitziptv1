@@ -46,6 +46,56 @@ type AdminSetReferrerResult = {
 const isAdminSetReferrerResult = (value: unknown): value is AdminSetReferrerResult =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+
+const getTodayDateOnly = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getNextDateByDay = (day: number) => {
+  const today = new Date(`${getTodayDateOnly()}T00:00:00`);
+  const safeDay = Math.max(1, Math.min(31, Number(day || 10)));
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  let due = new Date(today.getFullYear(), today.getMonth(), Math.min(safeDay, lastDay));
+
+  if (due < today) {
+    const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    due = new Date(next.getFullYear(), next.getMonth(), Math.min(safeDay, nextLastDay));
+  }
+
+  const offset = due.getTimezoneOffset();
+  return new Date(due.getTime() - offset * 60 * 1000).toISOString().split("T")[0];
+};
+
+const getDayFromDateOnly = (value: string) => {
+  if (!value) return 0;
+  const day = Number(String(value).split("-")[2] || 0);
+  return Math.max(1, Math.min(31, day));
+};
+
+
+const broadcastClientProfileUpdate = (userId: string, payload: Record<string, any>) => {
+  const data = {
+    user_id: userId,
+    sentAt: Date.now(),
+    profile: payload,
+  };
+
+  try {
+    localStorage.setItem("wmcplayer_client_profile_update", JSON.stringify(data));
+  } catch {
+    // opcional
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent("wmcplayer-client-profile-update", { detail: data }));
+  } catch {
+    // opcional
+  }
+};
+
 // Parser for TV credential text blocks
 const parseIptvText = (text: string) => {
   const result: Record<string, string> = {};
@@ -139,6 +189,7 @@ const AdminUsersPage = () => {
     referred_by_code: "",
     billing_due_date_id: "",
     billing_proportional_enabled: false,
+    iptv_due_day: 10,
   });
   const [creating, setCreating] = useState(false);
   const [billingDueDates, setBillingDueDates] = useState<any[]>([]);
@@ -234,6 +285,8 @@ const AdminUsersPage = () => {
         ...form,
         username: loginUser,
         iptv_user: loginUser,
+        iptv_due_day: form.iptv_expiry ? getDayFromDateOnly(form.iptv_expiry) : Number((form as any).iptv_due_day || 10),
+        billing_due_date_id: form.billing_due_date_id || undefined,
         referred_by_code: form.referred_by_code.trim().toUpperCase() || undefined,
       },
     });
@@ -259,6 +312,7 @@ const AdminUsersPage = () => {
         referred_by_code: "",
         billing_due_date_id: "",
         billing_proportional_enabled: false,
+        iptv_due_day: 10,
       });
       loadUsers();
     }
@@ -291,6 +345,7 @@ const AdminUsersPage = () => {
   };
 
   const getEditBillingDay = () => {
+    if (editForm.iptv_expiry) return getDayFromDateOnly(editForm.iptv_expiry);
     const selected = billingDueDates.find((item: any) => item.id === editForm.billing_due_date_id);
     return Number(selected?.day_of_month || editForm.iptv_due_day || 10);
   };
@@ -304,29 +359,58 @@ const AdminUsersPage = () => {
     if (!editUser) return;
     setEditSaving(true);
 
-    // Update profile fields
-    const profileData = { ...editForm };
-    profileData.username = String(editForm.iptv_user || editForm.username || "").trim();
-    profileData.iptv_user = String(editForm.iptv_user || editForm.username || "").trim();
-    delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
-    delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
-    delete profileData.referred_by_code_input; // campo auxiliar da tela
+    try {
+      // Update profile fields
+      const profileData: any = { ...editForm };
+      profileData.username = String(editForm.iptv_user || editForm.username || "").trim();
+      profileData.iptv_user = String(editForm.iptv_user || editForm.username || "").trim();
 
-    await supabase.functions.invoke("admin-manage-user", {
-      body: { action: "update_profile", user_id: editUser.id, data: profileData },
-    });
+      // Data exata sempre manda em tudo: validade, dia financeiro e tela do cliente.
+      if (profileData.iptv_expiry) {
+        profileData.iptv_due_day = getDayFromDateOnly(profileData.iptv_expiry);
+      } else if (profileData.billing_due_date_id) {
+        const selected = billingDueDates.find((item: any) => item.id === profileData.billing_due_date_id);
+        const day = Number(selected?.day_of_month || profileData.iptv_due_day || 10);
+        profileData.iptv_due_day = day;
+        profileData.iptv_expiry = getNextDateByDay(day);
+      } else {
+        profileData.billing_due_date_id = null;
+        profileData.iptv_due_day = Number(profileData.iptv_due_day || 10);
+      }
 
-    // If password changed, also update auth password
-    if (editForm.iptv_password && editForm.iptv_password !== editUser.iptv_password) {
-      await supabase.functions.invoke("admin-manage-user", {
-        body: { action: "reset_password", user_id: editUser.id, data: { password: editForm.iptv_password } },
+      delete profileData.referral_code; // código de indicação é sequencial e controlado pelo banco
+      delete profileData.referred_by; // vínculo de indicação é tratado em ação separada
+      delete profileData.referred_by_code_input; // campo auxiliar da tela
+
+      const updateRes = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "update_profile", user_id: editUser.id, data: profileData },
       });
-    }
 
-    toast({ title: "✅ Dados atualizados com sucesso!" });
-    setEditUser(null);
-    setEditSaving(false);
-    loadUsers();
+      if (updateRes.error || (updateRes.data as any)?.error) {
+        throw new Error((updateRes.data as any)?.error || updateRes.error?.message || "Erro ao salvar alterações.");
+      }
+
+      // If password changed, also update auth password
+      if (editForm.iptv_password && editForm.iptv_password !== editUser.iptv_password) {
+        const pwdRes = await supabase.functions.invoke("admin-manage-user", {
+          body: { action: "reset_password", user_id: editUser.id, data: { password: editForm.iptv_password } },
+        });
+        if (pwdRes.error || (pwdRes.data as any)?.error) {
+          throw new Error((pwdRes.data as any)?.error || pwdRes.error?.message || "Erro ao atualizar senha.");
+        }
+      }
+
+      broadcastClientProfileUpdate(editUser.id, profileData);
+      setUsers((prev) => prev.map((item) => (item.id === editUser.id ? { ...item, ...profileData } : item)));
+
+      toast({ title: "✅ Dados atualizados com sucesso!", description: "Atualizado em todo o app: Admin > Usuários, Admin > TV e painel do cliente." });
+      setEditUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar alterações", description: err.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const linkReferralForEditUser = async () => {
@@ -1319,10 +1403,12 @@ const AdminUsersPage = () => {
                         value={editForm.billing_due_date_id || ""}
                         onChange={(e) => {
                           const selected = billingDueDates.find((item: any) => item.id === e.target.value);
+                          const nextDay = Number(selected?.day_of_month || editForm.iptv_due_day || 10);
                           setEditForm({
                             ...editForm,
                             billing_due_date_id: e.target.value,
-                            iptv_due_day: selected?.day_of_month || editForm.iptv_due_day,
+                            iptv_due_day: nextDay,
+                            iptv_expiry: editForm.iptv_expiry || getNextDateByDay(nextDay),
                           });
                         }}
                         className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
@@ -1334,8 +1420,20 @@ const AdminUsersPage = () => {
                           </option>
                         ))}
                       </select>
+                      <input
+                        type="date"
+                        value={editForm.iptv_expiry || ""}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            iptv_expiry: e.target.value,
+                            iptv_due_day: e.target.value ? getDayFromDateOnly(e.target.value) : editForm.iptv_due_day,
+                          })
+                        }
+                        className="mt-2 w-full rounded-lg border border-red-500/40 bg-muted/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                      />
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        Ao salvar, a validade do cliente passa a ser: Todo dia {getEditBillingDay()}.
+                        A data digitada é obrigatória para fixar o vencimento. Ao salvar, atualiza validade, dia financeiro, cobrança e painel do cliente.
                       </p>
                     </div>
                     <label className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">

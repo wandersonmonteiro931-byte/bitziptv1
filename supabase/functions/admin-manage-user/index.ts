@@ -23,6 +23,32 @@ const brDateOnly = (date = new Date()) => {
 
 const roundMoney = (v: number) => Math.round(v * 100) / 100;
 
+const emitClientProfileUpdated = async (supabaseAdmin: any, userId: string, profilePatch: Record<string, any>) => {
+  try {
+    const channel = supabaseAdmin.channel(`wmcplayer-client-profile-${userId}`, {
+      config: { broadcast: { self: true } },
+    });
+
+    await channel.subscribe(async (status: string) => {
+      if (status === "SUBSCRIBED") {
+        await channel.send({
+          type: "broadcast",
+          event: "client-profile-updated",
+          payload: {
+            user_id: userId,
+            sentAt: Date.now(),
+            profile: profilePatch,
+          },
+        });
+
+        await supabaseAdmin.removeChannel(channel);
+      }
+    });
+  } catch (err) {
+    console.warn("Falha ao enviar broadcast de perfil:", err instanceof Error ? err.message : String(err));
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -213,6 +239,10 @@ Deno.serve(async (req) => {
 
         const updateData = { ...(data || {}) };
 
+        if (updateData.billing_due_date_id === "") {
+          updateData.billing_due_date_id = null;
+        }
+
         // REGRA FIXA: username/login sempre igual ao Usuário TV.
         if (typeof updateData.iptv_user === "string" && updateData.iptv_user.trim()) {
           const loginIdentifier = updateData.iptv_user.trim();
@@ -229,7 +259,41 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (updateData.billing_due_date_id) {
+        const normalizeDateOnly = (value: any) => {
+          const text = String(value || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+          return text;
+        };
+
+        const getDayFromDateOnly = (value: string) => {
+          const day = Number(String(value).split("-")[2] || 0);
+          return Math.max(1, Math.min(31, day || 10));
+        };
+
+        const makeDueDate = (from: Date, dueDay: number) => {
+          const y = from.getFullYear();
+          const m = from.getMonth();
+          const lastDay = new Date(y, m + 1, 0).getDate();
+          let due = new Date(y, m, Math.min(dueDay, lastDay));
+
+          if (due < new Date(from.getFullYear(), from.getMonth(), from.getDate())) {
+            const next = new Date(y, m + 1, 1);
+            const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+            due = new Date(next.getFullYear(), next.getMonth(), Math.min(dueDay, nextLastDay));
+          }
+
+          return due.toISOString().split("T")[0];
+        };
+
+        const explicitExpiry = normalizeDateOnly(updateData.iptv_expiry);
+
+        // REGRA PRINCIPAL:
+        // Se o admin digitou uma data exata, ela manda em todo o sistema.
+        // Isso vale usando "padrão" ou uma data fixa selecionada.
+        if (explicitExpiry) {
+          updateData.iptv_expiry = explicitExpiry;
+          updateData.iptv_due_day = getDayFromDateOnly(explicitExpiry);
+        } else if (updateData.billing_due_date_id) {
           const { data: selectedDue } = await supabaseAdmin
             .from("billing_due_dates")
             .select("id, day_of_month")
@@ -241,21 +305,6 @@ Deno.serve(async (req) => {
             updateData.iptv_due_day = day;
 
             const now = new Date(`${brDateOnly(new Date())}T00:00:00`);
-            const makeDueDate = (from: Date, dueDay: number) => {
-              const y = from.getFullYear();
-              const m = from.getMonth();
-              const lastDay = new Date(y, m + 1, 0).getDate();
-              let due = new Date(y, m, Math.min(dueDay, lastDay));
-
-              if (due < new Date(from.getFullYear(), from.getMonth(), from.getDate())) {
-                const next = new Date(y, m + 1, 1);
-                const nextLastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-                due = new Date(next.getFullYear(), next.getMonth(), Math.min(dueDay, nextLastDay));
-              }
-
-              return due.toISOString().split("T")[0];
-            };
-
             const { data: profileBillingBase } = await supabaseAdmin
               .from("profiles")
               .select("iptv_expiry, billing_cycle_started_at, created_at")
@@ -272,6 +321,11 @@ Deno.serve(async (req) => {
 
             updateData.iptv_expiry = makeDueDate(baseDate, day);
           }
+        } else if (updateData.billing_due_date_id === "" || updateData.billing_due_date_id === undefined) {
+          updateData.billing_due_date_id = null;
+          if (updateData.iptv_due_day) {
+            updateData.iptv_expiry = makeDueDate(new Date(`${brDateOnly(new Date())}T00:00:00`), Number(updateData.iptv_due_day));
+          }
         }
 
         // REGRA FIXA: senha de login sempre igual à Senha TV.
@@ -284,8 +338,23 @@ Deno.serve(async (req) => {
           }
         }
 
+        if (updateData.iptv_expiry) {
+          updateData.billing_cycle_started_at = updateData.billing_cycle_started_at || brDateOnly(new Date());
+        }
+
         const { error } = await supabaseAdmin.from("profiles").update(updateData).eq("id", user_id);
         if (error) throw new Error(error.message);
+
+        await emitClientProfileUpdated(supabaseAdmin, user_id, {
+          iptv_expiry: updateData.iptv_expiry,
+          iptv_due_day: updateData.iptv_due_day,
+          billing_due_date_id: updateData.billing_due_date_id,
+          billing_cycle_started_at: updateData.billing_cycle_started_at,
+          billing_proportional_enabled: updateData.billing_proportional_enabled,
+          iptv_monthly_value: updateData.iptv_monthly_value,
+          iptv_connections: updateData.iptv_connections,
+          iptv_status: updateData.iptv_status,
+        });
 
         // When admin activates a user (sets status to active), also confirm pending activation payments
         if (data.iptv_status === "active") {

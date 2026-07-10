@@ -1,0 +1,44 @@
+CORREÇÃO: DATA DE PAGAMENTO ADMIN ATUALIZA TODO O SISTEMA
+
+BASE USADA:
+bitziptv1-fonte-profissional-app.zip
+
+O QUE FOI CORRIGIDO:
+1. Em Admin > Usuários, o admin agora pode escolher a regra de pagamento e também digitar uma data exata.
+2. Em Admin > TV, ao abrir o cliente, o admin também pode escolher a regra de pagamento e digitar uma data exata.
+3. A data exata digitada pelo admin manda em tudo:
+   - validade do cliente
+   - dia financeiro
+   - painel do cliente
+   - cálculo de bloqueio
+   - cobrança/PIX
+4. Isso funciona usando "Usar padrão" ou escolhendo uma data fixa/regra cadastrada.
+5. Se o admin escolher uma regra e não digitar data, o sistema calcula a próxima data pelo dia da regra.
+6. Corrigido envio de billing_due_date_id vazio para não quebrar UUID.
+7. admin-manage-user foi ajustado para nunca sobrescrever a data exata digitada pelo admin.
+8. admin-create-user também respeita data exata quando for enviada.
+9. Mantidas as correções anteriores:
+   - fonte profissional
+   - remoção do termo antigo no visual
+   - PIX/certificado Efí
+   - Unauthorized
+   - planos do admin
+
+COMO APLICAR:
+1. Extraia o ZIP.
+2. Abra bitziptv1-main.
+3. Clique em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde publicar no Cloudflare.
+5. Depois rode CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+   Esse passo é obrigatório porque foram alteradas as Edge Functions:
+   - admin-create-user
+   - admin-manage-user
+
+COMO USAR:
+1. Admin > Usuários ou Admin > TV.
+2. Abra o cliente.
+3. Vá em Financeiro.
+4. Em Data de Pagamento, escolha "Usar padrão" ou uma regra.
+5. No campo de data, coloque a data exata que quiser.
+6. Clique em Salvar Alterações.
+7. O cliente passa a mostrar essa data imediatamente ao atualizar/entrar.

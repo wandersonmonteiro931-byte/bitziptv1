@@ -1511,6 +1511,56 @@ const ClientDashboard = () => {
   useEffect(() => {
     if (!user?.id) return;
 
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshProfile();
+      }, 250);
+    };
+
+    const applyProfileUpdatePayload = (payload: any) => {
+      if (!payload || payload.user_id !== user.id) return;
+      scheduleRefresh();
+    };
+
+    const onLocalProfileUpdate = (event: Event) => {
+      applyProfileUpdatePayload((event as CustomEvent)?.detail);
+    };
+
+    const onStorageProfileUpdate = (event: StorageEvent) => {
+      if (event.key !== "wmcplayer_client_profile_update" || !event.newValue) return;
+
+      try {
+        applyProfileUpdatePayload(JSON.parse(event.newValue));
+      } catch {
+        // ignora payload inválido
+      }
+    };
+
+    window.addEventListener("wmcplayer-client-profile-update", onLocalProfileUpdate);
+    window.addEventListener("storage", onStorageProfileUpdate);
+
+    const profileUpdateChannel = supabase
+      .channel(`wmcplayer-client-profile-${user.id}`)
+      .on("broadcast", { event: "client-profile-updated" }, (event) => {
+        applyProfileUpdatePayload((event as any)?.payload);
+      })
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      window.removeEventListener("wmcplayer-client-profile-update", onLocalProfileUpdate);
+      window.removeEventListener("storage", onStorageProfileUpdate);
+      supabase.removeChannel(profileUpdateChannel);
+    };
+  }, [user?.id, refreshProfile]);
+
+
+  useEffect(() => {
+    if (!user?.id) return;
+
     const applyPushedPlans = (rows: any[] = []) => {
       if (Array.isArray(rows) && rows.length > 0) {
         applyRenewalPlansFromAdmin(rows);
