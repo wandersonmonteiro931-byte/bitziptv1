@@ -1,0 +1,29 @@
+CORRECAO DO ARQUIVO BAT - COMANDOS CORTADOS
+
+BASE USADA:
+bitziptv1-pix-webhook-efi-atualizacao-instantanea-corrigido.zip
+
+ERRO CORRIGIDO:
+- ´╗┐@echo off
+- itle nao reconhecido
+- et nao reconhecido
+- cho nao reconhecido
+- here nao reconhecido
+- f nao reconhecido
+
+CAUSA:
+O arquivo CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat estava salvo com BOM UTF-8 e linhas apenas LF.
+O Prompt de Comando do Windows interpretava o arquivo errado e removia a primeira letra de varios comandos.
+
+CORRECAO:
+- removido BOM UTF-8
+- convertido para ASCII compativel com CMD
+- convertido para quebra de linha Windows CRLF
+- todos os arquivos .bat do projeto foram normalizados
+
+COMO USAR:
+1. Extraia este ZIP novo.
+2. Abra a pasta bitziptv1-main.
+3. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+
+Nao use o BAT da pasta antiga, pois ele continua com a codificacao quebrada.
