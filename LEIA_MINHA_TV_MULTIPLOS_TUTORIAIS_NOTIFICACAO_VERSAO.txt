@@ -1,0 +1,59 @@
+ATUALIZAÇÃO: MINHA TV + NOTIFICAÇÕES ANDROID + VERSÃO OBRIGATÓRIA
+
+BASE UTILIZADA:
+bitziptv1-banners-altos-dados-tv-informativos.zip
+
+ALTERAÇÕES NA TELA /iptv-info:
+- Saudação: "Olá, Xxxxx! Aqui você pode conferir os dados de login para conectar na sua TV."
+- Usuário da TV usa o usuário cadastrado como padrão e pode ser alterado pelo admin.
+- Senha da TV usa a senha cadastrada como padrão e pode ser alterada pelo admin.
+- Telas contratadas são puxadas automaticamente do cliente.
+- Próxima validade é puxada automaticamente do cliente.
+- Código, DNS e Lista/URL continuam opcionais.
+- Aplicativo instalado é escolhido entre os aplicativos cadastrados no painel.
+- Logotipo é puxado exclusivamente do aplicativo cadastrado no painel.
+- Cliente desde pode ser definido pelo admin e usa a criação do cliente como padrão.
+- Nome do suporte padrão: Wanderson Camargo.
+- WhatsApp padrão: (62) 99565-7915.
+- O admin pode cadastrar várias imagens de tutorial.
+- O admin pode cadastrar vários vídeos do YouTube.
+
+ISOLAMENTO:
+Os dados de Minha TV continuam exclusivamente informativos. Não alteram login do WMCPLAYER, Auth, servidor, pagamentos, status, validade operacional ou outras telas.
+
+NOTIFICAÇÕES:
+- Android: notificações obrigatórias para entrar no app.
+- iPhone/iPad: o app continua normalmente quando o iOS não permitir ou não suportar notificações.
+- Computadores: não há bloqueio obrigatório por notificações.
+
+VERSÃO OBRIGATÓRIA:
+- O app consulta version.json uma única vez ao abrir.
+- Se a versão instalada estiver antiga, a tela inteira fica bloqueada até atualizar.
+- Não há botão para ignorar ou fechar.
+- Se não for possível verificar a versão, aparece botão explícito para tentar novamente.
+- Não foi adicionado polling, intervalo ou consulta contínua.
+
+ARQUIVOS ALTERADOS:
+- src/lib/clientTvInfo.ts
+- src/pages/admin/iptv/ClientTvInfoEditor.tsx
+- src/pages/IptvInfoPage.tsx
+- src/components/NotificationGate.tsx
+- src/components/PWAUpdatePrompt.tsx
+- supabase/functions/admin-manage-user/index.ts
+
+COMO PUBLICAR:
+1. Extraia o ZIP.
+2. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat para publicar admin-manage-user.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde o Cloudflare concluir a publicação.
+5. Feche e abra o app novamente.
+
+NÃO PRECISA EXECUTAR SQL.
+
+VALIDAÇÕES REALIZADAS:
+- npm run audit: OK.
+- npm run check:tdz: OK.
+- Sintaxe dos arquivos TS/TSX alterados validada com esbuild: OK.
+- Sintaxe da Edge Function admin-manage-user validada com esbuild: OK.
+- 1 canal Realtime no frontend.
+- Nenhum polling de rede adicionado.

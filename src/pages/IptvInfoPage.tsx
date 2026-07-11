@@ -4,12 +4,10 @@ import { motion } from "framer-motion";
 import {
   CalendarDays,
   Check,
-  ClipboardCopy,
   Code2,
   Copy,
   Eye,
   EyeOff,
-  ExternalLink,
   KeyRound,
   Link2,
   Loader2,
@@ -21,6 +19,7 @@ import {
   Tv,
   User,
   UserRoundCheck,
+  Users,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,12 +66,14 @@ function InfoCard({
   icon: Icon,
   secret = false,
   href = "",
+  copyValue,
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ size?: number; className?: string }>;
   secret?: boolean;
   href?: string;
+  copyValue?: string;
 }) {
   const [visible, setVisible] = useState(!secret);
   const safeValue = value || "Não informado";
@@ -107,7 +108,7 @@ function InfoCard({
             {visible ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
         )}
-        <CopyValueButton value={value} />
+        <CopyValueButton value={copyValue ?? value} />
       </div>
     </div>
   );
@@ -156,13 +157,19 @@ const IptvInfoPage = () => {
   }, [user?.id]);
 
   const firstName = String(user?.name || "cliente").trim().split(/\s+/)[0] || "cliente";
-  const youtubeEmbedUrl = useMemo(() => getYoutubeEmbedUrl(info.tutorial_youtube_url), [info.tutorial_youtube_url]);
   const supportHref = useMemo(() => getWhatsAppHref(info.support_whatsapp), [info.support_whatsapp]);
+  const youtubeVideos = useMemo(
+    () =>
+      info.tutorial_youtube_urls
+        .map((originalUrl) => ({ originalUrl, embedUrl: getYoutubeEmbedUrl(originalUrl) }))
+        .filter((item) => item.originalUrl),
+    [info.tutorial_youtube_urls],
+  );
 
   const optionalConnectionItems = [
     info.tv_code ? { label: "Código", value: info.tv_code, icon: Code2 } : null,
     info.tv_dns ? { label: "DNS", value: info.tv_dns, icon: Server } : null,
-    info.tv_list_url ? { label: "Lista", value: info.tv_list_url, icon: Link2, href: info.tv_list_url } : null,
+    info.tv_list_url ? { label: "Lista / URL", value: info.tv_list_url, icon: Link2, href: info.tv_list_url } : null,
   ].filter(Boolean) as Array<{
     label: string;
     value: string;
@@ -183,11 +190,11 @@ const IptvInfoPage = () => {
               <Tv size={24} />
             </div>
             <div>
-              <h1 className="font-display text-2xl font-black uppercase leading-tight text-white sm:text-3xl">
+              <h1 className="font-display text-2xl font-black leading-tight text-white sm:text-3xl">
                 Olá, {firstName}!
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">
-                AQUI VOCÊ PODE CONFERIR OS DADOS DE LOGIN PARA CONECTAR NA SUA TV.
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/70 sm:text-base">
+                Aqui você pode conferir os dados de login para conectar na sua TV.
               </p>
             </div>
           </div>
@@ -195,23 +202,23 @@ const IptvInfoPage = () => {
           <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
             <ShieldCheck className="mt-0.5 shrink-0 text-emerald-400" size={18} />
             <p className="text-xs leading-5 text-white/55">
-              Estes dados são apenas para configurar o aplicativo instalado na sua TV. Eles são informados pelo seu
-              suporte e não alteram o login deste aplicativo.
+              Estes dados são exclusivamente informativos e foram definidos pelo seu suporte. Eles não alteram o login
+              deste aplicativo, o pagamento, o servidor ou qualquer outra configuração da sua conta.
             </p>
           </div>
         </motion.section>
 
         {loading ? (
-          <div className="flex min-h-64 items-center justify-center rounded-3xl border border-white/8 bg-white/[0.02]">
+          <div className="flex min-h-72 items-center justify-center rounded-3xl border border-white/8 bg-white/[0.02]">
             <Loader2 size={28} className="animate-spin text-red-500" />
           </div>
         ) : error ? (
           <div className="rounded-3xl border border-red-500/25 bg-red-500/5 p-6 text-center">
-            <p className="text-sm font-semibold text-red-300">{error}</p>
+            <p className="text-sm text-red-300">{error}</p>
             <button
               type="button"
               onClick={() => void loadInfo()}
-              className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500"
+              className="mt-4 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-500"
             >
               Tentar novamente
             </button>
@@ -219,147 +226,137 @@ const IptvInfoPage = () => {
         ) : (
           <>
             <motion.section
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5"
             >
               <div className="mb-4 flex items-center gap-2">
                 <KeyRound size={18} className="text-red-400" />
-                <h2 className="text-base font-bold text-white">Dados para conectar na TV</h2>
+                <h2 className="font-display text-lg font-bold text-white">Dados de conexão</h2>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <InfoCard label="Usuário" value={info.tv_username} icon={User} />
-                <InfoCard label="Senha" value={info.tv_password} icon={KeyRound} secret />
+                <InfoCard label="Usuário da TV" value={info.tv_username} icon={User} />
+                <InfoCard label="Senha da TV" value={info.tv_password} icon={KeyRound} secret />
+                <InfoCard label="Telas contratadas" value={String(info.tv_connections || 1)} icon={Users} />
+                <InfoCard label="Próxima validade" value={formatDateOnlyBr(info.next_expiry)} icon={CalendarDays} copyValue={info.next_expiry} />
                 {optionalConnectionItems.map((item) => (
-                  <InfoCard key={item.label} {...item} />
+                  <InfoCard key={item.label} label={item.label} value={item.value} icon={item.icon} href={item.href} />
                 ))}
               </div>
             </motion.section>
 
             <motion.section
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+              className="rounded-3xl border border-red-500/18 bg-white/[0.025] p-4 sm:p-5"
             >
               <div className="mb-4 flex items-center gap-2">
                 <Smartphone size={18} className="text-red-400" />
-                <h2 className="text-base font-bold text-white">Aplicativo instalado na sua TV</h2>
+                <h2 className="font-display text-lg font-bold text-white">Aplicativo instalado na sua TV</h2>
               </div>
 
-              <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/8 bg-black/60 p-5 text-center sm:flex-row sm:text-left">
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-red-500/20 bg-black p-2">
+              <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/8 bg-black/60 p-5 text-center sm:flex-row sm:text-left">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-red-500/25 bg-black p-2">
                   {info.tv_app_logo_url ? (
-                    <img src={info.tv_app_logo_url} alt={info.tv_app_name || "Aplicativo TV"} className="h-full w-full object-contain" />
+                    <img src={info.tv_app_logo_url} alt={info.tv_app_name || "Aplicativo da TV"} className="h-full w-full object-contain" />
                   ) : (
-                    <Tv size={30} className="text-red-400" />
+                    <Tv size={36} className="text-red-400" />
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Aplicativo TV</p>
-                  <p className="mt-1 break-words text-xl font-black text-white">{info.tv_app_name || "Não informado"}</p>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Aplicativo da TV</p>
+                  <h3 className="mt-1 text-xl font-black text-white">{info.tv_app_name || "Não informado"}</h3>
+                  <p className="mt-2 max-w-lg text-xs leading-5 text-white/45">
+                    Utilize o usuário, a senha e os demais dados exibidos acima para conectar neste aplicativo.
+                  </p>
                 </div>
               </div>
             </motion.section>
 
             <motion.section
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5"
             >
               <div className="mb-4 flex items-center gap-2">
-                <CalendarDays size={18} className="text-red-400" />
-                <h2 className="text-base font-bold text-white">Validade e suporte</h2>
+                <UserRoundCheck size={18} className="text-red-400" />
+                <h2 className="font-display text-lg font-bold text-white">Cliente e suporte</h2>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <InfoCard label="Próxima validade" value={info.next_expiry ? formatDateOnlyBr(info.next_expiry) : ""} icon={CalendarDays} />
-                <InfoCard label="Cliente desde" value={info.client_since ? formatDateOnlyBr(info.client_since) : ""} icon={UserRoundCheck} />
+                <InfoCard label="Cliente desde" value={formatDateOnlyBr(info.client_since)} icon={CalendarDays} copyValue={info.client_since} />
                 <InfoCard label="Nome do suporte" value={info.support_name} icon={UserRoundCheck} />
-                <InfoCard
-                  label="WhatsApp do suporte"
-                  value={info.support_whatsapp}
-                  icon={MessageCircle}
-                  href={supportHref}
-                />
+                <div className="sm:col-span-2">
+                  <InfoCard
+                    label="WhatsApp do suporte"
+                    value={info.support_whatsapp}
+                    icon={MessageCircle}
+                    href={supportHref}
+                  />
+                </div>
               </div>
-
-              {supportHref && (
-                <a
-                  href={supportHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500"
-                >
-                  <MessageCircle size={17} /> Falar com o suporte no WhatsApp
-                </a>
-              )}
             </motion.section>
 
             <motion.section
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5"
             >
               <div className="mb-4 flex items-center gap-2">
                 <PlayCircle size={18} className="text-red-400" />
-                <h2 className="text-base font-bold text-white">Como conectar na sua TV</h2>
+                <h2 className="font-display text-lg font-bold text-white">Como conectar na sua TV</h2>
               </div>
 
-              {youtubeEmbedUrl && (
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-                  <div className="aspect-video w-full">
-                    <iframe
-                      src={youtubeEmbedUrl}
-                      title="Tutorial para conectar na TV"
-                      className="h-full w-full"
-                      loading="lazy"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      referrerPolicy="strict-origin-when-cross-origin"
-                      allowFullScreen
-                    />
-                  </div>
+              {info.tutorial_image_urls.length === 0 && youtubeVideos.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-black/35 p-6 text-center text-sm text-muted-foreground">
+                  Nenhum tutorial foi cadastrado pelo suporte.
                 </div>
-              )}
+              ) : (
+                <div className="space-y-5">
+                  {info.tutorial_image_urls.map((imageUrl, index) => (
+                    <div key={`${imageUrl}-${index}`} className="overflow-hidden rounded-2xl border border-white/8 bg-black p-2">
+                      <img
+                        src={imageUrl}
+                        alt={`Tutorial para conectar na TV ${index + 1}`}
+                        className="mx-auto h-auto max-h-[78vh] w-auto max-w-full rounded-xl object-contain"
+                      />
+                    </div>
+                  ))}
 
-              {info.tutorial_image_url && (
-                <div className={`${youtubeEmbedUrl ? "mt-4" : ""} flex w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black p-2`}>
-                  <img
-                    src={info.tutorial_image_url}
-                    alt="Instruções para conectar na TV"
-                    className="h-auto max-h-[78vh] w-auto max-w-full object-contain"
-                    loading="lazy"
-                  />
+                  {youtubeVideos.map((video, index) =>
+                    video.embedUrl ? (
+                      <div key={`${video.originalUrl}-${index}`} className="overflow-hidden rounded-2xl border border-white/8 bg-black">
+                        <div className="aspect-video w-full">
+                          <iframe
+                            src={video.embedUrl}
+                            title={`Vídeo ensinando a usar o aplicativo ${index + 1}`}
+                            className="h-full w-full"
+                            loading="lazy"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <a
+                        key={`${video.originalUrl}-${index}`}
+                        href={video.originalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-4 text-sm font-semibold text-red-300"
+                      >
+                        <PlayCircle size={18} /> Abrir vídeo {index + 1} no YouTube
+                      </a>
+                    ),
+                  )}
                 </div>
-              )}
-
-              {!youtubeEmbedUrl && !info.tutorial_image_url && (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/40 p-7 text-center">
-                  <PlayCircle size={30} className="mx-auto text-white/25" />
-                  <p className="mt-3 text-sm text-white/45">O suporte ainda não cadastrou uma imagem ou vídeo tutorial.</p>
-                </div>
-              )}
-
-              {info.tutorial_youtube_url && !youtubeEmbedUrl && (
-                <a
-                  href={info.tutorial_youtube_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm font-semibold text-red-300"
-                >
-                  <ExternalLink size={16} /> Abrir vídeo tutorial
-                </a>
               )}
             </motion.section>
-
-            <div className="flex items-start gap-3 rounded-2xl border border-blue-500/15 bg-blue-500/5 p-4 text-xs leading-5 text-white/45">
-              <ClipboardCopy size={16} className="mt-0.5 shrink-0 text-blue-400" />
-              Toque no botão de copiar ao lado de cada informação para evitar erros ao digitar na TV.
-            </div>
           </>
         )}
       </div>

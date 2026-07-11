@@ -82,25 +82,40 @@ const ALLOWED_TV_STATUSES = new Set([
 const CLIENT_TV_INFO_ACTION = "client_tv_info_config";
 const CLIENT_TV_INFO_TARGET = "client_tv_info";
 
+const DEFAULT_TV_SUPPORT_NAME = "Wanderson Camargo";
+const DEFAULT_TV_SUPPORT_WHATSAPP = "(62) 99565-7915";
+
 const cleanTvInfoText = (value: unknown, maxLength = 5000) =>
   String(value || "")
     .trim()
     .slice(0, maxLength);
 
+const cleanTvInfoList = (value: unknown, legacyValue: unknown, maxItems = 20) => {
+  const source = Array.isArray(value) ? value : [];
+  const result = source
+    .map((item) => cleanTvInfoText(item, 5000))
+    .filter(Boolean)
+    .slice(0, maxItems);
+  const legacy = cleanTvInfoText(legacyValue, 5000);
+  if (legacy && !result.includes(legacy) && result.length < maxItems) result.push(legacy);
+  return Array.from(new Set(result));
+};
+
 const normalizeClientTvInfoData = (input: any = {}) => ({
   tv_username: cleanTvInfoText(input.tv_username, 300),
   tv_password: cleanTvInfoText(input.tv_password, 300),
+  tv_connections: Math.max(1, Math.floor(Number(input.tv_connections || 1))),
   tv_code: cleanTvInfoText(input.tv_code, 500),
   tv_dns: cleanTvInfoText(input.tv_dns, 1200),
   tv_list_url: cleanTvInfoText(input.tv_list_url, 5000),
   tv_app_name: cleanTvInfoText(input.tv_app_name, 300),
   tv_app_logo_url: cleanTvInfoText(input.tv_app_logo_url, 5000),
   next_expiry: isDateOnly(input.next_expiry) ? String(input.next_expiry) : "",
-  support_name: cleanTvInfoText(input.support_name, 300),
-  support_whatsapp: cleanTvInfoText(input.support_whatsapp, 100),
+  support_name: cleanTvInfoText(input.support_name, 300) || DEFAULT_TV_SUPPORT_NAME,
+  support_whatsapp: cleanTvInfoText(input.support_whatsapp, 100) || DEFAULT_TV_SUPPORT_WHATSAPP,
   client_since: isDateOnly(input.client_since) ? String(input.client_since) : "",
-  tutorial_image_url: cleanTvInfoText(input.tutorial_image_url, 5000),
-  tutorial_youtube_url: cleanTvInfoText(input.tutorial_youtube_url, 5000),
+  tutorial_image_urls: cleanTvInfoList(input.tutorial_image_urls, input.tutorial_image_url),
+  tutorial_youtube_urls: cleanTvInfoList(input.tutorial_youtube_urls, input.tutorial_youtube_url),
 });
 
 const loadClientTvInfo = async (supabaseAdmin: any, userId: string) => {
@@ -116,6 +131,66 @@ const loadClientTvInfo = async (supabaseAdmin: any, userId: string) => {
 
   if (error) throw new Error(error.message);
   return { row, info: normalizeClientTvInfoData(row?.details || {}) };
+};
+
+const buildClientTvInfo = async (supabaseAdmin: any, userId: string) => {
+  const [{ row, info: storedInfo }, profileResult, appsResult, platformResult] = await Promise.all([
+    loadClientTvInfo(supabaseAdmin, userId),
+    supabaseAdmin
+      .from("profiles")
+      .select("id, username, iptv_user, iptv_password, iptv_connections, iptv_tv_app, iptv_expiry, created_at")
+      .eq("id", userId)
+      .maybeSingle(),
+    supabaseAdmin.from("iptv_tv_apps").select("name, icon, is_active").eq("is_active", true),
+    supabaseAdmin
+      .from("platform_settings")
+      .select("app_name, app_logo_url, app_favicon_url")
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (profileResult.error) throw new Error(profileResult.error.message);
+  const profile = profileResult.data || {};
+  const appRows = Array.isArray(appsResult.data) ? appsResult.data : [];
+  const platform = platformResult.data || {};
+
+  const selectedAppName = cleanTvInfoText(storedInfo.tv_app_name || profile.iptv_tv_app, 300);
+  const selectedLower = selectedAppName.toLowerCase();
+  const officialName = cleanTvInfoText(platform.app_name, 300);
+  const registeredApp = appRows.find(
+    (app: any) => cleanTvInfoText(app?.name, 300).toLowerCase() === selectedLower,
+  );
+
+  let selectedAppLogo = "";
+  if (selectedLower && officialName && selectedLower === officialName.toLowerCase()) {
+    selectedAppLogo = cleanTvInfoText(platform.app_favicon_url || platform.app_logo_url, 5000);
+  } else if (registeredApp) {
+    selectedAppLogo = cleanTvInfoText(registeredApp.icon, 5000);
+  }
+
+  const defaultTvUsername = cleanTvInfoText(profile.iptv_user || profile.username, 300);
+  const defaultTvPassword = cleanTvInfoText(
+    profile.iptv_password || profile.iptv_user || profile.username,
+    300,
+  );
+
+  return {
+    row,
+    info: normalizeClientTvInfoData({
+      ...storedInfo,
+      tv_username: storedInfo.tv_username || defaultTvUsername,
+      tv_password: storedInfo.tv_password || defaultTvPassword,
+      tv_connections: Math.max(1, Math.floor(Number(profile.iptv_connections || 1))),
+      tv_app_name: selectedAppName,
+      tv_app_logo_url: selectedAppLogo,
+      next_expiry: isDateOnly(profile.iptv_expiry) ? String(profile.iptv_expiry) : "",
+      client_since:
+        storedInfo.client_since ||
+        (String(profile.created_at || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0] || ""),
+      support_name: storedInfo.support_name || DEFAULT_TV_SUPPORT_NAME,
+      support_whatsapp: storedInfo.support_whatsapp || DEFAULT_TV_SUPPORT_WHATSAPP,
+    }),
+  };
 };
 
 const sendRealtimeBroadcast = async (_supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
@@ -511,7 +586,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const { info } = await loadClientTvInfo(supabaseAdmin, user_id);
+      const { info } = await buildClientTvInfo(supabaseAdmin, user_id);
       return new Response(JSON.stringify({ success: true, info }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -683,12 +758,19 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "get_client_tv_info": {
-        const { info } = await loadClientTvInfo(supabaseAdmin, user_id);
+        const { info } = await buildClientTvInfo(supabaseAdmin, user_id);
         result = { success: true, info };
         break;
       }
       case "update_client_tv_info": {
-        const info = normalizeClientTvInfoData(data || {});
+        const normalizedInput = normalizeClientTvInfoData(data || {});
+        const infoToStore = {
+          ...normalizedInput,
+          // Estes valores são sempre derivados do cadastro atual do cliente/aplicativo.
+          tv_connections: 1,
+          next_expiry: "",
+          tv_app_logo_url: "",
+        };
         const { row } = await loadClientTvInfo(supabaseAdmin, user_id);
         const nowIso = new Date().toISOString();
 
@@ -697,7 +779,7 @@ Deno.serve(async (req) => {
             .from("admin_audit_logs")
             .update({
               admin_id: caller.id,
-              details: info,
+              details: infoToStore,
               created_at: nowIso,
             })
             .eq("id", row.id);
@@ -708,11 +790,13 @@ Deno.serve(async (req) => {
             action: CLIENT_TV_INFO_ACTION,
             target_id: user_id,
             target_table: CLIENT_TV_INFO_TARGET,
-            details: info,
+            details: infoToStore,
             created_at: nowIso,
           });
           if (insertInfoError) throw new Error(insertInfoError.message);
         }
+
+        const { info } = await buildClientTvInfo(supabaseAdmin, user_id);
 
         try {
           await sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-${user_id}`, "client-tv-info-updated", {

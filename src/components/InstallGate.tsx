@@ -49,7 +49,6 @@ const isComputerBrowser = () => {
 };
 
 export const InstallGate = ({ children }: { children: React.ReactNode }) => {
-  const [isInstalled, setIsInstalled] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showContinueMessage, setShowContinueMessage] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => isComputerBrowser());
@@ -58,7 +57,6 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
   const [installing, setInstalling] = useState(false);
   const [pwaReady, setPwaReady] = useState(false);
   const [nativeInstallReady, setNativeInstallReady] = useState(false);
-  const [adminBypass, setAdminBypass] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const checkedRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
@@ -69,17 +67,12 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     if (checkedRef.current) return;
     checkedRef.current = true;
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("bypass") === "admin") setAdminBypass(true);
-
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
 
     setIsStandalone(standalone);
     setIsDesktop(isComputerBrowser());
     setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent));
-
-    if (standalone) setIsInstalled(true);
 
     const promptHandler = (event: Event) => {
       event.preventDefault();
@@ -88,7 +81,8 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     };
 
     const installedHandler = () => {
-      setIsInstalled(true);
+      // A instalação não libera o sistema dentro do navegador.
+      // O cliente deve fechar esta página e abrir o ícone instalado.
       setShowContinueMessage(true);
     };
 
@@ -103,7 +97,9 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  if (isStandalone || adminBypass || isDesktop || isInstalled) {
+  // Em celular e tablet, o sistema só é liberado quando aberto como PWA instalado.
+  // O navegador móvel permanece exclusivamente como página de instalação.
+  if (isStandalone || isDesktop) {
     return <>{children}</>;
   }
 
@@ -188,7 +184,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
             Instale o {appTitleUpper}
           </h1>
           <p className="mt-3 max-w-sm text-sm leading-6 text-white/60">
-            Tenha acesso mais rápido, tela cheia e uma experiência melhor no celular.
+            No celular, o acesso ao sistema é liberado exclusivamente pelo aplicativo instalado na tela inicial.
           </p>
         </section>
 
@@ -252,7 +248,7 @@ export const InstallGate = ({ children }: { children: React.ReactNode }) => {
               <div className="flex items-center justify-center gap-2 text-sm font-bold text-emerald-300">
                 <CheckCircle2 size={18} /> Aplicativo instalado
               </div>
-              <p className="mt-1 text-[11px] text-white/55">Feche o navegador e abra o ícone na tela inicial.</p>
+              <p className="mt-1 text-[11px] leading-4 text-white/65">Este navegador continuará bloqueado. Feche esta página e abra o ícone do aplicativo na tela inicial.</p>
             </div>
           ) : showManualSteps ? (
             <div className="rounded-2xl border border-red-500/25 bg-[#130708] p-4">
