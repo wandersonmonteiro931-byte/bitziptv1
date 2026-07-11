@@ -104,6 +104,9 @@ export function useRealtimeBalance() {
         case "app-branding-updated":
           dispatchAppEvent("app-branding-updated", payload?.branding || payload);
           break;
+        case "client-tv-info-updated":
+          dispatchAppEvent("wmcplayer-client-tv-info-updated", payload);
+          break;
         case "trust-request-created":
         case "admin-refresh":
           dispatchAppEvent("wmcplayer-admin-refresh", payload);

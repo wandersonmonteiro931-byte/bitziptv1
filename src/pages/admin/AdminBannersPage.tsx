@@ -318,11 +318,11 @@ const AdminBannersPage = () => {
                     />
                   </div>
                   {preview && (
-                    <div className="mt-2 flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-black p-2">
+                    <div className="mt-2 flex max-h-[460px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-black p-2">
                       <img
                         src={getFhdImageUrl(preview)}
                         alt="Preview"
-                        className="h-auto max-h-[240px] w-auto max-w-full object-contain bg-black"
+                        className="h-auto max-h-[440px] w-auto max-w-full object-contain bg-black"
                         onError={() => setPreview("")}
                       />
                     </div>

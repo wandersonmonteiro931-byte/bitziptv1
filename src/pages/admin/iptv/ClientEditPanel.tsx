@@ -25,6 +25,7 @@ import {
   CheckSquare,
   Square,
   RefreshCw,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +33,7 @@ import { TV_STATUSES, getStatusInfo } from "./types";
 import { formatDateBRT, formatDateTimeBRT } from "@/lib/utils";
 import { useAppBranding } from "@/hooks/useAppBranding";
 import { invokeAuthenticatedFunction } from "@/lib/edgeFunctions";
+import { ClientTvInfoEditor } from "./ClientTvInfoEditor";
 
 
 const getTodayDateOnly = () => {
@@ -108,6 +110,7 @@ const TABS = [
   { key: "overview", label: "Visão Geral", icon: User },
   { key: "financial", label: "Financeiro", icon: Wallet },
   { key: "access", label: "Acesso", icon: Lock },
+  { key: "tv_info", label: "Minha TV (Info)", icon: ClipboardList },
   { key: "system", label: "Sistema", icon: Settings },
   { key: "history", label: "Histórico", icon: History },
 ];
@@ -207,7 +210,7 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
       .eq("target_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50);
-    setLogs(data || []);
+    setLogs(((data || []) as any[]).filter((log: any) => log?.target_table !== "client_tv_info"));
     setLogsLoaded(true);
   }, [user.id, logsLoaded]);
 
@@ -1633,6 +1636,9 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
                 </div>
               )}
 
+              {/* ===== CLIENT TV INFO (INFORMATIVO) ===== */}
+              {tab === "tv_info" && <ClientTvInfoEditor user={user} tvApps={tvApps} />}
+
               {/* ===== SYSTEM ===== */}
               {tab === "system" && (
                 <div className="space-y-4">
@@ -1733,17 +1739,19 @@ export function ClientEditPanel({ user, servers, tvApps, onClose, onSaved }: Pro
           </AnimatePresence>
         </div>
 
-        {/* Save Footer */}
-        <div className="border-t border-border px-5 py-4">
-          <button
-            onClick={saveForm}
-            disabled={saving}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 disabled:opacity-50 transition-all"
-          >
-            <Save size={16} />
-            {saving ? "Salvando..." : "Salvar Alterações"}
-          </button>
-        </div>
+        {/* Save Footer: a aba informativa possui botão próprio para não misturar com login/serviço. */}
+        {tab !== "tv_info" && (
+          <div className="border-t border-border px-5 py-4">
+            <button
+              onClick={saveForm}
+              disabled={saving}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 disabled:opacity-50 transition-all"
+            >
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar Alterações"}
+            </button>
+          </div>
+        )}
       </motion.div>
     </div>
   );

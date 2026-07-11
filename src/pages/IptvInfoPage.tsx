@@ -1,204 +1,368 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ComponentType } from "react";
+import { motion } from "framer-motion";
+import {
+  CalendarDays,
+  Check,
+  ClipboardCopy,
+  Code2,
+  Copy,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  KeyRound,
+  Link2,
+  Loader2,
+  MessageCircle,
+  PlayCircle,
+  Server,
+  ShieldCheck,
+  Smartphone,
+  Tv,
+  User,
+  UserRoundCheck,
+} from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tv, Server, Smartphone, Calendar, User, Wifi, RefreshCw } from "lucide-react";
-import { motion } from "framer-motion";
-import { formatDateBRT } from "@/lib/utils";
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { getFhdImageUrl } from "@/lib/imageQuality";
-import { useAppBranding } from "@/hooks/useAppBranding";
-import { forcePwaUpdateAndReload } from "@/lib/pwaForceUpdate";
+import { invokeAuthenticatedFunction } from "@/lib/edgeFunctions";
+import {
+  ClientTvInfo,
+  EMPTY_CLIENT_TV_INFO,
+  formatDateOnlyBr,
+  getWhatsAppHref,
+  getYoutubeEmbedUrl,
+  normalizeClientTvInfo,
+} from "@/lib/clientTvInfo";
 
-import appAssistPlus from "@/assets/app-assist-plus.webp";
-import appBlessedPlayer from "@/assets/app-blessed-player.png";
-import appMaxPlayer from "@/assets/app-max-player.png";
-import appSmarters from "@/assets/app-smarters-pro.png";
+function CopyValueButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
 
-const APP_LOGOS: Record<string, string> = {
-  "assist plus": appAssistPlus,
-  "blessed player": appBlessedPlayer,
-  "max player": appMaxPlayer,
-  "smarters pro": appSmarters,
-};
-
-const getAppLogo = (appName: string | undefined) => {
-  if (!appName) return null;
-  const key = appName.toLowerCase().trim();
-  for (const [k, v] of Object.entries(APP_LOGOS)) {
-    if (key.includes(k)) return v;
-  }
-  return null;
-};
-
-const isOfficialWmcflixApp = (value: string | undefined, appTitle: string) => {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase();
-  return normalized === "wmcflix" || normalized === appTitle.toLowerCase();
-};
-
-const IptvInfoPage = () => {
-  const { user } = useAuth();
-  const { appName, logoUrl } = useAppBranding();
-  const appTitle = (appName || "WMCPLAYER").trim().toUpperCase();
-  const [providerInfo, setProviderInfo] = useState({ assist_plus_provider: "", blessed_player_provider: "" });
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [updateMessage, setUpdateMessage] = useState("");
-
-  useEffect(() => {
-    supabase
-      .from("support_settings")
-      .select("assist_plus_provider, blessed_player_provider" as any)
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) setProviderInfo(data as any);
-      });
-  }, []);
-
-  const appLogo = getAppLogo(user?.iptv_app);
-  const tvAppIsWmcflix = isOfficialWmcflixApp(user?.iptv_tv_app, appTitle);
-  const tvAppLogo = tvAppIsWmcflix ? logoUrl : getAppLogo(user?.iptv_tv_app);
-  const displayedTvApp = tvAppIsWmcflix ? appTitle : user?.iptv_tv_app || "-";
-
-  // Determine which provider to show based on user's TV app
-  const getUserTvProvider = () => {
-    const tvApp = (user?.iptv_tv_app || "").toLowerCase();
-    if (tvApp.includes("assist")) return providerInfo.assist_plus_provider;
-    if (tvApp.includes("blessed")) return providerInfo.blessed_player_provider;
-    return "";
-  };
-
-  const tvProvider = getUserTvProvider();
-
-  const info = [
-    { label: "Usuário TV", value: user?.iptv_user || "-", icon: User },
-    { label: "Servidor", value: user?.iptv_server || "-", icon: Server },
-    { label: "Aplicativo", value: user?.iptv_app || "-", icon: Smartphone },
-    { label: "App TV", value: displayedTvApp, icon: Tv },
-    {
-      label: "Validade",
-      value: user?.iptv_expiry ? formatDateBRT(user.iptv_expiry + "T12:00:00") : "-",
-      icon: Calendar,
-    },
-  ];
-
-  const handleForceUpdate = async () => {
-    if (checkingUpdate) return;
-
-    setCheckingUpdate(true);
-    setUpdateMessage("Verificando nova versão e limpando cache...");
-
+  const copy = async () => {
+    if (!value) return;
     try {
-      await forcePwaUpdateAndReload();
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      setUpdateMessage("Cache limpo. Reabrindo app...");
-      const url = new URL(window.location.href);
-      url.searchParams.set("pwa_update", String(Date.now()));
-      url.searchParams.set("force_update", "1");
-      window.location.replace(url.toString());
+      setCopied(false);
     }
   };
 
   return (
-    <AppLayout>
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-          <Tv className="text-red-500" /> Minha TV
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Informações da sua TV</p>
+    <button
+      type="button"
+      onClick={copy}
+      disabled={!value}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-muted-foreground transition-colors hover:border-red-500/30 hover:text-red-400 disabled:cursor-default disabled:opacity-30"
+      title="Copiar"
+    >
+      {copied ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
+    </button>
+  );
+}
 
-        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+function InfoCard({
+  label,
+  value,
+  icon: Icon,
+  secret = false,
+  href = "",
+}: {
+  label: string;
+  value: string;
+  icon: ComponentType<{ size?: number; className?: string }>;
+  secret?: boolean;
+  href?: string;
+}) {
+  const [visible, setVisible] = useState(!secret);
+  const safeValue = value || "Não informado";
+  const displayValue = secret && !visible && value ? "••••••••" : safeValue;
+
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/65 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.22)]">
+      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Icon size={15} className="text-red-400" />
+        <span>{label}</span>
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        {href && value ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 flex-1 break-all text-sm font-semibold text-foreground underline decoration-red-500/40 underline-offset-4"
+          >
+            {displayValue}
+          </a>
+        ) : (
+          <p className="min-w-0 flex-1 break-all text-sm font-semibold text-foreground">{displayValue}</p>
+        )}
+        {secret && value && (
           <button
             type="button"
-            onClick={handleForceUpdate}
-            disabled={checkingUpdate}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/15 transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={() => setVisible((current) => !current)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-muted-foreground hover:text-foreground"
+            title={visible ? "Ocultar senha" : "Mostrar senha"}
           >
-            <RefreshCw size={16} className={checkingUpdate ? "animate-spin" : ""} />
-            {checkingUpdate ? "Verificando atualização..." : "Verificar atualização do app"}
+            {visible ? <EyeOff size={15} /> : <Eye size={15} />}
           </button>
-          <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            {checkingUpdate
-              ? updateMessage || "Limpando cache e forçando nova versão..."
-              : "Use este botão se o app não atualizar sozinho. Ele limpa o cache e reabre na versão nova se houver."}
-          </p>
-        </div>
+        )}
+        <CopyValueButton value={value} />
       </div>
+    </div>
+  );
+}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card glow-border rounded-xl p-6"
-      >
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-red-500/10 ring-1 ring-red-500/20">
-            {logoUrl ? (
-              <img src={logoUrl} alt={appTitle} className="h-full w-full object-contain bg-black p-1" />
-            ) : (
-              <Tv size={24} className="text-red-500" />
-            )}
+const IptvInfoPage = () => {
+  const { user } = useAuth();
+  const [info, setInfo] = useState<ClientTvInfo>(EMPTY_CLIENT_TV_INFO);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadInfo = useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await invokeAuthenticatedFunction<any>("admin-manage-user", {
+        action: "client_get_tv_info",
+        user_id: user.id,
+        data: {},
+      });
+      setInfo(normalizeClientTvInfo(result?.info));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os dados da TV.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadInfo();
+  }, [loadInfo]);
+
+  useEffect(() => {
+    const onInfoUpdated = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
+      if (!payload || (payload.user_id && payload.user_id !== user?.id)) return;
+      setInfo(normalizeClientTvInfo(payload.info || payload.data || payload));
+      setError("");
+      setLoading(false);
+    };
+
+    window.addEventListener("wmcplayer-client-tv-info-updated", onInfoUpdated);
+    return () => window.removeEventListener("wmcplayer-client-tv-info-updated", onInfoUpdated);
+  }, [user?.id]);
+
+  const firstName = String(user?.name || "cliente").trim().split(/\s+/)[0] || "cliente";
+  const youtubeEmbedUrl = useMemo(() => getYoutubeEmbedUrl(info.tutorial_youtube_url), [info.tutorial_youtube_url]);
+  const supportHref = useMemo(() => getWhatsAppHref(info.support_whatsapp), [info.support_whatsapp]);
+
+  const optionalConnectionItems = [
+    info.tv_code ? { label: "Código", value: info.tv_code, icon: Code2 } : null,
+    info.tv_dns ? { label: "DNS", value: info.tv_dns, icon: Server } : null,
+    info.tv_list_url ? { label: "Lista", value: info.tv_list_url, icon: Link2, href: info.tv_list_url } : null,
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: string;
+    icon: ComponentType<{ size?: number; className?: string }>;
+    href?: string;
+  }>;
+
+  return (
+    <AppLayout>
+      <div className="mx-auto w-full max-w-5xl space-y-5 pb-8">
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="overflow-hidden rounded-3xl border border-red-500/20 bg-[radial-gradient(circle_at_top_right,rgba(239,35,42,0.12),transparent_38%),rgba(255,255,255,0.025)] p-5 sm:p-7"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-500/25 bg-red-500/10 text-red-400">
+              <Tv size={24} />
+            </div>
+            <div>
+              <h1 className="font-display text-2xl font-black uppercase leading-tight text-white sm:text-3xl">
+                Olá, {firstName}!
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-white/65 sm:text-base">
+                AQUI VOCÊ PODE CONFERIR OS DADOS DE LOGIN PARA CONECTAR NA SUA TV.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-display text-lg font-bold text-foreground">{appTitle}</h2>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${user?.status === "active" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <ShieldCheck className="mt-0.5 shrink-0 text-emerald-400" size={18} />
+            <p className="text-xs leading-5 text-white/55">
+              Estes dados são apenas para configurar o aplicativo instalado na sua TV. Eles são informados pelo seu
+              suporte e não alteram o login deste aplicativo.
+            </p>
+          </div>
+        </motion.section>
+
+        {loading ? (
+          <div className="flex min-h-64 items-center justify-center rounded-3xl border border-white/8 bg-white/[0.02]">
+            <Loader2 size={28} className="animate-spin text-red-500" />
+          </div>
+        ) : error ? (
+          <div className="rounded-3xl border border-red-500/25 bg-red-500/5 p-6 text-center">
+            <p className="text-sm font-semibold text-red-300">{error}</p>
+            <button
+              type="button"
+              onClick={() => void loadInfo()}
+              className="mt-4 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500"
             >
-              {user?.status === "active" ? "Ativo" : user?.status === "suspended" ? "Suspenso" : "Bloqueado"}
-            </span>
+              Tentar novamente
+            </button>
           </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {info.map((item) => (
-            <div key={item.label} className="rounded-lg bg-black/80 p-4">
-              <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-                <item.icon size={14} />
-                <span className="text-xs">{item.label}</span>
+        ) : (
+          <>
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <KeyRound size={18} className="text-red-400" />
+                <h2 className="text-base font-bold text-white">Dados para conectar na TV</h2>
               </div>
-              <p className="text-sm font-semibold text-foreground">{item.value}</p>
-            </div>
-          ))}
-        </div>
 
-        {/* Provider info */}
-        {tvProvider && (
-          <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Wifi size={14} className="text-red-500" />
-              <span className="text-xs font-semibold text-red-400">Provedor de Acesso</span>
-            </div>
-            <p className="text-sm font-semibold text-foreground">{tvProvider}</p>
-          </div>
-        )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoCard label="Usuário" value={info.tv_username} icon={User} />
+                <InfoCard label="Senha" value={info.tv_password} icon={KeyRound} secret />
+                {optionalConnectionItems.map((item) => (
+                  <InfoCard key={item.label} {...item} />
+                ))}
+              </div>
+            </motion.section>
 
-        {(appLogo || tvAppLogo) && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {appLogo && (
-              <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
-                <p className="text-xs text-muted-foreground">Aplicativo Mobile</p>
-                <img
-                  src={getFhdImageUrl(appLogo)}
-                  alt={user?.iptv_app || "App"}
-                  className="h-16 w-16 rounded-xl object-contain bg-black"
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <Smartphone size={18} className="text-red-400" />
+                <h2 className="text-base font-bold text-white">Aplicativo instalado na sua TV</h2>
+              </div>
+
+              <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/8 bg-black/60 p-5 text-center sm:flex-row sm:text-left">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-red-500/20 bg-black p-2">
+                  {info.tv_app_logo_url ? (
+                    <img src={info.tv_app_logo_url} alt={info.tv_app_name || "Aplicativo TV"} className="h-full w-full object-contain" />
+                  ) : (
+                    <Tv size={30} className="text-red-400" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Aplicativo TV</p>
+                  <p className="mt-1 break-words text-xl font-black text-white">{info.tv_app_name || "Não informado"}</p>
+                </div>
+              </div>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <CalendarDays size={18} className="text-red-400" />
+                <h2 className="text-base font-bold text-white">Validade e suporte</h2>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoCard label="Próxima validade" value={info.next_expiry ? formatDateOnlyBr(info.next_expiry) : ""} icon={CalendarDays} />
+                <InfoCard label="Cliente desde" value={info.client_since ? formatDateOnlyBr(info.client_since) : ""} icon={UserRoundCheck} />
+                <InfoCard label="Nome do suporte" value={info.support_name} icon={UserRoundCheck} />
+                <InfoCard
+                  label="WhatsApp do suporte"
+                  value={info.support_whatsapp}
+                  icon={MessageCircle}
+                  href={supportHref}
                 />
-                <p className="text-sm font-semibold text-foreground">{user?.iptv_app}</p>
               </div>
-            )}
-            {tvAppLogo && (
-              <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/20 p-4">
-                <p className="text-xs text-muted-foreground">Aplicativo TV</p>
-                <img
-                  src={getFhdImageUrl(tvAppLogo)}
-                  alt={displayedTvApp}
-                  className="h-16 w-16 rounded-xl object-contain bg-black"
-                />
-                <p className="text-sm font-semibold text-foreground">{displayedTvApp}</p>
+
+              {supportHref && (
+                <a
+                  href={supportHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-500"
+                >
+                  <MessageCircle size={17} /> Falar com o suporte no WhatsApp
+                </a>
+              )}
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-6"
+            >
+              <div className="mb-4 flex items-center gap-2">
+                <PlayCircle size={18} className="text-red-400" />
+                <h2 className="text-base font-bold text-white">Como conectar na sua TV</h2>
               </div>
-            )}
-          </div>
+
+              {youtubeEmbedUrl && (
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+                  <div className="aspect-video w-full">
+                    <iframe
+                      src={youtubeEmbedUrl}
+                      title="Tutorial para conectar na TV"
+                      className="h-full w-full"
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              )}
+
+              {info.tutorial_image_url && (
+                <div className={`${youtubeEmbedUrl ? "mt-4" : ""} flex w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black p-2`}>
+                  <img
+                    src={info.tutorial_image_url}
+                    alt="Instruções para conectar na TV"
+                    className="h-auto max-h-[78vh] w-auto max-w-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+
+              {!youtubeEmbedUrl && !info.tutorial_image_url && (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-black/40 p-7 text-center">
+                  <PlayCircle size={30} className="mx-auto text-white/25" />
+                  <p className="mt-3 text-sm text-white/45">O suporte ainda não cadastrou uma imagem ou vídeo tutorial.</p>
+                </div>
+              )}
+
+              {info.tutorial_youtube_url && !youtubeEmbedUrl && (
+                <a
+                  href={info.tutorial_youtube_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm font-semibold text-red-300"
+                >
+                  <ExternalLink size={16} /> Abrir vídeo tutorial
+                </a>
+              )}
+            </motion.section>
+
+            <div className="flex items-start gap-3 rounded-2xl border border-blue-500/15 bg-blue-500/5 p-4 text-xs leading-5 text-white/45">
+              <ClipboardCopy size={16} className="mt-0.5 shrink-0 text-blue-400" />
+              Toque no botão de copiar ao lado de cada informação para evitar erros ao digitar na TV.
+            </div>
+          </>
         )}
-      </motion.div>
+      </div>
     </AppLayout>
   );
 };

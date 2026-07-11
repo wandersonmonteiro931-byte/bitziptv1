@@ -1,0 +1,71 @@
+WMCPLAYER - BANNERS MAIS ALTOS E NOVA TELA MINHA TV INFORMATIVA
+
+BASE UTILIZADA:
+bitziptv1-imagem-compartilhamento-whatsapp-corrigida.zip
+
+ALTERACAO 1 - BANNERS
+- A altura exibida foi aumentada no celular, tablet e computador.
+- A imagem continua preenchendo toda a area.
+- Nao corta a imagem.
+- Nao aplica zoom que esconda partes.
+- Nao deixa faixas vazias.
+- A imagem e esticada ate os limites definidos para o banner.
+- A previa no painel Admin > Banners tambem suporta maior altura.
+
+ALTERACAO 2 - DADOS INFORMATIVOS DA TV
+Foi criada a aba:
+Admin > TV > Editar cliente > Minha TV (Info)
+
+O administrador pode informar exclusivamente para a pagina /iptv-info:
+- usuario da TV;
+- senha da TV;
+- codigo opcional;
+- DNS opcional;
+- lista/URL opcional;
+- aplicativo instalado na TV;
+- URL do logotipo do aplicativo;
+- proxima validade informativa;
+- cliente desde;
+- nome do suporte;
+- WhatsApp do suporte;
+- imagem ensinando a conectar;
+- link de video do YouTube.
+
+REGRA DE ISOLAMENTO
+Esses dados ficam em um registro informativo separado e nao alteram:
+- login do aplicativo;
+- senha de acesso do aplicativo;
+- Supabase Auth;
+- servidor operacional;
+- pagamentos;
+- validade real do plano;
+- status do cliente;
+- aplicativo operacional;
+- qualquer outra tela.
+
+A pagina /iptv-info deixou de usar os antigos campos operacionais para exibir os dados.
+Ela mostra somente o que o administrador salvar na aba Minha TV (Info).
+
+ATUALIZACAO
+- Ao salvar, o cliente conectado recebe a mudanca pelo canal Realtime unico ja existente.
+- Se estiver offline, recebe os dados novos ao abrir a pagina.
+- Nenhum polling e nenhuma consulta repetitiva foram adicionados.
+- Nenhum novo canal Realtime foi criado.
+
+COMO PUBLICAR
+1. Extraia o ZIP.
+2. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat para publicar admin-manage-user.
+3. Execute ATUALIZAR_GITHUB_AGORA.bat para publicar o site no Cloudflare.
+4. Abra Admin > TV > Editar cliente > Minha TV (Info).
+5. Cadastre os dados e clique em Salvar dados da tela Minha TV.
+
+NAO PRECISA EXECUTAR SQL.
+
+VALIDACOES REALIZADAS
+- npm run audit: OK.
+- npm run check:tdz: OK.
+- npm run build: OK.
+- npm test: 10 testes aprovados.
+- Sintaxe da Edge Function admin-manage-user validada com esbuild.
+- 1 canal Realtime no frontend.
+- Nenhum polling de rede adicionado.

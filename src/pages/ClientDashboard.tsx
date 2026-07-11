@@ -401,7 +401,7 @@ function BannerCarousel() {
   if (!firstReady) {
     return (
       <div className="mx-4 mt-2 mb-4">
-        <div className="h-40 w-full rounded-[20px] bg-transparent" />
+        <div className="aspect-[5/4] w-full rounded-[20px] bg-transparent sm:aspect-[16/9] lg:aspect-[16/8]" />
       </div>
     );
   }
@@ -447,7 +447,7 @@ function BannerCarousel() {
         className={`block w-full ${banner.redirect_url ? "cursor-pointer" : "cursor-default"}`}
       >
         <div
-          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black aspect-[4/3] sm:aspect-[16/7] lg:aspect-[16/6]"
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black aspect-[5/4] sm:aspect-[16/9] lg:aspect-[16/8]"
           style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
         >
           <AnimatePresence mode="sync" initial={false}>

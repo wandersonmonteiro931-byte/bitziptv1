@@ -79,6 +79,45 @@ const ALLOWED_TV_STATUSES = new Set([
   "maintenance", "unstable", "trust_active",
 ]);
 
+const CLIENT_TV_INFO_ACTION = "client_tv_info_config";
+const CLIENT_TV_INFO_TARGET = "client_tv_info";
+
+const cleanTvInfoText = (value: unknown, maxLength = 5000) =>
+  String(value || "")
+    .trim()
+    .slice(0, maxLength);
+
+const normalizeClientTvInfoData = (input: any = {}) => ({
+  tv_username: cleanTvInfoText(input.tv_username, 300),
+  tv_password: cleanTvInfoText(input.tv_password, 300),
+  tv_code: cleanTvInfoText(input.tv_code, 500),
+  tv_dns: cleanTvInfoText(input.tv_dns, 1200),
+  tv_list_url: cleanTvInfoText(input.tv_list_url, 5000),
+  tv_app_name: cleanTvInfoText(input.tv_app_name, 300),
+  tv_app_logo_url: cleanTvInfoText(input.tv_app_logo_url, 5000),
+  next_expiry: isDateOnly(input.next_expiry) ? String(input.next_expiry) : "",
+  support_name: cleanTvInfoText(input.support_name, 300),
+  support_whatsapp: cleanTvInfoText(input.support_whatsapp, 100),
+  client_since: isDateOnly(input.client_since) ? String(input.client_since) : "",
+  tutorial_image_url: cleanTvInfoText(input.tutorial_image_url, 5000),
+  tutorial_youtube_url: cleanTvInfoText(input.tutorial_youtube_url, 5000),
+});
+
+const loadClientTvInfo = async (supabaseAdmin: any, userId: string) => {
+  const { data: row, error } = await supabaseAdmin
+    .from("admin_audit_logs")
+    .select("id, details, created_at")
+    .eq("target_id", userId)
+    .eq("target_table", CLIENT_TV_INFO_TARGET)
+    .eq("action", CLIENT_TV_INFO_ACTION)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return { row, info: normalizeClientTvInfoData(row?.details || {}) };
+};
+
 const sendRealtimeBroadcast = async (_supabaseAdmin: any, channelName: string, eventName: string, payload: Record<string, any>) => {
   const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
@@ -462,6 +501,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Consulta exclusiva da tela Minha TV. O cliente só pode ler o próprio registro.
+    // Estes dados são informativos e nunca alteram profiles, Auth, pagamento ou serviço.
+    if (action === "client_get_tv_info") {
+      if (!user_id || user_id !== caller.id) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { info } = await loadClientTvInfo(supabaseAdmin, user_id);
+      return new Response(JSON.stringify({ success: true, info }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // All other actions require admin role
     const { data: roleData } = await supabaseAdmin
       .from("user_roles")
@@ -627,6 +682,54 @@ Deno.serve(async (req) => {
     let result: any = {};
 
     switch (action) {
+      case "get_client_tv_info": {
+        const { info } = await loadClientTvInfo(supabaseAdmin, user_id);
+        result = { success: true, info };
+        break;
+      }
+      case "update_client_tv_info": {
+        const info = normalizeClientTvInfoData(data || {});
+        const { row } = await loadClientTvInfo(supabaseAdmin, user_id);
+        const nowIso = new Date().toISOString();
+
+        if (row?.id) {
+          const { error: updateInfoError } = await supabaseAdmin
+            .from("admin_audit_logs")
+            .update({
+              admin_id: caller.id,
+              details: info,
+              created_at: nowIso,
+            })
+            .eq("id", row.id);
+          if (updateInfoError) throw new Error(updateInfoError.message);
+        } else {
+          const { error: insertInfoError } = await supabaseAdmin.from("admin_audit_logs").insert({
+            admin_id: caller.id,
+            action: CLIENT_TV_INFO_ACTION,
+            target_id: user_id,
+            target_table: CLIENT_TV_INFO_TARGET,
+            details: info,
+            created_at: nowIso,
+          });
+          if (insertInfoError) throw new Error(insertInfoError.message);
+        }
+
+        try {
+          await sendRealtimeBroadcast(supabaseAdmin, `wmcplayer-client-${user_id}`, "client-tv-info-updated", {
+            user_id,
+            sentAt: Date.now(),
+            info,
+          });
+        } catch (broadcastError) {
+          console.warn(
+            "Dados informativos salvos, mas não foi possível avisar o cliente em tempo real:",
+            broadcastError instanceof Error ? broadcastError.message : String(broadcastError),
+          );
+        }
+
+        result = { success: true, info };
+        break;
+      }
       case "update_profile": {
         // Fetch current profile to detect actual status changes
         const { data: currentProfile } = await supabaseAdmin
@@ -2296,14 +2399,17 @@ Deno.serve(async (req) => {
         throw new Error("Ação desconhecida: " + action);
     }
 
-    // Audit log
-    await supabaseAdmin.from("admin_audit_logs").insert({
-      admin_id: caller.id,
-      action,
-      target_table: "profiles",
-      target_id: user_id,
-      details: data || {},
-    });
+    // Audit log geral. Os dados informativos da TV já possuem um registro próprio
+    // e podem conter senha; por isso não são duplicados no histórico comum.
+    if (action !== "get_client_tv_info" && action !== "update_client_tv_info") {
+      await supabaseAdmin.from("admin_audit_logs").insert({
+        admin_id: caller.id,
+        action,
+        target_table: "profiles",
+        target_id: user_id,
+        details: data || {},
+      });
+    }
 
     const financeActions = new Set([
       "update_profile",
