@@ -1,0 +1,33 @@
+CORRECAO: LOGOTIPOS OFICIAIS DOS APLICATIVOS DA TV
+
+BASE USADA:
+bitziptv1-bloqueio-navegador-mobile-pwa-corrigido.zip
+
+ALTERACOES:
+- Max Player usa exclusivamente o logotipo enviado pelo administrador.
+- Blessed Player usa exclusivamente o logotipo enviado pelo administrador.
+- Smarters PRO / IPTV Smarters usa exclusivamente o logotipo enviado pelo administrador.
+- Assist Plus usa exclusivamente o logotipo enviado pelo administrador.
+- WMCPLAYER usa exclusivamente o logotipo enviado nesta entrega na area informativa da TV.
+- A tela Minha TV nao depende mais de URL antiga ou quebrada para esses aplicativos conhecidos.
+- O seletor do painel Admin > TV > Minha TV (Info) mostra os mesmos logotipos corretos.
+- Os cards de aplicativos no painel do cliente usam os mesmos logotipos corretos.
+- Outros aplicativos continuam usando o logotipo cadastrado no painel administrativo.
+
+REGRA:
+Para os cinco aplicativos conhecidos acima, o logotipo interno correto tem prioridade sobre URLs antigas ou quebradas salvas no banco. Nenhuma credencial, login, pagamento ou servidor foi alterado.
+
+ARQUIVOS PRINCIPAIS:
+- src/lib/tvAppLogos.ts
+- src/pages/IptvInfoPage.tsx
+- src/pages/admin/iptv/ClientTvInfoEditor.tsx
+- src/pages/ClientDashboard.tsx
+- src/assets/app-max-player.png
+- src/assets/app-blessed-player.png
+- src/assets/app-smarters-pro.png
+- src/assets/app-assist-plus.png
+- src/assets/app-wmcplayer.png
+
+PUBLICACAO:
+Execute ATUALIZAR_GITHUB_AGORA.bat.
+Nao precisa executar SQL nem publicar Edge Functions.

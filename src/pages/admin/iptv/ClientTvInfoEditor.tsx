@@ -23,6 +23,7 @@ import {
   normalizeClientTvInfo,
 } from "@/lib/clientTvInfo";
 import { useAppBranding } from "@/hooks/useAppBranding";
+import { resolveTvAppLogo } from "@/lib/tvAppLogos";
 
 type Props = {
   user: any;
@@ -49,11 +50,11 @@ export function ClientTvInfoEditor({ user, tvApps }: Props) {
   const appOptions = useMemo(() => {
     const officialName = String(appName || "WMCPLAYER").trim();
     const rows = [
-      { id: "official", name: officialName, icon: String(faviconUrl || "").trim() },
+      { id: "official", name: officialName, icon: resolveTvAppLogo(officialName, faviconUrl) },
       ...(Array.isArray(tvApps) ? tvApps : []).map((item) => ({
         id: String(item.id || item.name),
         name: String(item.name || "").trim(),
-        icon: String(item.icon || item.logo_url || item.icon_url || "").trim(),
+        icon: resolveTvAppLogo(item.name, item.icon || item.logo_url || item.icon_url),
       })),
     ];
 
@@ -109,7 +110,7 @@ export function ClientTvInfoEditor({ user, tvApps }: Props) {
     setForm((current) => ({
       ...current,
       tv_app_name: value,
-      tv_app_logo_url: selected?.icon || "",
+      tv_app_logo_url: resolveTvAppLogo(value, selected?.icon),
     }));
   };
 
@@ -208,7 +209,7 @@ export function ClientTvInfoEditor({ user, tvApps }: Props) {
   };
 
   const selectedApp = appOptions.find((item) => item.name === form.tv_app_name);
-  const selectedAppLogo = selectedApp?.icon || form.tv_app_logo_url;
+  const selectedAppLogo = resolveTvAppLogo(form.tv_app_name, selectedApp?.icon || form.tv_app_logo_url);
 
   if (loading) {
     return (

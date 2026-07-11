@@ -41,11 +41,8 @@ import {
   toBrazilDateOnlyString,
   toDateOnlyString,
 } from "@/lib/billing";
+import { resolveTvAppLogo } from "@/lib/tvAppLogos";
 
-import appAssistPlus from "@/assets/app-assist-plus.webp";
-import appBlessedPlayer from "@/assets/app-blessed-player.png";
-import appMaxPlayer from "@/assets/app-max-player.png";
-import appSmarters from "@/assets/app-smarters-pro.png";
 
 declare const __BUILD_TIMESTAMP__: number;
 
@@ -167,21 +164,8 @@ const syncCurrentAppVersion = async () => {
   return calculateAndStoreAppVersion(buildId);
 };
 
-const APP_LOGO_MAP: Record<string, string> = {
-  "assist plus": appAssistPlus,
-  "blessed player": appBlessedPlayer,
-  "max player": appMaxPlayer,
-  "smarters pro": appSmarters,
-};
-
-const getAppLogoSrc = (appName: string | undefined): string | null => {
-  if (!appName) return null;
-  const key = appName.toLowerCase().trim();
-  for (const [k, v] of Object.entries(APP_LOGO_MAP)) {
-    if (key.includes(k)) return v;
-  }
-  return null;
-};
+const getAppLogoSrc = (appName: string | undefined): string | null =>
+  resolveTvAppLogo(appName) || null;
 
 const SYSTEM_STATUS_MAP: Record<string, { label: string; color: string; dotColor: string; pulse?: boolean }> = {
   active: { label: "Online", color: "text-emerald-400", dotColor: "bg-emerald-400", pulse: true },
@@ -865,7 +849,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
           const normalizedAppName = appNameValue.trim().toLowerCase();
           const isOfficial = !!app.isOfficialWmcflix;
           const isActive = normalizedUserApp === normalizedAppName || (isOfficial && normalizedUserApp === "wmcflix");
-          const logo = isOfficial ? logoUrl : getAppLogoSrc(appNameValue);
+          const logo = resolveTvAppLogo(appNameValue, isOfficial ? logoUrl : app.logoUrl || app.icon || app.logo_url || app.icon_url);
 
           return (
             <div
@@ -888,7 +872,7 @@ function TvAppIcons({ tvApps, userApp }: { tvApps: any[]; userApp: string | unde
         {visibleTvApps.length === 0 && userApp && (
           <div className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1.5 text-xs text-red-300 font-medium">
             {(() => {
-              const logo = normalizedUserApp === "wmcflix" ? logoUrl : getAppLogoSrc(userApp);
+              const logo = resolveTvAppLogo(userApp, normalizedUserApp === "wmcflix" ? logoUrl : undefined);
               return logo ? (
                 <img src={logo} alt={userApp} className="h-4 w-4 rounded-full object-contain bg-black" />
               ) : (

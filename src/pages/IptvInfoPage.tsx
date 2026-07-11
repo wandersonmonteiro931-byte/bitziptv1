@@ -32,6 +32,7 @@ import {
   getYoutubeEmbedUrl,
   normalizeClientTvInfo,
 } from "@/lib/clientTvInfo";
+import { resolveTvAppLogo } from "@/lib/tvAppLogos";
 
 function CopyValueButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -158,6 +159,7 @@ const IptvInfoPage = () => {
 
   const firstName = String(user?.name || "cliente").trim().split(/\s+/)[0] || "cliente";
   const supportHref = useMemo(() => getWhatsAppHref(info.support_whatsapp), [info.support_whatsapp]);
+  const tvAppLogo = useMemo(() => resolveTvAppLogo(info.tv_app_name, info.tv_app_logo_url), [info.tv_app_name, info.tv_app_logo_url]);
   const youtubeVideos = useMemo(
     () =>
       info.tutorial_youtube_urls
@@ -260,8 +262,8 @@ const IptvInfoPage = () => {
 
               <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-white/8 bg-black/60 p-5 text-center sm:flex-row sm:text-left">
                 <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-red-500/25 bg-black p-2">
-                  {info.tv_app_logo_url ? (
-                    <img src={info.tv_app_logo_url} alt={info.tv_app_name || "Aplicativo da TV"} className="h-full w-full object-contain" />
+                  {tvAppLogo ? (
+                    <img src={tvAppLogo} alt={info.tv_app_name || "Aplicativo da TV"} className="h-full w-full object-contain" />
                   ) : (
                     <Tv size={36} className="text-red-400" />
                   )}
