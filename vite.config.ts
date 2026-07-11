@@ -69,6 +69,7 @@ function writeVersionFile(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/app/",
   define: {
     __BUILD_TIMESTAMP__: JSON.stringify(BUILD_TIMESTAMP),
   },
@@ -83,6 +84,8 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
+      base: "/app/",
+      scope: "/app/",
       strategies: "generateSW",
       registerType: "prompt",
       includeAssets: [
@@ -94,8 +97,8 @@ export default defineConfig(({ mode }) => ({
       ],
       workbox: {
         cleanupOutdatedCaches: true,
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/version\.json/, /^\/manifest\.webmanifest/],
+        navigateFallback: "/app/index.html",
+        navigateFallbackDenylist: [/^\/~oauth/, /^\/app\/version\.json/, /^\/app\/manifest\.webmanifest/],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2}"],
         globIgnores: ["**/push-sw.js", "**/service-worker.js"],
         runtimeCaching: [

@@ -18,6 +18,6 @@ PUBLICAÇÃO:
 1. Execute ATUALIZAR_GITHUB_AGORA.bat.
 2. Aguarde o Cloudflare concluir.
 3. Para forçar o WhatsApp a criar uma prévia nova imediatamente, compartilhe uma vez:
-   https://wmcplayer-clientes-apk.pages.dev/?v=wmcplayer-share-20260710
+   https://wmcplayer.pages.dev/app/?v=wmcplayer-share-20260710
 
 Depois que o cache do WhatsApp atualizar, o endereço normal também mostrará a imagem nova.

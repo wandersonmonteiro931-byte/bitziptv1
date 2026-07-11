@@ -1,0 +1,41 @@
+WMCPLAYER - APLICATIVO DE PAGAMENTOS PARA ANDROID
+
+Este projeto Android abre o aplicativo publicado em:
+https://wmcplayer.pages.dev/app/
+
+Tecnologia:
+Trusted Web Activity oficial do Android/Chrome.
+
+Compatibilidade de compilação:
+- Android Gradle Plugin 8.10.1;
+- Gradle 8.11.1;
+- compileSdk 36;
+- targetSdk 35;
+- JDK 17.
+
+Vantagens:
+- usa a mesma tela publicada no site;
+- recebe atualizações do site sem recriar as telas;
+- mantém login, Service Worker e notificações Web Push;
+- não cria um segundo sistema separado;
+- não usa polling.
+
+COMO TESTAR NO ANDROID STUDIO
+
+1. Publique primeiro a pasta 3_SITE_CLIENTE_PUBLICO no Cloudflare Pages.
+2. Confirme que abre: https://wmcplayer.pages.dev/app/
+3. Abra esta pasta android-wmcplayer-clientes no Android Studio.
+4. Aguarde a sincronização do Gradle.
+5. Conecte o celular com Depuração USB.
+6. Execute GERAR_E_INSTALAR_DEBUG.bat ou use o botão Run do Android Studio.
+
+O APK de teste será criado em:
+app\build\outputs\apk\debug\app-debug.apk
+
+ASSINATURA
+
+O projeto inclui somente uma chave DEBUG de teste para permitir a associação
+com wmcplayer.pages.dev durante o desenvolvimento. Não publique essa chave como
+assinatura definitiva na Play Store. A versão de produção deverá receber uma
+chave privada própria e o novo SHA-256 deverá ser acrescentado em:
+3_SITE_CLIENTE_PUBLICO\.well-known\assetlinks.json

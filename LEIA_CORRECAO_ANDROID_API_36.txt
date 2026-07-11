@@ -1,0 +1,21 @@
+WMCPLAYER CLIENTES V1.0.1 - CORRECAO ANDROID API 36
+
+Erro corrigido:
+androidx.browser 1.10.0 e androidx.core 1.17.0 exigem compilação com API 36
+e Android Gradle Plugin compatível.
+
+Versões finais:
+- Android Gradle Plugin: 8.10.1
+- Gradle Wrapper: 8.11.1
+- compileSdk: 36
+- targetSdk: 35
+- versionCode: 2
+- versionName: 1.0.1
+
+Se o Android Studio solicitar o Android SDK 36, abra o SDK Manager e instale:
+Android 16.0 (API 36) - SDK Platform.
+
+Depois execute:
+
+Set-Location "C:\Users\wande\Desktop\ANDROID STUDIO\WMCPLAYER CLIENTES"
+.\gradlew.bat clean :app:installDebug

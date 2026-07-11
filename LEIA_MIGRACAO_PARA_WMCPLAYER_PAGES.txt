@@ -1,0 +1,22 @@
+WMCPLAYER - MIGRACAO DO APLICATIVO DE PAGAMENTOS
+
+Novo endereco oficial:
+https://wmcplayer.pages.dev/app/
+
+O endereço antigo wmcplayer-clientes-apk.pages.dev deixa de ser necessário
+depois que a nova pasta do site central for publicada.
+
+Nesta etapa foram alterados somente hospedagem, PWA e empacotamento Android.
+O sistema de pagamentos continua usando o Supabase atual. A migração dos dados
+para o Worker/D1 do site central deve ser feita em uma etapa separada e segura.
+
+PUBLICACAO
+
+1. Publique no projeto wmcplayer do Cloudflare Pages a pasta completa
+   3_SITE_CLIENTE_PUBLICO entregue junto com esta versão.
+2. Como app-manifest foi alterada, execute também
+   CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat para publicar a Edge Function.
+3. Não publique este frontend na raiz do endereço antigo. A compilação correta
+   já está dentro de 3_SITE_CLIENTE_PUBLICO\app.
+
+Não é necessário executar SQL nesta etapa.

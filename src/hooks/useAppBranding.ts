@@ -16,9 +16,9 @@ export const APP_BRANDING_EVENT = "app-branding-updated";
 export const APP_MANIFEST_ENDPOINT =
   "https://vywtzzrvpdjqpcnixskz.supabase.co/functions/v1/app-manifest";
 
-const DEFAULT_LOGO = "/wmcplayer-icon-512-v3.png";
+const DEFAULT_LOGO = "/app/wmcplayer-icon-512-v3.png";
 const SOCIAL_SHARE_IMAGE_URL =
-  "https://wmcplayer-clientes-apk.pages.dev/wmcplayer-share-20260710.png";
+  "https://wmcplayer.pages.dev/app/wmcplayer-share-20260710.png";
 
 const DEFAULT_BRANDING: AppBranding = {
   appName: "WMCPLAYER",
@@ -163,7 +163,7 @@ export const buildDynamicManifest = (brandingInput: AppBranding) => {
       : DEFAULT_LOGO;
 
   return {
-    id: "/",
+    id: "/app/",
     name: branding.appName,
     short_name: branding.appShortName,
     description: branding.appDescription,
@@ -172,8 +172,8 @@ export const buildDynamicManifest = (brandingInput: AppBranding) => {
     display: "standalone",
     display_override: ["standalone", "fullscreen"],
     orientation: "any",
-    start_url: "/?source=pwa",
-    scope: "/",
+    start_url: "/app/?source=pwa",
+    scope: "/app/",
     categories: ["entertainment", "utilities"],
     icons: [
       manifestIcon(iconUrl, "192x192", "any"),

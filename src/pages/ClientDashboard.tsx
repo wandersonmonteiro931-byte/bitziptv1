@@ -146,7 +146,7 @@ const syncCurrentAppVersion = async () => {
   let buildId = getLocalBuildId();
 
   try {
-    const response = await fetch(`/version.json?t=${Date.now()}`, {
+    const response = await fetch(`/app/version.json?t=${Date.now()}`, {
       cache: "no-store",
       headers: {
         "Cache-Control": "no-cache",

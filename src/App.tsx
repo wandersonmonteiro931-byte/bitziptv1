@@ -63,7 +63,7 @@ const App = () => (
         <SplashScreen>
         <InstallGate>
         <NotificationGate>
-        <BrowserRouter>
+        <BrowserRouter basename="/app">
           <Routes>
             <Route path="/" element={<HomeRedirect />} />
             <Route path="/login" element={<LoginPage />} />

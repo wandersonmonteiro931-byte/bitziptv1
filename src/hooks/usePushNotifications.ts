@@ -29,8 +29,8 @@ export function usePushNotifications(userId: string | undefined) {
         const authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
         const registration =
-          (await navigator.serviceWorker.getRegistration("/")) ||
-          (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+          (await navigator.serviceWorker.getRegistration("/app/")) ||
+          (await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" }));
 
         await registration.update().catch(() => undefined);
         await navigator.serviceWorker.ready;

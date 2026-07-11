@@ -42,7 +42,7 @@ export function PWAUpdatePrompt() {
     setErrorMessage("");
 
     try {
-      const response = await fetch(`/version.json?t=${Date.now()}`, {
+      const response = await fetch(`/app/version.json?t=${Date.now()}`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
       });
@@ -89,7 +89,7 @@ export function PWAUpdatePrompt() {
     setErrorMessage("");
 
     try {
-      const registration = await navigator.serviceWorker?.getRegistration("/");
+      const registration = await navigator.serviceWorker?.getRegistration("/app/");
       await registration?.update().catch(() => undefined);
       await updateServiceWorker(true);
 

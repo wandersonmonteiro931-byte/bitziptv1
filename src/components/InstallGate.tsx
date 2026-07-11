@@ -25,8 +25,8 @@ async function ensurePwaAssetsReady() {
   if (!("serviceWorker" in navigator)) return;
 
   try {
-    const existing = await navigator.serviceWorker.getRegistration("/");
-    const registration = existing || (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+    const existing = await navigator.serviceWorker.getRegistration("/app/");
+    const registration = existing || (await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" }));
     await registration.update().catch(() => undefined);
     await navigator.serviceWorker.ready;
   } catch {

@@ -1,9 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SITE_ORIGIN = "https://wmcplayer-clientes-apk.pages.dev";
-const DEFAULT_ICON_192 = `${SITE_ORIGIN}/wmcplayer-icon-192-v3.png`;
-const DEFAULT_ICON_512 = `${SITE_ORIGIN}/wmcplayer-icon-512-v3.png`;
-const DEFAULT_MASKABLE_512 = `${SITE_ORIGIN}/wmcplayer-maskable-512-v3.png`;
+const SITE_ORIGIN = "https://wmcplayer.pages.dev";
+const APP_PATH = "/app";
+const APP_ORIGIN = `${SITE_ORIGIN}${APP_PATH}`;
+const DEFAULT_ICON_192 = `${APP_ORIGIN}/wmcplayer-icon-192-v3.png`;
+const DEFAULT_ICON_512 = `${APP_ORIGIN}/wmcplayer-icon-512-v3.png`;
+const DEFAULT_MASKABLE_512 = `${APP_ORIGIN}/wmcplayer-maskable-512-v3.png`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +114,7 @@ Deno.serve(async (req) => {
       ];
 
   const manifest = {
-    id: `${SITE_ORIGIN}/`,
+    id: `${APP_ORIGIN}/`,
     name: appName,
     short_name: shortName,
     description,
@@ -123,8 +125,8 @@ Deno.serve(async (req) => {
     display: "standalone",
     display_override: ["standalone", "fullscreen"],
     orientation: "any",
-    start_url: `${SITE_ORIGIN}/?source=pwa`,
-    scope: `${SITE_ORIGIN}/`,
+    start_url: `${APP_ORIGIN}/?source=pwa`,
+    scope: `${APP_ORIGIN}/`,
     categories: ["entertainment", "utilities"],
     prefer_related_applications: false,
     icons,
@@ -133,14 +135,14 @@ Deno.serve(async (req) => {
         name: "Início",
         short_name: "Início",
         description: "Abrir início do aplicativo",
-        url: `${SITE_ORIGIN}/dashboard`,
+        url: `${APP_ORIGIN}/dashboard`,
         icons: [icons[0]],
       },
       {
         name: "AO VIVO",
         short_name: "AO VIVO",
         description: "Abrir TV ao vivo",
-        url: `${SITE_ORIGIN}/tv-guide`,
+        url: `${APP_ORIGIN}/tv-guide`,
         icons: [icons[0]],
       },
     ],

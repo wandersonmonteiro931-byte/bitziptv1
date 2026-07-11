@@ -1,7 +1,7 @@
 // PUSH NOTIFICATION HANDLERS
 // WMCPLAYER: ícone oficial fixo, sem logotipo antigo/cache Bitz.
-var DEFAULT_PUSH_ICON = "/wmcplayer-icon-512-v3.png";
-var DEFAULT_PUSH_BADGE = "/wmcplayer-icon-192-v3.png";
+var DEFAULT_PUSH_ICON = "/app/wmcplayer-icon-512-v3.png";
+var DEFAULT_PUSH_BADGE = "/app/wmcplayer-icon-192-v3.png";
 
 var APP_BRANDING_CACHE = {
   appName: "WMCPLAYER",
@@ -13,7 +13,7 @@ var APP_BRANDING_CACHE = {
 
 
 var BRANDING_CACHE_NAME = "wmcplayer-branding-v1";
-var BRANDING_CACHE_KEY = "/__wmcplayer_branding__";
+var BRANDING_CACHE_KEY = "/app/__wmcplayer_branding__";
 
 async function persistBrandingCache() {
   try {
@@ -114,7 +114,7 @@ self.addEventListener("push", function (event) {
         icon: icon,
         badge: badge,
         image: isUsableNotificationImage(data.image) ? data.image.trim() : undefined,
-        data: data.data || { url: data.url || "/" },
+        data: data.data || { url: data.url || "/app/" },
         vibrate: [120, 60, 120],
         requireInteraction: !!data.requireInteraction,
         silent: false,
@@ -128,10 +128,10 @@ self.addEventListener("push", function (event) {
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
 
-  var targetUrl = "/";
+  var targetUrl = "/app/";
   try {
     targetUrl =
-      (event.notification.data && (event.notification.data.url || event.notification.data.click_action)) || "/";
+      (event.notification.data && (event.notification.data.url || event.notification.data.click_action)) || "/app/";
   } catch (e) {}
 
   event.waitUntil(

@@ -234,7 +234,7 @@ echo  PRONTO! FUNCOES DO PIX PUBLICADAS NO SUPABASE NOVO.
 echo ==========================================================
 echo.
 echo Agora teste novamente no site:
-echo https://wmcplayer-clientes-apk.pages.dev/dashboard
+echo https://wmcplayer.pages.dev/app/dashboard
 echo.
 echo.
 echo PASSO FINAL OBRIGATORIO PARA RECUPERAR PIX JA PAGO:
