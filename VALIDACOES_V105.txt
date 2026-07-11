@@ -1,0 +1,37 @@
+WMCPLAYER V105 - VALIDACOES EXECUTADAS
+
+BASE OFICIAL DO APLICATIVO
+- WMCPLAYER_V104_INSTALACAO_PWA_DIRETA_UMA_TELA_PACOTE_COMPLETO.zip
+
+ESTRUTURA DO GITHUB PRESERVADA A PARTIR DO ZIP ENVIADO
+- bitziptv1-wmcplayer-pages-apk-android-v92-api36(1).zip
+- Usado somente para preservar a pasta Android, BATs auxiliares, documentos historicos e a Edge Function app-manifest.
+- Os arquivos do aplicativo foram sobrescritos pela base V104 mais recente.
+
+VALIDACOES APROVADAS
+- npm ci: concluido.
+- npm run build: concluido.
+- Auditoria: 124 arquivos verificados.
+- Supabase Realtime no front-end: 1 canal.
+- Verificacao de variaveis antes da inicializacao: aprovada.
+- Build do redirecionamento antigo: aprovado.
+- npm run build:app: concluido com 3052 modulos processados.
+- PWA da fonte preservada: 21 entradas no precache.
+- npx tsc --noEmit: aprovado sem erros.
+- Testes automatizados: 10 de 10 aprovados.
+- Sintaxe do script de build: aprovada.
+- Sintaxe do Service Worker de desativacao: aprovada.
+- Regras do arquivo _redirects: aprovadas.
+- Arquivos BAT: sem UTF-8 BOM e com quebra de linha CRLF.
+- Nenhum arquivo .env, token fixo, certificado Efí ou service-role foi incluido no pacote.
+- Nenhum arquivo de icone v3 ou logo-bitz.jpg permanece no pacote.
+- Nenhum polling de rede foi adicionado.
+
+NAO EXECUTADO
+- Push real para o GitHub.
+- Deployment real no Cloudflare.
+- Teste em aparelho Android ou iPhone apos a publicacao.
+
+BANCO E FUNCOES
+- Nao precisa executar SQL.
+- Nao precisa publicar Edge Functions para esta alteracao.

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="application-name" content="WMCPLAYER">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="WMCPLAYER">
+  <title>Instalar WMCPLAYER</title>
+  <link rel="manifest" href="/app/manifest.webmanifest?v=104">
+  <link rel="icon" href="/app/wmcplayer-favicon-v4.ico" sizes="any">
+  <link rel="icon" href="/app/wmcplayer-icon-192-v4.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/app/wmcplayer-apple-touch-v4.png">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    [hidden]{display:none!important}
+    .install-direct-note{margin:22px 0 10px;color:rgba(255,255,255,.72);font-size:1rem;line-height:1.65}
+    .install-status{min-height:24px;margin:16px 0 0;text-align:center;color:rgba(255,255,255,.66);font-size:.92rem;line-height:1.5}
+    .install-status.success{color:#86efac}
+    .install-status.warning{color:#fca5a5}
+    .install-main-button[disabled]{opacity:.62;cursor:wait}
+    .installed-box{margin-top:18px;padding:16px;border:1px solid rgba(34,197,94,.34);border-radius:16px;background:rgba(34,197,94,.10);color:#bbf7d0;text-align:center;font-weight:700;line-height:1.5}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="/"><img src="/assets/logo-header.png" alt="WMCPLAYER"></a>
+      <nav class="nav">
+        <a href="/">Início</a>
+        <a href="/ativar.html">Ativar TV</a>
+        <a href="/suporte.html">Suporte</a>
+      </nav>
+    </header>
+
+    <main class="page-main">
+      <section class="page-hero-small app-install-hero">
+        <p class="eyebrow">Aplicativo oficial</p>
+        <h1>WMCPLAYER no seu aparelho</h1>
+        <p class="muted">Mostramos automaticamente somente a opção correta para este aparelho.</p>
+      </section>
+
+      <section class="content-card platform-content-card">
+        <div id="platformLoading" class="platform-detection-message">Identificando seu aparelho...</div>
+
+        <article id="androidSection" class="install-card platform-card-single" hidden>
+          <div class="install-platform">ANDROID</div>
+          <h2>Instalar aplicativo WMCPLAYER</h2>
+          <p class="install-direct-note">
+            Toque no botão abaixo. A confirmação oficial do Google Chrome será aberta diretamente nesta tela.
+          </p>
+          <button class="btn red install-main-button" id="androidInstallButton" type="button">
+            Instalar aplicativo
+          </button>
+          <p id="androidInstallStatus" class="install-status" aria-live="polite">
+            Toque uma vez para abrir a instalação.
+          </p>
+          <div id="androidInstalledBox" class="installed-box" hidden>
+            Aplicativo instalado. Feche o navegador e abra o ícone WMCPLAYER criado na tela inicial.
+          </div>
+        </article>
+
+        <article id="iosSection" class="install-card platform-card-single" hidden>
+          <div class="install-platform">IPHONE E IPAD</div>
+          <h2>Adicionar à Tela de Início</h2>
+          <p>O iPhone não permite abrir a confirmação automática. Faça diretamente pelo Safari:</p>
+          <ol class="install-steps">
+            <li>Toque no botão Compartilhar do Safari.</li>
+            <li>Escolha “Adicionar à Tela de Início”.</li>
+            <li>Confirme em “Adicionar”.</li>
+            <li>Abra o ícone WMCPLAYER criado na tela inicial.</li>
+          </ol>
+        </article>
+
+        <article id="desktopSection" class="install-card platform-card-single desktop-device-card" hidden>
+          <div class="install-platform">COMPUTADOR</div>
+          <h2>Acessar o mesmo aplicativo</h2>
+          <p>No computador, o sistema funciona diretamente no navegador.</p>
+          <a class="btn red install-main-button" href="/app/">Abrir aplicativo na web</a>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p class="footer-phone">Dúvidas? Ligue para <a href="tel:+5562995657915">(62) 99565-7915</a></p>
+      <div class="footer-links">
+        <a href="/perguntas-frequentes.html">Perguntas frequentes</a>
+        <a href="/ajuda.html">Central de Ajuda</a>
+        <a href="/privacidade.html">Privacidade</a>
+        <a href="/contato.html">Entre em contato</a>
+      </div>
+      <p class="footer-country">WMCPLAYER Brasil</p>
+    </div>
+  </footer>
+
+  <script>
+    (function configurarInstalacaoDireta() {
+      var ua = navigator.userAgent || "";
+      var platform = navigator.platform || "";
+      var touch = navigator.maxTouchPoints || 0;
+      var android = /Android/i.test(ua);
+      var ipadDesktop = /MacIntel/i.test(platform) && touch > 1;
+      var ios = /iPhone|iPad|iPod/i.test(ua) || ipadDesktop;
+      var standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+      var deferredPrompt = null;
+      var promptInProgress = false;
+      var button = document.getElementById("androidInstallButton");
+      var status = document.getElementById("androidInstallStatus");
+      var installedBox = document.getElementById("androidInstalledBox");
+
+      document.getElementById("platformLoading").hidden = true;
+      document.getElementById(android ? "androidSection" : ios ? "iosSection" : "desktopSection").hidden = false;
+
+      if (standalone) {
+        window.location.replace("/app/?source=pwa");
+        return;
+      }
+
+      function updateStatus(message, type) {
+        if (!status) return;
+        status.textContent = message || "";
+        status.className = "install-status" + (type ? " " + type : "");
+      }
+
+      function setButtonReady() {
+        if (!button) return;
+        button.disabled = false;
+        button.textContent = "Instalar aplicativo";
+        updateStatus("Toque uma vez para abrir a confirmação de instalação.");
+      }
+
+      function showInstalled() {
+        deferredPrompt = null;
+        promptInProgress = false;
+        if (button) button.hidden = true;
+        if (status) status.hidden = true;
+        if (installedBox) installedBox.hidden = false;
+      }
+
+      async function openNativeInstall() {
+        if (!android || promptInProgress) return;
+
+        if (!deferredPrompt) {
+          updateStatus(
+            "O Google Chrome ainda não liberou a confirmação automática. Aguarde alguns segundos e toque novamente. Se o aplicativo já estiver instalado, abra o ícone WMCPLAYER na tela inicial.",
+            "warning"
+          );
+          return;
+        }
+
+        promptInProgress = true;
+        var promptEvent = deferredPrompt;
+        deferredPrompt = null;
+
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Abrindo instalação...";
+        }
+        updateStatus("Confirme em “Instalar” na janela do Google Chrome.");
+
+        try {
+          await promptEvent.prompt();
+          var choice = await promptEvent.userChoice;
+
+          if (choice && choice.outcome === "accepted") {
+            updateStatus("Instalação confirmada. Aguarde o ícone aparecer na tela inicial.", "success");
+            if (button) button.textContent = "Instalação confirmada";
+          } else {
+            promptInProgress = false;
+            if (button) {
+              button.disabled = false;
+              button.textContent = "Instalar aplicativo";
+            }
+            updateStatus("Instalação cancelada. Toque novamente quando desejar instalar.", "warning");
+          }
+        } catch (_error) {
+          promptInProgress = false;
+          if (button) {
+            button.disabled = false;
+            button.textContent = "Instalar aplicativo";
+          }
+          updateStatus(
+            "Não foi possível abrir a janela automática. No Chrome, toque nos três pontos e escolha “Instalar aplicativo”.",
+            "warning"
+          );
+        }
+      }
+
+      window.addEventListener("beforeinstallprompt", function (event) {
+        event.preventDefault();
+        deferredPrompt = event;
+        setButtonReady();
+      });
+
+      window.addEventListener("appinstalled", showInstalled);
+
+      if (button) {
+        button.addEventListener("click", openNativeInstall);
+      }
+
+      if (android && "serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/app/sw.js", { scope: "/app/" })
+          .then(function (registration) {
+            registration.update().catch(function () {});
+            return navigator.serviceWorker.ready;
+          })
+          .then(function () {
+            if (navigator.serviceWorker.controller) return;
+            if (sessionStorage.getItem("wmcplayer_install_sw_reload_v104") === "1") return;
+            sessionStorage.setItem("wmcplayer_install_sw_reload_v104", "1");
+            window.location.reload();
+          })
+          .catch(function () {
+            updateStatus(
+              "Não foi possível preparar a instalação automática. Atualize a página no Google Chrome.",
+              "warning"
+            );
+          });
+      }
+    })();
+  </script>
+</body>
+</html>

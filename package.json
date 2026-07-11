@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build-old-site-redirect.cjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "check:tdz": "node scripts/check-tdz.cjs",
     "prebuild": "npm run audit && npm run check:tdz",
-    "audit": "node scripts/audit-project.cjs"
+    "audit": "node scripts/audit-project.cjs",
+    "build:app": "vite build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -54,6 +55,8 @@
     "framer-motion": "^12.34.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
+    "motion-dom": "^12.42.2",
+    "motion-utils": "^12.39.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",

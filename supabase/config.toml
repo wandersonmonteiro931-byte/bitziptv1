@@ -20,6 +20,3 @@ verify_jwt = false
 
 [functions.push-notification]
 verify_jwt = false
-
-[functions.app-manifest]
-verify_jwt = false

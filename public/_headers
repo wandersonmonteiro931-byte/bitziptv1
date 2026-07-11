@@ -12,5 +12,8 @@
 
 /app/assets/*
   Cache-Control: public, max-age=31536000, immutable
-/app/wmcplayer-share-20260710.png
+/app/wmcplayer-share-20260711.png
   Cache-Control: public, max-age=31536000, immutable
+
+/app/install/index.html
+  Cache-Control: no-cache, no-store, must-revalidate

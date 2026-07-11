@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SITE_ORIGIN = "https://wmcplayer.pages.dev";
 const APP_PATH = "/app";
 const APP_ORIGIN = `${SITE_ORIGIN}${APP_PATH}`;
-const DEFAULT_ICON_192 = `${APP_ORIGIN}/wmcplayer-icon-192-v3.png`;
-const DEFAULT_ICON_512 = `${APP_ORIGIN}/wmcplayer-icon-512-v3.png`;
-const DEFAULT_MASKABLE_512 = `${APP_ORIGIN}/wmcplayer-maskable-512-v3.png`;
+const DEFAULT_ICON_192 = `${APP_ORIGIN}/wmcplayer-icon-192-v4.png`;
+const DEFAULT_ICON_512 = `${APP_ORIGIN}/wmcplayer-icon-512-v4.png`;
+const DEFAULT_MASKABLE_512 = `${APP_ORIGIN}/wmcplayer-maskable-512-v4.png`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -80,6 +80,13 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/app.js",
+      },
+    },
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
@@ -89,18 +96,41 @@ export default defineConfig(({ mode }) => ({
       strategies: "generateSW",
       registerType: "prompt",
       includeAssets: [
-        "wmcplayer-favicon-v3.ico",
-        "wmcplayer-icon-192-v3.png",
-        "wmcplayer-icon-512-v3.png",
-        "wmcplayer-maskable-512-v3.png",
-        "wmcplayer-apple-touch-v3.png",
+        "wmcplayer-favicon-v4.ico",
+        "wmcplayer-icon-192-v4.png",
+        "wmcplayer-icon-512-v4.png",
+        "wmcplayer-maskable-512-v4.png",
+        "wmcplayer-apple-touch-v4.png",
       ],
       workbox: {
         cleanupOutdatedCaches: true,
         navigateFallback: "/app/index.html",
-        navigateFallbackDenylist: [/^\/~oauth/, /^\/app\/version\.json/, /^\/app\/manifest\.webmanifest/],
+        navigateFallbackDenylist: [
+          /^\/~oauth/,
+          /^\/app\/install(?:\/|$)/,
+          /^\/app\/version\.json/,
+          /^\/app\/manifest\.webmanifest/,
+        ],
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,woff2}"],
-        globIgnores: ["**/push-sw.js", "**/service-worker.js"],
+        globIgnores: [
+          "**/push-sw.js",
+          "**/service-worker.js",
+          "**/_headers",
+          "**/_redirects",
+          "**/placeholder.svg",
+          "**/robots.txt",
+          "**/apple-touch-icon.png",
+          "**/favicon.ico",
+          "**/pwa-192.png",
+          "**/pwa-512.png",
+          "**/pwa-maskable-512.png",
+          "**/wmcplayer-favicon-v4.ico",
+          "**/wmcplayer-icon-192-v4.png",
+          "**/wmcplayer-icon-512-v4.png",
+          "**/wmcplayer-maskable-512-v4.png",
+          "**/wmcplayer-apple-touch-v4.png",
+          "**/assets/index-*.js",
+        ],
         runtimeCaching: [
           {
             urlPattern: /\/version\.json/,

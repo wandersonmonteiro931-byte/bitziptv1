@@ -13,12 +13,20 @@ export const APP_BRANDING_STORAGE_KEY = "wmcplayer_app_branding_v2";
 const LEGACY_WMCFLIX_APP_BRANDING_STORAGE_KEY = "wmcflix_app_branding_v2";
 const LEGACY_APP_BRANDING_STORAGE_KEY = "bitz_app_branding";
 export const APP_BRANDING_EVENT = "app-branding-updated";
-export const APP_MANIFEST_ENDPOINT =
-  "https://vywtzzrvpdjqpcnixskz.supabase.co/functions/v1/app-manifest";
+export const APP_MANIFEST_ENDPOINT = "/app/manifest.webmanifest";
 
-const DEFAULT_LOGO = "/app/wmcplayer-icon-512-v3.png";
+const DEFAULT_LOGO = "/app/wmcplayer-icon-512-v4.png";
 const SOCIAL_SHARE_IMAGE_URL =
-  "https://wmcplayer.pages.dev/app/wmcplayer-share-20260710.png";
+  "https://wmcplayer.pages.dev/app/wmcplayer-share-20260711.png";
+
+const LEGACY_LOCAL_ICON_PATTERN =
+  /(?:wmcplayer-(?:icon-(?:192|512)-v3|maskable-512-v3|apple-touch-v3|favicon-v3)\.(?:png|ico))(?:[?#].*)?$/i;
+
+const replaceLegacyLocalIcon = (value: unknown, fallback = DEFAULT_LOGO) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return fallback;
+  return LEGACY_LOCAL_ICON_PATTERN.test(text) ? DEFAULT_LOGO : text;
+};
 
 const DEFAULT_BRANDING: AppBranding = {
   appName: "WMCPLAYER",
@@ -47,9 +55,12 @@ export const normalizeAppBranding = (row?: any): AppBranding => {
     row?.app_description ?? row?.appDescription,
     `${appName} - Programa Oficial de Fidelidade`,
   );
-  const logoUrl = textOrDefault(row?.app_logo_url ?? row?.logoUrl, DEFAULT_BRANDING.logoUrl);
-  const faviconUrl = textOrDefault(
-    row?.app_favicon_url ?? row?.faviconUrl,
+  const logoUrl = replaceLegacyLocalIcon(
+    textOrDefault(row?.app_logo_url ?? row?.logoUrl, DEFAULT_BRANDING.logoUrl),
+    DEFAULT_BRANDING.logoUrl,
+  );
+  const faviconUrl = replaceLegacyLocalIcon(
+    textOrDefault(row?.app_favicon_url ?? row?.faviconUrl, logoUrl || DEFAULT_BRANDING.faviconUrl),
     logoUrl || DEFAULT_BRANDING.faviconUrl,
   );
 
@@ -201,7 +212,7 @@ const fingerprintBranding = (brandingInput: AppBranding) => {
 };
 
 export const getAppManifestUrl = (brandingInput?: AppBranding) => {
-  if (!brandingInput) return `${APP_MANIFEST_ENDPOINT}?v=admin`;
+  if (!brandingInput) return APP_MANIFEST_ENDPOINT;
   return `${APP_MANIFEST_ENDPOINT}?v=${fingerprintBranding(brandingInput)}`;
 };
 
@@ -217,7 +228,7 @@ export const updateManifest = (brandingInput: AppBranding) => {
     document.head.appendChild(manifestLink);
   }
 
-  manifestLink.crossOrigin = "anonymous";
+  manifestLink.removeAttribute("crossorigin");
   manifestLink.href = getAppManifestUrl(branding);
   manifestLink.dataset.dynamicBranding = "admin";
   manifestLink.dataset.appName = branding.appName;

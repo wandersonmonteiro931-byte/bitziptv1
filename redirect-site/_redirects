@@ -1,0 +1,8 @@
+# Entrega o Service Worker de desativacao antes do redirecionamento geral.
+/sw.js /desativar-sw.js 200
+/service-worker.js /desativar-sw.js 200
+/app/sw.js /desativar-sw.js 200
+/app/service-worker.js /desativar-sw.js 200
+
+# Todo acesso ao dominio antigo vai direto para a instalacao oficial.
+/* https://wmcplayer.pages.dev/aplicativo/ 302

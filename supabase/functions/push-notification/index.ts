@@ -6,13 +6,26 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const DEFAULT_PUSH_ICON = "/wmcplayer-icon-512-v3.png";
-const DEFAULT_PUSH_BADGE = "/wmcplayer-icon-192-v3.png";
+const DEFAULT_PUSH_ICON = "/app/wmcplayer-icon-512-v4.png";
+const DEFAULT_PUSH_BADGE = "/app/wmcplayer-icon-192-v4.png";
 
 function isOldBitzIcon(value: unknown): boolean {
   if (typeof value !== "string") return false;
   const lower = value.toLowerCase();
   return lower.includes("bitz") || lower.includes("logo-bitz") || lower.includes("bitziptv");
+}
+
+function isLegacyWmcplayerIcon(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return /(?:wmcplayer-(?:icon-(?:192|512)-v3|maskable-512-v3|apple-touch-v3|favicon-v3)\.(?:png|ico))(?:[?#].*)?$/i.test(
+    value.trim(),
+  );
+}
+
+function normalizePushIcon(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim();
+  return isLegacyWmcplayerIcon(normalized) ? fallback : normalized;
 }
 
 function isImageIcon(value: unknown): value is string {
@@ -36,12 +49,14 @@ async function getPushBranding(supabaseAdmin: any) {
       .maybeSingle();
 
     const icon = isImageIcon(data?.app_favicon_url)
-      ? data.app_favicon_url.trim()
+      ? normalizePushIcon(data.app_favicon_url, DEFAULT_PUSH_ICON)
       : isImageIcon(data?.app_logo_url)
-        ? data.app_logo_url.trim()
+        ? normalizePushIcon(data.app_logo_url, DEFAULT_PUSH_ICON)
         : DEFAULT_PUSH_ICON;
 
-    const badge = isImageIcon(data?.app_favicon_url) ? data.app_favicon_url.trim() : DEFAULT_PUSH_BADGE;
+    const badge = isImageIcon(data?.app_favicon_url)
+      ? normalizePushIcon(data.app_favicon_url, DEFAULT_PUSH_BADGE)
+      : DEFAULT_PUSH_BADGE;
 
     return {
       appName: String(data?.app_name || data?.app_short_name || "WMCPLAYER"),
@@ -65,8 +80,12 @@ function buildPushPayload(input: {
   url?: string;
   branding: { appName: string; icon: string; badge: string };
 }) {
-  const icon = isImageIcon(input.icon) ? input.icon.trim() : input.branding.icon || DEFAULT_PUSH_ICON;
-  const badge = isImageIcon(input.badge) ? input.badge.trim() : input.branding.badge || DEFAULT_PUSH_BADGE;
+  const icon = isImageIcon(input.icon)
+    ? normalizePushIcon(input.icon, DEFAULT_PUSH_ICON)
+    : input.branding.icon || DEFAULT_PUSH_ICON;
+  const badge = isImageIcon(input.badge)
+    ? normalizePushIcon(input.badge, DEFAULT_PUSH_BADGE)
+    : input.branding.badge || DEFAULT_PUSH_BADGE;
 
   return JSON.stringify({
     title: input.title || input.branding.appName || "WMCPLAYER",

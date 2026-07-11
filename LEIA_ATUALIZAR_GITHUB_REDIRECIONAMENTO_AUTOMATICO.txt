@@ -1,0 +1,28 @@
+WMCPLAYER V105 - ATUALIZAR GITHUB E REDIRECIONAR DOMINIO ANTIGO
+
+Este pacote foi preparado para o repositorio:
+https://github.com/wandersonmonteiro931-byte/bitziptv1.git
+
+O projeto Cloudflare Pages wmcplayer-clientes-apk esta conectado a esse GitHub.
+Nao envie arquivos manualmente pelo painel do Cloudflare.
+
+COMO PUBLICAR
+
+1. Extraia este ZIP completo.
+2. Abra a pasta bitziptv1-main.
+3. Clique duas vezes em ATUALIZAR_GITHUB_AGORA.bat.
+4. Aguarde a mensagem de sucesso.
+5. O Cloudflare iniciara automaticamente um novo deployment ao receber o commit na branch main.
+
+NOVO DIRECIONAMENTO
+
+Qualquer endereco antigo, inclusive /app e /app/install, redireciona automaticamente para:
+https://wmcplayer.pages.dev/aplicativo/
+
+Essa pagina oficial identifica Android, iPhone, iPad ou computador e mostra somente a opcao correta.
+
+O build do projeto antigo gera somente os arquivos de redirecionamento na pasta dist.
+O codigo-fonte completo V104 continua preservado no repositorio.
+
+NAO PRECISA EXECUTAR SQL.
+NAO PRECISA PUBLICAR EDGE FUNCTIONS.
