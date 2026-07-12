@@ -16,7 +16,7 @@ type ReferralRow = {
   id: string;
   referrer_id: string;
   referred_id: string;
-  status: "pending" | "converted" | "rewarded" | "rejected" | string;
+  status: "pending" | "converted" | "rewarded" | "rejected" | "expired" | string;
   reward_months: number;
   first_payment_id?: string | null;
   converted_at?: string | null;
@@ -26,6 +26,9 @@ type ReferralRow = {
   reward_message?: string | null;
   notes?: string | null;
   created_at: string;
+  payment_deadline?: string | null;
+  reward_reversed_at?: string | null;
+  reward_reversal_reason?: string | null;
   referred_name?: string | null;
   referred_username?: string | null;
   referred_iptv_user?: string | null;
@@ -53,6 +56,7 @@ const ReferralsPage = () => {
     setLoading(true);
     setLoadError("");
 
+    await (supabase as any).rpc("refresh_my_referral_deadlines");
     const { data, error } = await (supabase as any).rpc("get_my_referral_dashboard");
 
     if (error) {
@@ -146,9 +150,7 @@ const ReferralsPage = () => {
               {copied ? "Copiado!" : "Copiar código"}
             </button>
             <div className="mx-auto mt-4 max-w-xl rounded-xl border border-border/60 bg-background/40 p-3 text-left text-xs leading-relaxed text-muted-foreground">
-              <strong className="text-foreground">Como funciona:</strong> informe este código para o novo cliente. Quando
-              ele realizar o primeiro pagamento, o sistema localiza automaticamente a indicação, registra o pagamento e
-              libera <strong className="text-red-300">1 mês grátis</strong> no próximo período da sua assinatura.
+              <strong className="text-foreground">Regras da promoção:</strong> informe este código para o novo cliente antes do cadastro. O indicado terá <strong className="text-red-300">10 dias corridos</strong> após a indicação para realizar o 1º pagamento. Se pagar dentro do prazo, você ganha <strong className="text-red-300">1 mês grátis</strong>, somado à sua data de vencimento atual, e o suporte será avisado para atualizar o servidor. Cada indicado válido concede 1 mês; 12 indicados válidos concedem 12 meses. Autoindicação é proibida e cada indicado só pode ter um indicador. Pagamentos revertidos, excluídos ou não confirmados cancelam automaticamente o prêmio. Pagamentos realizados após os 10 dias aparecem como <strong className="text-red-300">Não pago</strong> e não geram prêmio, mesmo que sejam pagos depois.
             </div>
           </>
         ) : (
@@ -203,6 +205,7 @@ const ReferralsPage = () => {
               const rewarded = status === "rewarded";
               const converted = status === "converted";
               const rejected = status === "rejected";
+              const expired = status === "expired";
               const displayName = ref.referred_name || ref.referred_username || "Cliente indicado";
 
               return (
@@ -211,7 +214,7 @@ const ReferralsPage = () => {
                     <div className="flex items-start gap-3">
                       {rewarded ? (
                         <CalendarCheck size={18} className="mt-0.5 text-emerald-400" />
-                      ) : rejected ? (
+                      ) : rejected || expired ? (
                         <XCircle size={18} className="mt-0.5 text-destructive" />
                       ) : (
                         <Clock size={18} className={`mt-0.5 ${converted ? "text-blue-400" : "text-amber-400"}`} />
@@ -240,11 +243,23 @@ const ReferralsPage = () => {
                         ? `+${Math.max(1, Number(ref.reward_months || 1))} mês grátis`
                         : converted
                           ? "1º pagamento convertido"
-                          : rejected
-                            ? "Recusada"
-                            : "Aguardando 1º pagamento"}
+                          : expired
+                            ? "Não pago"
+                            : rejected
+                              ? "Recusada"
+                              : "Aguardando 1º pagamento"}
                     </span>
                   </div>
+
+
+                  {!rewarded && (
+                    <div className="mt-3 rounded-xl border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
+                      <p>Prazo para o 1º pagamento: <strong className="text-foreground">{formatDateBRT(ref.payment_deadline || new Date(new Date(ref.created_at).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString())}</strong></p>
+                      {ref.reward_reversal_reason && (
+                        <p className="mt-1 text-destructive">Prêmio revertido: {ref.reward_reversal_reason}</p>
+                      )}
+                    </div>
+                  )}
 
                   {rewarded && (
                     <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">

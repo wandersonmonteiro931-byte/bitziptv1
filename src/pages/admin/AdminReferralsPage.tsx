@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateBRT } from "@/lib/utils";
 
-type ReferralStatus = "pending" | "converted" | "rewarded" | "rejected";
+type ReferralStatus = "pending" | "converted" | "rewarded" | "rejected" | "expired";
 
 type ReferralUser = {
   id: string;
@@ -33,6 +33,8 @@ type ReferralRow = {
   reward_message?: string | null;
   notes?: string | null;
   created_at: string;
+  payment_deadline?: string | null;
+  reward_reversal_reason?: string | null;
   referrer?: ReferralUser | null;
   referred?: ReferralUser | null;
 };
@@ -63,7 +65,7 @@ const emptyForm: ReferralForm = {
 
 const normalizeStatus = (status: string): ReferralStatus => {
   if (status === "approved") return "rewarded";
-  if (["pending", "converted", "rewarded", "rejected"].includes(status)) return status as ReferralStatus;
+  if (["pending", "converted", "rewarded", "rejected", "expired"].includes(status)) return status as ReferralStatus;
   return "pending";
 };
 
@@ -71,6 +73,24 @@ const formatDateOnlyBR = (value?: string | null) => {
   if (!value) return "—";
   const parts = String(value).slice(0, 10).split("-");
   return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : value;
+};
+
+const readEdgeFunctionError = async (error: any) => {
+  const fallback = error?.message || "Operação não concluída.";
+  const response = error?.context;
+  if (!response || typeof response.clone !== "function") return fallback;
+
+  try {
+    const payload = await response.clone().json();
+    return payload?.error || payload?.message || fallback;
+  } catch {
+    try {
+      const body = await response.clone().text();
+      return body || fallback;
+    } catch {
+      return fallback;
+    }
+  }
 };
 
 const AdminReferralsPage = () => {
@@ -84,6 +104,7 @@ const AdminReferralsPage = () => {
   const [form, setForm] = useState<ReferralForm>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<ReferralRow | null>(null);
   const [search, setSearch] = useState("");
+  const [unresolvedLegacy, setUnresolvedLegacy] = useState<any[]>([]);
 
   const invokeAdmin = useCallback(async (action: string, data: Record<string, unknown> = {}) => {
     const response = await supabase.functions.invoke("admin-manage-user", {
@@ -91,7 +112,8 @@ const AdminReferralsPage = () => {
     });
 
     if (response.error || response.data?.error) {
-      throw new Error(response.data?.error || response.error?.message || "Operação não concluída.");
+      const detailedMessage = response.data?.error || (await readEdgeFunctionError(response.error));
+      throw new Error(detailedMessage || "Operação não concluída.");
     }
 
     return response.data;
@@ -100,9 +122,17 @@ const AdminReferralsPage = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const payload = await invokeAdmin("referral_list");
+      // A leitura principal usa RPC SECURITY DEFINER com validação de administrador.
+      // Isso evita depender do relacionamento do PostgREST e continua funcionando com RLS.
+      await (supabase as any).rpc("refresh_all_referral_deadlines");
+      const rpcResult = await (supabase as any).rpc("get_admin_referral_dashboard");
+      const payload = !rpcResult.error && rpcResult.data
+        ? rpcResult.data
+        : await invokeAdmin("referral_list");
+
       setReferrals(Array.isArray(payload?.referrals) ? payload.referrals : []);
       setUsers(Array.isArray(payload?.users) ? payload.users : []);
+      setUnresolvedLegacy(Array.isArray(payload?.unresolved_legacy) ? payload.unresolved_legacy : []);
       setSettings({
         is_active: payload?.settings?.is_active !== false,
         default_reward_months: Math.max(1, Number(payload?.settings?.default_reward_months || 1)),
@@ -315,6 +345,15 @@ const AdminReferralsPage = () => {
           </div>
         </div>
       </div>
+
+      {unresolvedLegacy.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+          <p className="font-semibold text-amber-300">Há {unresolvedLegacy.length} vínculo(s) antigo(s) para revisar</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            O campo referred_by existe, mas não corresponde exatamente ao ID, código, login ou usuário TV de um indicador atual.
+          </p>
+        </div>
+      )}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="stat-card rounded-xl p-4">

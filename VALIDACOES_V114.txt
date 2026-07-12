@@ -1,0 +1,20 @@
+VALIDACOES EXECUTADAS - WMCPLAYER V114
+
+- npx tsc --noEmit: APROVADO
+- npm test: 10 de 10 testes APROVADOS
+- npm run audit: APROVADO, 127 arquivos e 1 canal Realtime no frontend
+- npm run check:tdz: APROVADO
+- npm run build:app: APROVADO
+- Modulos processados no build: 3055
+- PWA: 21 arquivos no precache
+- Bundle principal: app-DWYVB2Zx.js
+- CSS principal: index-BwBSRPft.css
+- Edge Function admin-manage-user analisada com esbuild: APROVADA
+- SQL incremental V114 analisado com parser PostgreSQL: 14 comandos
+- SQL completo V114 analisado com parser PostgreSQL: 71 comandos
+- BATs V114: ASCII, sem BOM e com CRLF
+- Nenhum polling adicionado
+- Nenhum secret ou certificado novo incluido
+
+OBSERVACAO
+O SQL e a Edge Function nao foram executados no projeto Supabase real nesta sessao. Eles precisam ser publicados pelo usuario na ordem descrita no LEIA_PRIMEIRO_V114.txt.

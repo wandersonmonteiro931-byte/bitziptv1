@@ -1,0 +1,10 @@
+VALIDACOES EXECUTADAS
+- npx tsc --noEmit: aprovado
+- npm test: 10 de 10 testes aprovados
+- npm run build:app: aprovado
+- 3055 modulos processados
+- Edge Function pix-efi validada com esbuild
+- Edge Function admin-manage-user validada com esbuild
+- Nenhum polling adicionado
+- BATs em ASCII sem BOM e CRLF
+- SQL nao executado no Supabase real nesta sessao

@@ -283,26 +283,52 @@ const AdminUsersPage = () => {
     const { data } = await supabase.from("profiles").select("*").order("iptv_client_code", { ascending: true });
     let loadedUsers = data || [];
 
-    try {
-      const referralResponse = await supabase.functions.invoke("admin-manage-user", {
-        body: { action: "referral_list", data: {} },
-      });
-      const referralRows = Array.isArray(referralResponse.data?.referrals) ? referralResponse.data.referrals : [];
-      const linkByReferred = new Map(referralRows.map((item: any) => [item.referred_id, item]));
-      loadedUsers = loadedUsers.map((profile: any) => {
-        const link: any = linkByReferred.get(profile.id);
-        return {
-          ...profile,
-          referred_by_name: link?.referrer?.name || link?.referrer?.username || null,
-          referred_by_username: link?.referrer?.username || null,
-          referred_by_code: link?.referrer?.referral_code || null,
-          referral_link_status: link?.status || null,
-          referral_link_id: link?.id || null,
-        };
-      });
-    } catch {
-      // Compatibilidade: a lista principal continua abrindo antes da Edge Function ser publicada.
+    const normalizeReferralLookup = (value: unknown) =>
+      String(value || "")
+        .trim()
+        .toLowerCase();
+
+    // Mesmo antes de consultar a tabela referrals, resolve o indicador real pelo
+    // valor legado de profiles.referred_by (UUID, código, login ou usuário TV).
+    const profileByLookup = new Map<string, any>();
+    for (const profile of loadedUsers) {
+      for (const value of [profile.id, profile.referral_code, profile.username, profile.iptv_user]) {
+        const key = normalizeReferralLookup(value);
+        if (key && !profileByLookup.has(key)) profileByLookup.set(key, profile);
+      }
     }
+
+    let referralRows: any[] = [];
+    try {
+      const rpcResult = await (supabase as any).rpc("get_admin_referral_dashboard");
+      if (!rpcResult.error && rpcResult.data) {
+        referralRows = Array.isArray(rpcResult.data?.referrals) ? rpcResult.data.referrals : [];
+      } else {
+        const referralResponse = await supabase.functions.invoke("admin-manage-user", {
+          body: { action: "referral_list", data: {} },
+        });
+        referralRows = Array.isArray(referralResponse.data?.referrals) ? referralResponse.data.referrals : [];
+      }
+    } catch {
+      // A tela continua funcional e usa o vínculo legado resolvido localmente.
+    }
+
+    const linkByReferred = new Map(referralRows.map((item: any) => [String(item.referred_id), item]));
+    loadedUsers = loadedUsers.map((profile: any) => {
+      const link: any = linkByReferred.get(String(profile.id));
+      const legacyReferrer = profileByLookup.get(normalizeReferralLookup(profile.referred_by));
+      const referrer = link?.referrer || legacyReferrer || null;
+
+      return {
+        ...profile,
+        referred_by: link?.referrer_id || profile.referred_by || null,
+        referred_by_name: referrer?.name || referrer?.username || null,
+        referred_by_username: referrer?.username || null,
+        referred_by_code: referrer?.referral_code || null,
+        referral_link_status: link?.status || (referrer ? "pending" : null),
+        referral_link_id: link?.id || null,
+      };
+    });
 
     setUsers(loadedUsers);
   };

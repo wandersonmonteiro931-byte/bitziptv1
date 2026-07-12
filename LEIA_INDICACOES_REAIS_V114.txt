@@ -1,0 +1,63 @@
+WMCPLAYER V114 - INDICACOES REAIS CORRIGIDAS
+
+BASE UTILIZADA
+WMCPLAYER_V113_BAT_FUNCOES_SEM_REENVIAR_SECRETS_PACOTE_COMPLETO.zip
+
+PROBLEMAS CORRIGIDOS
+1. O painel de indicacoes nao depende mais dos nomes das chaves estrangeiras do PostgREST.
+2. O erro "Edge Function returned a non-2xx status code" agora mostra a mensagem real quando ocorrer.
+3. Indicacoes antigas salvas em profiles.referred_by sao recuperadas automaticamente.
+4. O sistema reconhece referred_by contendo:
+   - UUID do indicador;
+   - codigo de indicacao;
+   - login/username;
+   - usuario da TV.
+5. O painel administrativo e a edicao do cliente mostram o nome e o codigo reais de quem indicou.
+6. A leitura administrativa funciona com RLS ativada por uma RPC SECURITY DEFINER que valida o papel admin.
+7. A Edge Function admin-manage-user tambem foi corrigida e nao usa mais relacionamento embutido por nome de foreign key.
+8. Nenhum polling foi adicionado.
+
+ORDEM OBRIGATORIA PARA PUBLICAR
+
+PASSO 1 - SQL
+Abra a pasta bitziptv1-main e execute:
+ABRIR_SQL_INDICACOES_REAIS_V114.bat
+
+No SQL Editor, execute TODO o arquivo:
+APLICAR_CORRECAO_COMPLETA_INDICACOES_V114.sql
+
+Este SQL pode ser executado novamente sem duplicar indicacoes.
+
+PASSO 2 - EDGE FUNCTION
+Depois do SQL concluir sem erro, execute:
+ATUALIZAR_FUNCAO_INDICACOES_V114.bat
+
+O BAT publica somente:
+admin-manage-user
+
+Ele nao altera nem reenvia secrets e reutiliza a sessao/token fixo da CLI.
+
+PASSO 3 - SITE PRINCIPAL
+Publique todo o conteudo da pasta:
+SITE_CENTRAL_PUBLICAR
+
+no projeto principal do Cloudflare Pages que atende:
+https://wmcplayer.pages.dev
+
+NAO publique apenas o JavaScript. O index.html, Service Worker e version.json tambem mudaram.
+
+SQL NECESSARIO
+SIM.
+
+EDGE FUNCTION NECESSARIA
+SIM. Somente admin-manage-user.
+
+OUTRAS EDGE FUNCTIONS
+Nao precisam ser publicadas nesta versao.
+
+COMO CONFERIR
+1. Abra Admin > Indicacoes.
+2. As indicacoes reais devem aparecer com indicador e indicado corretos.
+3. Abra Admin > Usuarios e edite um cliente indicado.
+4. A caixa "Indicacao Recebida" deve mostrar o nome e o codigo reais do indicador.
+5. Abra a pagina Indicacoes do cliente indicador e confira Total, Convertidas e Meses gratis.

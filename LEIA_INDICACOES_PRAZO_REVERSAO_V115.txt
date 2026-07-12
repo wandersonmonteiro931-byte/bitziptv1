@@ -1,0 +1,21 @@
+WMCPLAYER V115
+
+BASE: WMCPLAYER V114.
+
+ALTERACOES:
+- Prazo de 10 dias corridos para o primeiro pagamento.
+- Pagamento dentro do prazo soma os meses do premio a validade atual do indicador.
+- Pagamento fora do prazo fica como Nao pago e nunca libera premio.
+- Pagamento revertido, removido ou excluido reverte o mes gratis automaticamente.
+- Se ainda estiver dentro dos 10 dias, a indicacao volta para Aguardando 1 pagamento.
+- Se o prazo ja terminou, fica Nao pago.
+- Mensagem completa e regras exibidas em Indique e ganhe.
+- Administradores recebem aviso para conferir/ativar a nova validade no servidor.
+
+ORDEM DE PUBLICACAO:
+1. Execute ABRIR_SQL_INDICACOES_V115.bat e rode todo o SQL.
+2. Execute ATUALIZAR_FUNCOES_INDICACOES_V115.bat.
+3. Publique todo o conteudo de SITE_CENTRAL_PUBLICAR no Cloudflare Pages principal.
+
+SQL: SIM.
+EDGE FUNCTIONS: SIM, pix-efi e admin-manage-user.

@@ -529,7 +529,7 @@ async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: a
     }
 
     const result = data || {};
-    if (!result.rewarded) return result;
+    if (!result.rewarded && !result.already_rewarded) return result;
 
     const referrerId = String(result.referrer_id || "");
     const rewardMessage = String(result.reward_message || "");
@@ -573,6 +573,21 @@ async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: a
           url: "/referrals",
         }),
       });
+
+      const { data: admins } = await adminSupa.from("user_roles").select("user_id").eq("role", "admin");
+      for (const admin of admins || []) {
+        await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+          body: JSON.stringify({
+            action: "send_to_user",
+            user_id: admin.user_id,
+            title: "Ativar mês grátis no servidor",
+            body: `Uma indicação foi premiada. Atualize a validade do indicador para ${result.reward_period_end || result.new_expiry || "a nova data"}.`,
+            url: "/admin/referrals",
+          }),
+        });
+      }
     } catch (pushError) {
       console.warn("Falha ao enviar push da recompensa de indicação:", pushError);
     }

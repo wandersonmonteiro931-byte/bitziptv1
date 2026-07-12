@@ -695,11 +695,16 @@ Deno.serve(async (req) => {
 
 
     if (action === "referral_list") {
-      const [{ data: referralRows, error: referralError }, { data: profileRows, error: profileError }, { data: settingsRow, error: settingsError }] =
+      // Não usa relacionamento embutido do PostgREST. Em bancos antigos, os nomes
+      // das foreign keys podem ser diferentes ou o cache do schema pode ainda não
+      // ter sido recarregado. A junção abaixo é feita em memória e funciona mesmo
+      // com as políticas RLS ativas, pois esta função usa a service role depois de
+      // confirmar que o solicitante é administrador.
+      const [{ data: firstReferralRows, error: referralError }, { data: profileRows, error: profileError }, { data: settingsRow, error: settingsError }] =
         await Promise.all([
           supabaseAdmin
             .from("referrals")
-            .select("*, referrer:profiles!referrals_referrer_id_fkey(id,name,username,referral_code,iptv_expiry), referred:profiles!referrals_referred_id_fkey(id,name,username,referral_code,iptv_user,iptv_expiry,referred_by)")
+            .select("*")
             .order("created_at", { ascending: false }),
           supabaseAdmin
             .from("profiles")
@@ -709,15 +714,102 @@ Deno.serve(async (req) => {
         ]);
 
       if (referralError || profileError || settingsError) {
-        throw new Error(referralError?.message || profileError?.message || settingsError?.message || "Erro ao carregar indicações.");
+        const details = [
+          referralError ? `referrals: ${referralError.message}` : "",
+          profileError ? `profiles: ${profileError.message}` : "",
+          settingsError ? `referral_settings: ${settingsError.message}` : "",
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        throw new Error(details || "Erro ao carregar indicações.");
       }
+
+      const profiles = Array.isArray(profileRows) ? profileRows : [];
+      let referrals = Array.isArray(firstReferralRows) ? firstReferralRows : [];
+      const settings = settingsRow || { id: 1, is_active: true, default_reward_months: 1 };
+
+      const normalizeLookupValue = (value: unknown) =>
+        String(value || "")
+          .trim()
+          .toLowerCase();
+
+      const profileByLookup = new Map<string, any>();
+      for (const profile of profiles) {
+        const keys = [profile?.id, profile?.referral_code, profile?.username, profile?.iptv_user]
+          .map(normalizeLookupValue)
+          .filter(Boolean);
+        for (const key of keys) {
+          if (!profileByLookup.has(key)) profileByLookup.set(key, profile);
+        }
+      }
+
+      // Recupera automaticamente vínculos reais já existentes em profiles.referred_by
+      // que ainda não possuem linha na tabela referrals. Esta é uma ação única quando
+      // o admin abre a tela, não é polling.
+      const occupiedReferredIds = new Set(referrals.map((row: any) => String(row?.referred_id || "")));
+      const legacyRepairs: Record<string, any>[] = [];
+      const unresolvedLegacy: Record<string, any>[] = [];
+
+      for (const referredProfile of profiles) {
+        const referredId = String(referredProfile?.id || "");
+        const legacyValue = normalizeLookupValue(referredProfile?.referred_by);
+        if (!referredId || !legacyValue || occupiedReferredIds.has(referredId)) continue;
+
+        const referrerProfile = profileByLookup.get(legacyValue);
+        if (!referrerProfile || String(referrerProfile.id) === referredId) {
+          unresolvedLegacy.push({
+            referred_id: referredId,
+            referred_name: referredProfile?.name || referredProfile?.username || "Cliente",
+            referred_by: referredProfile?.referred_by || null,
+          });
+          continue;
+        }
+
+        occupiedReferredIds.add(referredId);
+        legacyRepairs.push({
+          referrer_id: String(referrerProfile.id),
+          referred_id: referredId,
+          status: "pending",
+          reward_type: "free_month",
+          reward_months: Math.max(1, Number(settings?.default_reward_months || 1)),
+          reward_amount: 0,
+          notes: "Indicação real recuperada automaticamente de profiles.referred_by. Aguardando o primeiro pagamento.",
+          updated_by: caller.id,
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      if (legacyRepairs.length > 0) {
+        const { error: repairError } = await supabaseAdmin
+          .from("referrals")
+          .upsert(legacyRepairs, { onConflict: "referred_id", ignoreDuplicates: true });
+
+        if (repairError) {
+          console.warn("Falha ao recuperar indicações legadas:", repairError.message);
+        } else {
+          const { data: repairedRows, error: repairedReadError } = await supabaseAdmin
+            .from("referrals")
+            .select("*")
+            .order("created_at", { ascending: false });
+          if (!repairedReadError && Array.isArray(repairedRows)) referrals = repairedRows;
+        }
+      }
+
+      const profileById = new Map(profiles.map((profile: any) => [String(profile.id), profile]));
+      const hydratedReferrals = referrals.map((row: any) => ({
+        ...row,
+        referrer: profileById.get(String(row?.referrer_id || "")) || null,
+        referred: profileById.get(String(row?.referred_id || "")) || null,
+      }));
 
       return new Response(
         JSON.stringify({
           success: true,
-          referrals: referralRows || [],
-          users: profileRows || [],
-          settings: settingsRow || { id: 1, is_active: true, default_reward_months: 1 },
+          referrals: hydratedReferrals,
+          users: profiles,
+          settings,
+          repaired_legacy_count: legacyRepairs.length,
+          unresolved_legacy: unresolvedLegacy,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -1979,7 +2071,7 @@ Deno.serve(async (req) => {
           throw new Error("amount, payment_date, period_start e period_end são obrigatórios");
         }
 
-        await supabaseAdmin.from("iptv_payments").insert({
+        const { data: manualPayment, error: manualPaymentError } = await supabaseAdmin.from("iptv_payments").insert({
           user_id,
           amount: roundMoney(Number(manualAmount)),
           months: 1,
@@ -1990,7 +2082,14 @@ Deno.serve(async (req) => {
           payment_date: `${manualDate}T12:00:00`,
           admin_id: caller.id,
           notes: manualNotes || "Registro manual",
+        }).select("*").single();
+        if (manualPaymentError) throw new Error(manualPaymentError.message);
+
+        const { data: referralResult, error: referralError } = await supabaseAdmin.rpc("process_referral_first_payment", {
+          p_referred_id: user_id,
+          p_payment_id: manualPayment.id,
         });
+        if (referralError) console.warn("Falha ao processar indicação do pagamento manual:", referralError.message);
 
         await supabaseAdmin.from("balance_history").insert({
           user_id,
@@ -2014,7 +2113,7 @@ Deno.serve(async (req) => {
           },
         });
 
-        result = { success: true };
+        result = { success: true, payment_id: manualPayment.id, referral: referralResult || null };
         break;
       }
       case "reverse_payment": {
