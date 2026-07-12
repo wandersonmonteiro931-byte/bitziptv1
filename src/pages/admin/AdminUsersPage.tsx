@@ -240,6 +240,9 @@ const AdminUsersPage = () => {
   const [autoEmail, setAutoEmail] = useState("");
   const [autoReferredByCode, setAutoReferredByCode] = useState("");
   const [autoCreating, setAutoCreating] = useState(false);
+  const [autoReferralLookup, setAutoReferralLookup] = useState<any>(null);
+  const [createReferralLookup, setCreateReferralLookup] = useState<any>(null);
+  const [editReferralLookup, setEditReferralLookup] = useState<any>(null);
   const [editUser, setEditUser] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [editSaving, setEditSaving] = useState(false);
@@ -278,7 +281,30 @@ const AdminUsersPage = () => {
 
   const loadUsers = async () => {
     const { data } = await supabase.from("profiles").select("*").order("iptv_client_code", { ascending: true });
-    setUsers(data || []);
+    let loadedUsers = data || [];
+
+    try {
+      const referralResponse = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "referral_list", data: {} },
+      });
+      const referralRows = Array.isArray(referralResponse.data?.referrals) ? referralResponse.data.referrals : [];
+      const linkByReferred = new Map(referralRows.map((item: any) => [item.referred_id, item]));
+      loadedUsers = loadedUsers.map((profile: any) => {
+        const link: any = linkByReferred.get(profile.id);
+        return {
+          ...profile,
+          referred_by_name: link?.referrer?.name || link?.referrer?.username || null,
+          referred_by_username: link?.referrer?.username || null,
+          referred_by_code: link?.referrer?.referral_code || null,
+          referral_link_status: link?.status || null,
+          referral_link_id: link?.id || null,
+        };
+      });
+    } catch {
+      // Compatibilidade: a lista principal continua abrindo antes da Edge Function ser publicada.
+    }
+
+    setUsers(loadedUsers);
   };
 
   const loadBillingDueDates = async () => {
@@ -296,6 +322,51 @@ const AdminUsersPage = () => {
     loadUsers();
     loadBillingDueDates();
   }, []);
+
+  useEffect(() => {
+    const code = String(autoReferredByCode || "").trim().toUpperCase();
+    if (!code) {
+      setAutoReferralLookup(null);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const response = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "referral_resolve_code", data: { code } },
+      });
+      setAutoReferralLookup(response.data || { valid: false, error: response.error?.message || "Código não encontrado." });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [autoReferredByCode]);
+
+  useEffect(() => {
+    const code = String(form.referred_by_code || "").trim().toUpperCase();
+    if (!code) {
+      setCreateReferralLookup(null);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const response = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "referral_resolve_code", data: { code } },
+      });
+      setCreateReferralLookup(response.data || { valid: false, error: response.error?.message || "Código não encontrado." });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [form.referred_by_code]);
+
+  useEffect(() => {
+    const code = String(editForm.referred_by_code_input || "").trim().toUpperCase();
+    if (!editUser?.id || !code) {
+      setEditReferralLookup(null);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      const response = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "referral_resolve_code", data: { code, referred_id: editUser.id } },
+      });
+      setEditReferralLookup(response.data || { valid: false, error: response.error?.message || "Código não encontrado." });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [editForm.referred_by_code_input, editUser?.id]);
 
   useEffect(() => {
     const applyFinanceCommand = (payload?: any) => {
@@ -345,6 +416,10 @@ const AdminUsersPage = () => {
       toast({ title: "Erro", description: "Nome e dados da TV são obrigatórios", variant: "destructive" });
       return;
     }
+    if (autoReferredByCode.trim() && !autoReferralLookup?.valid) {
+      toast({ title: "Código de indicação inválido", description: autoReferralLookup?.error || "Aguarde a validação do código.", variant: "destructive" });
+      return;
+    }
     setAutoCreating(true);
     const iptvUser = parsedData.username;
     const iptvPass = parsedData.password || parsedData.username;
@@ -385,6 +460,10 @@ const AdminUsersPage = () => {
     const loginUser = String(form.iptv_user || form.username || "").trim();
     if (!form.name || !loginUser || !form.password) {
       toast({ title: "Erro", description: "Preencha nome, usuário TV e senha", variant: "destructive" });
+      return;
+    }
+    if (form.referred_by_code.trim() && !createReferralLookup?.valid) {
+      toast({ title: "Código de indicação inválido", description: createReferralLookup?.error || "Aguarde a validação do código.", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -461,6 +540,10 @@ const AdminUsersPage = () => {
       iptv_client_code: u.iptv_client_code || "",
       referral_code: u.referral_code || "",
       referred_by: u.referred_by || "",
+      referred_by_name: u.referred_by_name || "",
+      referred_by_username: u.referred_by_username || "",
+      referred_by_code: u.referred_by_code || "",
+      referral_link_status: u.referral_link_status || "",
       referred_by_code_input: "",
       pix_key: u.pix_key || "",
       status: u.status || "active",
@@ -541,50 +624,71 @@ const AdminUsersPage = () => {
   const linkReferralForEditUser = async () => {
     if (!editUser) return;
 
-    const code = String(editForm.referred_by_code_input || "")
-      .trim()
-      .toUpperCase();
+    const code = String(editForm.referred_by_code_input || "").trim().toUpperCase();
     if (!code) {
       toast({ title: "Informe o código de indicação", description: "Exemplo: WMC001A", variant: "destructive" });
       return;
     }
 
     setEditSaving(true);
-    const res = await supabase.rpc("admin_set_referrer_by_code", {
-      p_user_id: editUser.id,
-      p_referral_code: code,
-    });
-    const result = isAdminSetReferrerResult(res.data) ? res.data : {};
-    setEditSaving(false);
-
-    if (res.error || result.error) {
-      toast({
-        title: "Erro ao vincular indicação",
-        description: result.error || res.error?.message || "Verifique se a migration RPC foi aplicada no Supabase.",
-        variant: "destructive",
+    try {
+      const resolveResponse = await supabase.functions.invoke("admin-manage-user", {
+        body: { action: "referral_resolve_code", data: { code, referred_id: editUser.id } },
       });
-      return;
-    }
+      const resolved = resolveResponse.data || {};
+      if (resolveResponse.error || !resolved.valid) {
+        throw new Error(resolved.error || resolveResponse.error?.message || "Código não encontrado.");
+      }
 
-    if (result.already_linked) {
-      toast({
-        title: "Indicação já vinculada",
-        description: "Este cliente já está ligado a uma indicação.",
+      const createResponse = await supabase.functions.invoke("admin-manage-user", {
+        body: {
+          action: "referral_create",
+          data: {
+            referrer_id: resolved.referrer_id,
+            referred_id: editUser.id,
+            status: "pending",
+            reward_months: resolved.reward_months || 1,
+            notes: "Indicação vinculada no cadastro do cliente. Aguardando o primeiro pagamento.",
+          },
+        },
       });
-    } else {
+      if (createResponse.error || createResponse.data?.error) {
+        throw new Error(createResponse.data?.error || createResponse.error?.message || "Erro ao vincular indicação.");
+      }
+
       toast({
         title: "✅ Indicação vinculada",
-        description: "Agora esse cliente aparece como aguardando o 1º pagamento na tela de indicações.",
+        description: `${resolved.referrer_name || "Indicador"} foi localizado como dono do código ${resolved.referral_code || code}.`,
       });
-    }
 
-    setEditForm({
-      ...editForm,
-      referred_by: result.referrer_id || true,
-      referred_by_code_input: "",
-    });
-    setEditUser({ ...editUser, referred_by: result.referrer_id || true });
-    await loadUsers();
+      setEditForm({
+        ...editForm,
+        referred_by: resolved.referrer_id,
+        referred_by_name: resolved.referrer_name || "",
+        referred_by_username: resolved.referrer_username || "",
+        referred_by_code: resolved.referral_code || code,
+        referral_link_status: "pending",
+        referred_by_code_input: "",
+      });
+      setEditUser({
+        ...editUser,
+        referred_by: resolved.referrer_id,
+        referred_by_name: resolved.referrer_name || "",
+        referred_by_username: resolved.referrer_username || "",
+        referred_by_code: resolved.referral_code || code,
+        referral_link_status: "pending",
+      });
+      setEditReferralLookup(null);
+      await loadUsers();
+    } catch (error) {
+      toast({
+        title: "Erro ao vincular indicação",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const updateStatus = async (userId: string, status: string) => {
@@ -813,6 +917,13 @@ const AdminUsersPage = () => {
                     {f.key === "username" && (
                       <p className="mt-1 text-[10px] text-muted-foreground">
                         Esse será o login do cliente. O Username sempre será igual ao Usuário TV.
+                      </p>
+                    )}
+                    {f.key === "referred_by_code" && createReferralLookup && (
+                      <p className={`mt-1 text-[11px] font-semibold ${createReferralLookup.valid ? "text-emerald-400" : "text-destructive"}`}>
+                        {createReferralLookup.valid
+                          ? `Dono do código: ${createReferralLookup.referrer_name || createReferralLookup.referrer_username} (${createReferralLookup.referral_code})`
+                          : createReferralLookup.error || "Código inválido."}
                       </p>
                     )}
                   </div>
@@ -1079,6 +1190,13 @@ const AdminUsersPage = () => {
                           placeholder="Ex: WMC001A"
                           className="w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm uppercase text-foreground focus:border-primary focus:outline-none"
                         />
+                        {autoReferralLookup && (
+                          <p className={`mt-1 text-[11px] font-semibold ${autoReferralLookup.valid ? "text-emerald-400" : "text-destructive"}`}>
+                            {autoReferralLookup.valid
+                              ? `Dono do código: ${autoReferralLookup.referrer_name || autoReferralLookup.referrer_username} (${autoReferralLookup.referral_code})`
+                              : autoReferralLookup.error || "Código inválido."}
+                          </p>
+                        )}
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           Quando esse cliente fizer o 1º pagamento, o dono do código ganha 1 mês grátis automaticamente.
                           O código do cliente novo será gerado em ordem: WMC001A, WMC002A...
@@ -1424,8 +1542,13 @@ const AdminUsersPage = () => {
                   </p>
                   {editForm.referred_by ? (
                     <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
-                      Este cliente já está vinculado a uma indicação. Quando ele fizer o 1º pagamento, o indicador ganha
-                      1 mês grátis automaticamente.
+                      <p className="font-semibold">
+                        Indicado por: {editForm.referred_by_name || editForm.referred_by_username || "Indicador"}
+                        {editForm.referred_by_code ? ` (${editForm.referred_by_code})` : ""}
+                      </p>
+                      <p className="mt-1 text-emerald-300/80">
+                        Status: {editForm.referral_link_status || "vinculada"}. No primeiro pagamento, o benefício é processado sem duplicidade.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1450,6 +1573,13 @@ const AdminUsersPage = () => {
                           Vincular
                         </button>
                       </div>
+                      {editReferralLookup && (
+                        <p className={`text-[11px] font-semibold ${editReferralLookup.valid ? "text-emerald-400" : "text-destructive"}`}>
+                          {editReferralLookup.valid
+                            ? `Dono do código: ${editReferralLookup.referrer_name || editReferralLookup.referrer_username} (${editReferralLookup.referral_code})`
+                            : editReferralLookup.error || "Código inválido."}
+                        </p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
                         Use para clientes antigos cadastrados pelo admin que ainda não aparecem na tela de indicações.
                       </p>
@@ -1848,7 +1978,12 @@ const AdminUsersPage = () => {
                     <p className="font-medium text-foreground">{user.name}</p>
                     <p className="text-xs text-muted-foreground">@{user.username}</p>
                     {user.referral_code && (
-                      <p className="mt-0.5 text-[10px] font-semibold text-red-400">Indicação: {user.referral_code}</p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-red-400">Código para indicar: {user.referral_code}</p>
+                    )}
+                    {user.referred_by_name && (
+                      <p className="mt-0.5 text-[10px] font-semibold text-emerald-400">
+                        Indicado por: {user.referred_by_name}{user.referred_by_code ? ` (${user.referred_by_code})` : ""}
+                      </p>
                     )}
                   </td>
                   <td className="px-4 py-3">

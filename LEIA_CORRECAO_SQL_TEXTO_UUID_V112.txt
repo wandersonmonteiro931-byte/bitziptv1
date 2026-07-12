@@ -1,0 +1,33 @@
+WMCPLAYER V112 - CORRECAO DO SQL TEXTO X UUID
+
+BASE USADA
+- WMCPLAYER_V111_INDICACOES_COMPLETAS_PROMOCAO_E_PRIMEIRO_PAGAMENTO_PACOTE_COMPLETO.zip
+
+ERRO CORRIGIDO
+- PostgreSQL 42883: operador nao existe: texto <> uuid.
+- No banco atual, profiles.referred_by esta como TEXT e profiles.id/referrals.referrer_id sao UUID.
+- O SQL V111 comparava e gravava esses campos sem conversao explicita.
+
+O QUE FOI CORRIGIDO
+- Comparacoes agora usam ::text dos dois lados.
+- Gravacoes em profiles.referred_by usam o UUID convertido para texto.
+- Recuperacao de dados antigos aceita tanto UUID salvo como texto quanto codigo de indicacao salvo como texto.
+- O arquivo de migration original tambem foi corrigido para nao falhar em uma instalacao nova.
+
+COMO EXECUTAR
+1. Execute ABRIR_SQL_INDICACOES_V112.bat.
+2. Copie TODO o arquivo APLICAR_CORRECAO_COMPLETA_INDICACOES_V112.sql.
+3. Cole em uma NOVA consulta do SQL Editor do Supabase.
+4. Clique em RUN.
+5. Como o SQL usa BEGIN/COMMIT, a tentativa anterior que falhou nao deve ter aplicado alteracoes parciais.
+6. Quando concluir sem erro, execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+7. Publique SITE_CENTRAL_PUBLICAR somente se a V111 ainda nao tiver sido publicada.
+
+SQL
+- SIM: execute o SQL V112 completo.
+
+EDGE FUNCTIONS
+- SIM, depois do SQL: admin-create-user, admin-manage-user e pix-efi.
+
+SITE
+- Nenhum arquivo visual foi alterado nesta V112. O site compilado da V111 foi preservado.

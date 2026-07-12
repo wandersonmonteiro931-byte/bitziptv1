@@ -515,6 +515,75 @@ async function emitFinanceUpdated(adminSupa: any, userId: string, payload: Recor
   }
 }
 
+
+async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: any) {
+  try {
+    const { data, error } = await adminSupa.rpc("process_referral_first_payment", {
+      p_referred_id: payment.user_id,
+      p_payment_id: payment.id,
+    });
+
+    if (error) {
+      console.warn("Referral reward RPC unavailable or failed:", error.message);
+      return null;
+    }
+
+    const result = data || {};
+    if (!result.rewarded) return result;
+
+    const referrerId = String(result.referrer_id || "");
+    const rewardMessage = String(result.reward_message || "");
+    if (!referrerId) return result;
+
+    const payload = {
+      action: "referral_rewarded",
+      referral_id: result.referral_id,
+      referrer_id: referrerId,
+      referred_id: payment.user_id,
+      first_payment_id: payment.id,
+      reward_months: result.reward_months,
+      reward_period_start: result.reward_period_start,
+      reward_period_end: result.reward_period_end,
+      reward_message: rewardMessage,
+      profile_patch: result.new_expiry ? { iptv_expiry: result.new_expiry } : undefined,
+      sentAt: Date.now(),
+    };
+
+    await Promise.all([
+      sendRealtimeBroadcast(adminSupa, `wmcplayer-client-${referrerId}`, "referrals-updated", {
+        user_id: referrerId,
+        ...payload,
+      }),
+      sendRealtimeBroadcast(adminSupa, "wmcplayer-admin", "referrals-updated", payload),
+    ]).catch((err) => {
+      console.warn("Falha ao emitir recompensa de indicação em tempo real:", err instanceof Error ? err.message : String(err));
+    });
+
+    try {
+      const supabaseUrl = getEnv("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || getEnv("SUPABASE_SERVICE_ROLE_KEY");
+      await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+        body: JSON.stringify({
+          action: "send_to_user",
+          user_id: referrerId,
+          title: "Você ganhou um período grátis!",
+          body: rewardMessage,
+          url: "/referrals",
+        }),
+      });
+    } catch (pushError) {
+      console.warn("Falha ao enviar push da recompensa de indicação:", pushError);
+    }
+
+    return result;
+  } catch (err) {
+    console.warn("Falha ao processar indicação após primeiro pagamento:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
 function getUserSupabase(authHeader: string) {
   return createClient(getEnv("SUPABASE_URL"), (Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || getEnv("SUPABASE_ANON_KEY")), {
     global: { headers: { Authorization: authHeader } },
@@ -1294,7 +1363,8 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
 
     if (currentPayment?.status === "paid_pending_activation") {
       await syncPaidAwaitingActivationProfile(adminSupa, currentPayment, true);
-      console.log(`Payment ${payment.id} already paid; profile/status repaired.`);
+      await processReferralRewardAfterFirstPayment(adminSupa, currentPayment);
+      console.log(`Payment ${payment.id} already paid; profile/status/referral repaired.`);
     } else {
       console.log(`Payment ${payment.id} already processed by another request — skipping.`);
     }
@@ -1314,6 +1384,11 @@ async function confirmPaymentAndUpdateExpiry(adminSupa: any, payment: any) {
     type: "iptv_payment",
     description: `Pagamento TV confirmado via PIX (txid: ${payment.pix_txid})`,
   });
+
+  // Primeiro pagamento do indicado: converte e premia em transação atômica.
+  // O RPC usa trava de linha e first_payment_id único, então reenvios do webhook
+  // nunca concedem o mesmo benefício duas vezes.
+  await processReferralRewardAfterFirstPayment(adminSupa, payment);
 
   // 5. Envia primeiro as ordens Realtime. A tela não depende da entrega do Push.
   const confirmedAt = new Date().toISOString();

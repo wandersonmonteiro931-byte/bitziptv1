@@ -1,0 +1,10 @@
+VALIDACOES V113
+
+- BAT gravado sem UTF-8 BOM.
+- BAT gravado com quebras de linha Windows CRLF.
+- Nenhum comando supabase secrets set presente.
+- Nenhum login automatico pelo navegador presente.
+- Sessao/token fixo existente e reutilizado.
+- Somente admin-create-user, admin-manage-user e pix-efi sao publicados.
+- Nenhum secret real incluido no ZIP.
+- Nenhum frontend, SQL ou Edge Function foi alterado nesta versao; apenas o fluxo de publicacao foi corrigido.

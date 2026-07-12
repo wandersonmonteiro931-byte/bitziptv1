@@ -1502,6 +1502,7 @@ export type Database = {
       referrals: {
         Row: {
           bonus_payment_id: string | null
+          converted_at: string | null
           created_at: string
           first_payment_id: string | null
           id: string
@@ -1509,13 +1510,19 @@ export type Database = {
           referred_id: string
           referrer_id: string
           reward_amount: number
+          reward_message: string | null
           reward_months: number
+          reward_period_end: string | null
+          reward_period_start: string | null
           reward_type: string
           rewarded_at: string | null
           status: string
+          updated_at: string
+          updated_by: string | null
         }
         Insert: {
           bonus_payment_id?: string | null
+          converted_at?: string | null
           created_at?: string
           first_payment_id?: string | null
           id?: string
@@ -1523,13 +1530,19 @@ export type Database = {
           referred_id: string
           referrer_id: string
           reward_amount?: number
+          reward_message?: string | null
           reward_months?: number
+          reward_period_end?: string | null
+          reward_period_start?: string | null
           reward_type?: string
           rewarded_at?: string | null
           status?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           bonus_payment_id?: string | null
+          converted_at?: string | null
           created_at?: string
           first_payment_id?: string | null
           id?: string
@@ -1537,10 +1550,15 @@ export type Database = {
           referred_id?: string
           referrer_id?: string
           reward_amount?: number
+          reward_message?: string | null
           reward_months?: number
+          reward_period_end?: string | null
+          reward_period_start?: string | null
           reward_type?: string
           rewarded_at?: string | null
           status?: string
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1572,6 +1590,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      referral_settings: {
+        Row: {
+          default_reward_months: number
+          id: number
+          is_active: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          default_reward_months?: number
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          default_reward_months?: number
+          id?: number
+          is_active?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       scheduled_notifications: {
         Row: {
@@ -1875,6 +1917,16 @@ export type Database = {
           rewarded_at: string
           status: string
         }[]
+      }
+      get_my_referral_dashboard: { Args: never; Returns: Json }
+      get_referral_settings: { Args: never; Returns: Json }
+      process_referral_first_payment: {
+        Args: { p_payment_id: string; p_referred_id: string }
+        Returns: Json
+      }
+      resolve_referral_code: {
+        Args: { p_referral_code: string; p_referred_user_id?: string }
+        Returns: Json
       }
       has_role: {
         Args: {

@@ -1,167 +1,66 @@
 @echo off
-chcp 65001 >nul
-setlocal EnableExtensions EnableDelayedExpansion
-title WMCPLAYER - Configurar PIX e Edge Functions Supabase
+setlocal EnableExtensions DisableDelayedExpansion
+title WMCPLAYER - Atualizar funcoes de indicacoes
 
 set "PROJECT_REF=vywtzzrvpdjqpcnixskz"
 set "ROOT_DIR=%~dp0"
-set "SECRETS_FILE=%ROOT_DIR%SECRETS_SUPABASE_PIX.env"
-set "SECRETS_MODEL=%ROOT_DIR%SECRETS_SUPABASE_PIX_MODELO.env"
-
-echo.
-echo ==========================================================
-echo  WMCPLAYER - CONFIGURAR PIX / EDGE FUNCTIONS NO SUPABASE
-echo ==========================================================
-echo.
-echo Projeto Supabase:
-echo %PROJECT_REF%
-echo.
-echo Esta etapa corrige o erro:
-echo Failed to send a request to the Edge Function
-echo.
-echo IMPORTANTE: este arquivo reutiliza um unico token fixo da CLI.
-echo Ele nunca abre o login automatico se ja houver uma sessao valida.
-echo.
-
-echo [1/7] Verificando Node / NPM / NPX...
-where node
-if errorlevel 1 (
-    echo.
-    echo ERRO: NODE nao encontrado.
-    echo Instale o Node.js LTS e execute novamente:
-    echo https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
-)
-
-where npm
-if errorlevel 1 (
-    echo.
-    echo ERRO: NPM nao encontrado.
-    echo Instale o Node.js LTS e execute novamente:
-    echo https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
-)
-
-where npx
-if errorlevel 1 (
-    echo.
-    echo ERRO: NPX nao encontrado.
-    echo Reinstale o Node.js LTS marcando a opcao npm.
-    echo https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
-)
-
-echo.
-echo [2/7] Verificando arquivo de secrets...
-if not exist "%SECRETS_FILE%" (
-    copy "%SECRETS_MODEL%" "%SECRETS_FILE%" >nul
-    echo.
-    echo Criei o arquivo:
-    echo %SECRETS_FILE%
-    echo.
-    echo AGORA PARE AQUI.
-    echo Abra esse arquivo no Bloco de Notas e preencha:
-    echo - SUPABASE_SERVICE_ROLE_KEY
-    echo - SUPABASE_SECRET_KEY
-    echo - EFI_CLIENT_ID
-    echo - EFI_CLIENT_SECRET
-    echo - EFI_PIX_KEY
-    echo - EFI_CERTIFICATE_BASE64
-    echo.
-    echo Depois salve o arquivo e rode este BAT novamente.
-    echo.
-    pause
-    exit /b 0
-)
-
-findstr /C:"COLE_AQUI" "%SECRETS_FILE%" >nul
-if not errorlevel 1 (
-    echo.
-    echo ERRO: O arquivo SECRETS_SUPABASE_PIX.env ainda tem campos COLE_AQUI.
-    echo Abra o arquivo, preencha os dados reais, salve e rode novamente.
-    echo.
-    notepad "%SECRETS_FILE%"
-    pause
-    exit /b 1
-)
-
-echo.
-echo [2.1/7] Conferindo certificado PIX Efi...
-if exist "%ROOT_DIR%EFI_CERTIFICATE_BASE64.txt" (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$root='%ROOT_DIR%'; $envFile='%SECRETS_FILE%'; $certFile=Join-Path $root 'EFI_CERTIFICATE_BASE64.txt'; $cert=(Get-Content -Raw -Encoding UTF8 $certFile) -replace '\\s',''; if($cert.Length -lt 1000){ Write-Host 'ERRO: EFI_CERTIFICATE_BASE64.txt parece incompleto.'; exit 20 }; try{ [Convert]::FromBase64String($cert) | Out-Null } catch { Write-Host 'ERRO: certificado Base64 invalido.'; exit 21 }; $txt=Get-Content -Raw -Encoding UTF8 $envFile; if($txt -match '(?m)^EFI_CERTIFICATE_BASE64='){ $txt=[regex]::Replace($txt,'(?m)^EFI_CERTIFICATE_BASE64=.*','EFI_CERTIFICATE_BASE64='+$cert) } else { $txt=$txt.TrimEnd()+[Environment]::NewLine+'EFI_CERTIFICATE_BASE64='+$cert+[Environment]::NewLine }; if($txt -match '(?m)^EFI_CERTIFICATE_BASE64_BACKUP='){ $txt=[regex]::Replace($txt,'(?m)^EFI_CERTIFICATE_BASE64_BACKUP=.*','EFI_CERTIFICATE_BASE64_BACKUP='+$cert) } else { $txt=$txt.TrimEnd()+[Environment]::NewLine+'EFI_CERTIFICATE_BASE64_BACKUP='+$cert+[Environment]::NewLine }; Set-Content -Encoding UTF8 -NoNewline -Path $envFile -Value $txt; Write-Host 'Certificado PIX conferido e sincronizado com o arquivo de secrets.'"
-    if errorlevel 1 (
-        echo.
-        echo ERRO: Certificado PIX invalido ou incompleto.
-        echo Nao vou enviar secrets para nao quebrar o PIX.
-        echo.
-        pause
-        exit /b 1
-    )
-) else (
-    echo AVISO: EFI_CERTIFICATE_BASE64.txt nao encontrado. Vou usar o certificado do SECRETS_SUPABASE_PIX.env.
-)
 
 cd /d "%ROOT_DIR%"
 if errorlevel 1 (
     echo.
-    echo ERRO: nao consegui entrar na pasta do projeto.
+    echo ERRO: nao consegui abrir a pasta do projeto.
     echo.
     pause
     exit /b 1
 )
 
 echo.
-echo [3/7] Verificando sessao existente do Supabase CLI...
-echo Nao sera criado um novo token se ja existir uma sessao valida.
+echo ==========================================================
+echo  WMCPLAYER - ATUALIZAR EDGE FUNCTIONS DAS INDICACOES
+echo ==========================================================
+echo.
+echo Projeto Supabase: %PROJECT_REF%
+echo.
+echo Este BAT NAO altera, apaga ou reenvia secrets.
+echo Ele reutiliza os secrets que ja estao salvos no Supabase.
+echo Ele tambem reutiliza a sessao/token fixo ja salvo na CLI.
 echo.
 
+echo [1/5] Verificando Node, NPM e NPX...
+where node
+if errorlevel 1 goto NODE_ERRO
+where npm
+if errorlevel 1 goto NODE_ERRO
+where npx
+if errorlevel 1 goto NODE_ERRO
+
+echo.
+echo [2/5] Verificando a sessao existente do Supabase CLI...
 call npx --yes supabase@latest projects list --output json >nul 2>&1
-if not errorlevel 1 (
-    echo Sessao valida encontrada. Reutilizando o mesmo token salvo.
-    goto SUPABASE_AUTH_OK
-)
+if not errorlevel 1 goto AUTH_OK
 
 echo.
 echo Nenhuma sessao valida foi encontrada neste computador.
-echo O login automatico pelo navegador foi desativado para nao criar tokens novos a cada atualizacao.
+echo O login automatico pelo navegador nao sera iniciado.
+echo Use somente o token fixo WMCPLAYER que voce ja mantem salvo.
 echo.
-echo Abra a pagina abaixo e mantenha apenas UM token fixo para o WMCPLAYER:
-echo https://supabase.com/dashboard/account/tokens
-echo.
-echo Se apareceu o limite de 20 tokens:
-echo 1. Exclua os tokens antigos de login da CLI que nao usa mais.
-echo 2. Crie somente um token chamado WMCPLAYER-CLI-FIXO.
-echo 3. Copie o token e cole abaixo.
-echo.
-start "" "https://supabase.com/dashboard/account/tokens"
-
 set "SUPABASE_FIXED_TOKEN="
 set /p "SUPABASE_FIXED_TOKEN=Cole o token fixo do Supabase e pressione ENTER: "
 if not defined SUPABASE_FIXED_TOKEN (
     echo.
-    echo ERRO: Nenhum token foi informado.
-    echo O processo foi cancelado sem criar um novo token.
+    echo ERRO: nenhum token foi informado.
+    echo Nenhum token novo foi criado.
     echo.
     pause
     exit /b 1
 )
 
-echo.
-echo Salvando o token fixo no armazenamento seguro do Supabase CLI...
-call npx --yes supabase@latest login --token "!SUPABASE_FIXED_TOKEN!"
+call npx --yes supabase@latest login --token "%SUPABASE_FIXED_TOKEN%"
 set "SUPABASE_FIXED_TOKEN="
 if errorlevel 1 (
     echo.
-    echo ERRO: O token informado nao foi aceito.
-    echo Nenhum login automatico sera tentado para evitar criar outro token.
-    echo Confira o token em:
-    echo https://supabase.com/dashboard/account/tokens
+    echo ERRO: o token fixo nao foi aceito.
+    echo Confira se ele pertence a conta correta e tente novamente.
     echo.
     pause
     exit /b 1
@@ -170,52 +69,40 @@ if errorlevel 1 (
 call npx --yes supabase@latest projects list --output json >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo ERRO: O token foi salvo, mas a sessao nao conseguiu acessar os projetos.
-    echo Confira se o token pertence a conta correta e tem acesso ao projeto.
+    echo ERRO: a sessao foi salva, mas nao conseguiu acessar o projeto.
     echo.
     pause
     exit /b 1
 )
 
-echo Token fixo salvo com sucesso. As proximas atualizacoes reutilizarao este mesmo token.
-
-:SUPABASE_AUTH_OK
+:AUTH_OK
+echo Sessao valida encontrada. Reutilizando o mesmo token salvo.
 
 echo.
-echo [4/7] Enviando secrets para o Supabase...
-call npx --yes supabase@latest secrets set --env-file "%SECRETS_FILE%" --project-ref "%PROJECT_REF%"
-if errorlevel 1 (
-    echo.
-    echo ERRO: Falha ao enviar secrets.
-    echo Confira se o token do Supabase tem acesso ao projeto.
-    echo.
-    pause
-    exit /b 1
+echo [3/5] Conferindo as funcoes desta atualizacao...
+for %%F in (admin-create-user admin-manage-user pix-efi) do (
+    if not exist "%ROOT_DIR%supabase\functions\%%F\index.ts" (
+        echo.
+        echo ERRO: arquivo ausente: supabase\functions\%%F\index.ts
+        echo.
+        pause
+        exit /b 1
+    )
 )
+echo Arquivos encontrados.
 
 echo.
-echo [5/7] Publicando Edge Functions no Supabase...
-echo.
-
-for %%F in (
-    app-manifest
-    admin-create-user
-    admin-manage-user
-    credit-system
-    expiry-reminder
-    memory-game
-    pix-efi
-    push-notification
-    send-notification
-    sync-tv-guide
-) do (
+echo [4/5] Publicando somente as funcoes alteradas...
+for %%F in (admin-create-user admin-manage-user pix-efi) do (
+    echo.
     echo ----------------------------------------------------------
     echo Publicando funcao: %%F
     echo ----------------------------------------------------------
     call npx --yes supabase@latest functions deploy %%F --project-ref "%PROJECT_REF%" --no-verify-jwt
     if errorlevel 1 (
         echo.
-        echo ERRO: Falha ao publicar a funcao %%F
+        echo ERRO: falha ao publicar a funcao %%F.
+        echo Os secrets existentes no Supabase nao foram modificados.
         echo.
         pause
         exit /b 1
@@ -223,26 +110,28 @@ for %%F in (
 )
 
 echo.
-echo [6/7] Conferindo lista de functions...
+echo [5/5] Conferindo as funcoes publicadas...
 call npx --yes supabase@latest functions list --project-ref "%PROJECT_REF%"
+if errorlevel 1 (
+    echo.
+    echo AVISO: as funcoes foram enviadas, mas a lista final nao abriu.
+)
 
 echo.
-echo [7/7] Finalizado.
-echo.
 echo ==========================================================
-echo  PRONTO! FUNCOES DO PIX PUBLICADAS NO SUPABASE NOVO.
+echo  PRONTO! FUNCOES DAS INDICACOES ATUALIZADAS.
 echo ==========================================================
 echo.
-echo Agora teste novamente no site:
-echo https://wmcplayer.pages.dev/app/dashboard
-echo.
-echo.
-echo PASSO FINAL OBRIGATORIO PARA RECUPERAR PIX JA PAGO:
-echo 1. Abra o painel Admin ^> TV
-echo 2. Clique uma unica vez em Configurar/recuperar PIX
-echo.
-echo Se ainda der erro no PIX, veja o log:
-echo Edge Functions ^> pix-efi ^> Logs
+echo Nenhum secret foi alterado.
+echo Nenhum arquivo SECRETS_SUPABASE_PIX.env e necessario nesta atualizacao.
 echo.
 pause
 exit /b 0
+
+:NODE_ERRO
+echo.
+echo ERRO: Node.js, NPM ou NPX nao foi encontrado.
+echo Instale o Node.js LTS e execute novamente.
+echo.
+pause
+exit /b 1

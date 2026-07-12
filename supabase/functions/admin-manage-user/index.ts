@@ -292,6 +292,92 @@ const emitFinanceUpdated = async (supabaseAdmin: any, userId: string, payload: R
   }
 };
 
+
+const emitReferralsUpdated = async (
+  supabaseAdmin: any,
+  referrerIds: string[],
+  payload: Record<string, any> = {},
+) => {
+  const uniqueIds = Array.from(new Set(referrerIds.filter(Boolean)));
+  const sentAt = Date.now();
+  const messages: Array<{ topic: string; event: string; payload: Record<string, any> }> = uniqueIds.map((id) => ({
+    topic: `wmcplayer-client-${id}`,
+    event: "referrals-updated",
+    payload: { user_id: id, sentAt, ...payload },
+  }));
+  messages.push({
+    topic: "wmcplayer-admin",
+    event: "referrals-updated",
+    payload: { sentAt, ...payload },
+  });
+
+  try {
+    await sendRealtimeBatch(messages);
+  } catch (err) {
+    console.warn("Falha ao enviar atualização de indicações:", err instanceof Error ? err.message : String(err));
+  }
+};
+
+
+const processReferralRewardForPayment = async (supabaseAdmin: any, referredId: string, paymentId: string) => {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("process_referral_first_payment", {
+      p_referred_id: referredId,
+      p_payment_id: paymentId,
+    });
+    if (error) {
+      console.warn("Falha ao processar recompensa de indicação:", error.message);
+      return null;
+    }
+
+    const result = data || {};
+    if (!result.rewarded) return result;
+
+    const referrerId = String(result.referrer_id || "");
+    if (!referrerId) return result;
+
+    await emitReferralsUpdated(supabaseAdmin, [referrerId], {
+      action: "referral_rewarded",
+      referral_id: result.referral_id,
+      referred_id: referredId,
+      first_payment_id: paymentId,
+      reward_months: result.reward_months,
+      reward_period_start: result.reward_period_start,
+      reward_period_end: result.reward_period_end,
+      reward_message: result.reward_message,
+    });
+
+    if (result.new_expiry) {
+      await emitClientProfileUpdated(supabaseAdmin, referrerId, { iptv_expiry: result.new_expiry });
+    }
+
+    try {
+      const supabaseUrl = String(Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
+      if (supabaseUrl && serviceKey) {
+        await fetch(`${supabaseUrl}/functions/v1/push-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-key": serviceKey },
+          body: JSON.stringify({
+            action: "send_to_user",
+            user_id: referrerId,
+            title: "Você ganhou um período grátis!",
+            body: result.reward_message,
+            url: "/referrals",
+          }),
+        });
+      }
+    } catch (pushError) {
+      console.warn("Falha ao enviar push da indicação:", pushError);
+    }
+
+    return result;
+  } catch (error) {
+    console.warn("Falha ao processar indicação no pagamento manual:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -603,6 +689,267 @@ Deno.serve(async (req) => {
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Apenas administradores" }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
+    if (action === "referral_list") {
+      const [{ data: referralRows, error: referralError }, { data: profileRows, error: profileError }, { data: settingsRow, error: settingsError }] =
+        await Promise.all([
+          supabaseAdmin
+            .from("referrals")
+            .select("*, referrer:profiles!referrals_referrer_id_fkey(id,name,username,referral_code,iptv_expiry), referred:profiles!referrals_referred_id_fkey(id,name,username,referral_code,iptv_user,iptv_expiry,referred_by)")
+            .order("created_at", { ascending: false }),
+          supabaseAdmin
+            .from("profiles")
+            .select("id,name,username,referral_code,referred_by,iptv_user,iptv_expiry,status")
+            .order("name", { ascending: true }),
+          supabaseAdmin.from("referral_settings").select("*").eq("id", 1).maybeSingle(),
+        ]);
+
+      if (referralError || profileError || settingsError) {
+        throw new Error(referralError?.message || profileError?.message || settingsError?.message || "Erro ao carregar indicações.");
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          referrals: referralRows || [],
+          users: profileRows || [],
+          settings: settingsRow || { id: 1, is_active: true, default_reward_months: 1 },
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (action === "referral_resolve_code") {
+      const code = String(data?.code || "").trim().toUpperCase();
+      const referredId = data?.referred_id ? String(data.referred_id) : null;
+      const { data: resolved, error: resolveError } = await supabaseAdmin.rpc("resolve_referral_code", {
+        p_referral_code: code,
+        p_referred_user_id: referredId,
+      });
+
+      if (resolveError) throw new Error(resolveError.message);
+      return new Response(JSON.stringify(resolved || { valid: false, error: "Código não encontrado." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "referral_create") {
+      const referrerId = String(data?.referrer_id || "");
+      const referredId = String(data?.referred_id || "");
+      const status = String(data?.status || "pending");
+      const rewardMonths = Math.max(1, Math.min(120, Number(data?.reward_months || 1)));
+      const notes = String(data?.notes || "").trim() || null;
+
+      if (!referrerId || !referredId) throw new Error("Selecione o indicador e o indicado.");
+      if (referrerId === referredId) throw new Error("O cliente não pode indicar a si mesmo.");
+      if (!["pending", "converted", "rewarded", "rejected"].includes(status)) throw new Error("Status inválido.");
+
+      const { data: existing } = await supabaseAdmin.from("referrals").select("id").eq("referred_id", referredId).maybeSingle();
+      if (existing) throw new Error("Este cliente já possui uma indicação vinculada.");
+
+      const payload: Record<string, any> = {
+        referrer_id: referrerId,
+        referred_id: referredId,
+        status,
+        reward_type: "free_month",
+        reward_months: rewardMonths,
+        reward_amount: 0,
+        notes,
+        updated_by: caller.id,
+        updated_at: new Date().toISOString(),
+      };
+      if (status === "converted" || status === "rewarded") payload.converted_at = new Date().toISOString();
+      if (status === "rewarded") {
+        const { data: referrerProfile, error: referrerProfileError } = await supabaseAdmin
+          .from("profiles")
+          .select("iptv_expiry, iptv_due_day")
+          .eq("id", referrerId)
+          .single();
+        if (referrerProfileError) throw new Error(referrerProfileError.message);
+
+        const today = brDateOnly(new Date());
+        const start = isDateOnly(referrerProfile?.iptv_expiry) && String(referrerProfile.iptv_expiry) > today
+          ? String(referrerProfile.iptv_expiry)
+          : today;
+        const fixedDay = Math.max(1, Math.min(31, Number(referrerProfile?.iptv_due_day || start.split("-")[2] || 10)));
+        const end = addMonthsToDateOnlyByFixedDay(start, rewardMonths, fixedDay);
+        const startBR = start.split("-").reverse().join("/");
+        const endBR = end.split("-").reverse().join("/");
+        const rewardMessage = `Seu indicado realizou o 1° pagamento e você ganhou o próximo período de ${startBR} a ${endBR} gratuitamente! Obrigado por apoiar esse projeto!`;
+
+        payload.rewarded_at = new Date().toISOString();
+        payload.reward_period_start = start;
+        payload.reward_period_end = end;
+        payload.reward_message = rewardMessage;
+        await supabaseAdmin.from("profiles").update({ iptv_expiry: end }).eq("id", referrerId);
+        await emitClientProfileUpdated(supabaseAdmin, referrerId, { iptv_expiry: end });
+      }
+
+      const { data: created, error: createError } = await supabaseAdmin.from("referrals").insert(payload).select("*").single();
+      if (createError) throw new Error(createError.message);
+
+      await emitReferralsUpdated(supabaseAdmin, [referrerId], {
+        action: "referral_created",
+        referral_id: created.id,
+        referred_id: referredId,
+      });
+
+      return new Response(JSON.stringify({ success: true, referral: created }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "referral_update") {
+      const referralId = String(data?.id || "");
+      if (!referralId) throw new Error("Indicação não informada.");
+
+      const { data: previous, error: previousError } = await supabaseAdmin
+        .from("referrals")
+        .select("*")
+        .eq("id", referralId)
+        .single();
+      if (previousError || !previous) throw new Error(previousError?.message || "Indicação não encontrada.");
+
+      const referrerId = String(data?.referrer_id || previous.referrer_id);
+      const referredId = String(data?.referred_id || previous.referred_id);
+      const status = String(data?.status || previous.status || "pending");
+      const rewardMonths = Math.max(1, Math.min(120, Number(data?.reward_months || previous.reward_months || 1)));
+      const notes = data?.notes === undefined ? previous.notes : String(data.notes || "").trim() || null;
+
+      if (referrerId === referredId) throw new Error("O cliente não pode indicar a si mesmo.");
+      if (!["pending", "converted", "rewarded", "rejected"].includes(status)) throw new Error("Status inválido.");
+
+      if (referredId !== previous.referred_id) {
+        const { data: duplicate } = await supabaseAdmin
+          .from("referrals")
+          .select("id")
+          .eq("referred_id", referredId)
+          .neq("id", referralId)
+          .maybeSingle();
+        if (duplicate) throw new Error("O novo indicado já possui outra indicação vinculada.");
+      }
+
+      const updatePayload: Record<string, any> = {
+        referrer_id: referrerId,
+        referred_id: referredId,
+        status,
+        reward_months: rewardMonths,
+        notes,
+        updated_by: caller.id,
+        updated_at: new Date().toISOString(),
+      };
+      if ((status === "converted" || status === "rewarded") && !previous.converted_at) {
+        updatePayload.converted_at = new Date().toISOString();
+      }
+      if (status === "rewarded" && !previous.rewarded_at) {
+        const { data: referrerProfile, error: referrerProfileError } = await supabaseAdmin
+          .from("profiles")
+          .select("iptv_expiry, iptv_due_day")
+          .eq("id", referrerId)
+          .single();
+        if (referrerProfileError) throw new Error(referrerProfileError.message);
+
+        const today = brDateOnly(new Date());
+        const start = isDateOnly(referrerProfile?.iptv_expiry) && String(referrerProfile.iptv_expiry) > today
+          ? String(referrerProfile.iptv_expiry)
+          : today;
+        const fixedDay = Math.max(1, Math.min(31, Number(referrerProfile?.iptv_due_day || start.split("-")[2] || 10)));
+        const end = addMonthsToDateOnlyByFixedDay(start, rewardMonths, fixedDay);
+        const startBR = start.split("-").reverse().join("/");
+        const endBR = end.split("-").reverse().join("/");
+        const rewardMessage = `Seu indicado realizou o 1° pagamento e você ganhou o próximo período de ${startBR} a ${endBR} gratuitamente! Obrigado por apoiar esse projeto!`;
+
+        updatePayload.rewarded_at = new Date().toISOString();
+        updatePayload.reward_period_start = start;
+        updatePayload.reward_period_end = end;
+        updatePayload.reward_message = rewardMessage;
+        await supabaseAdmin.from("profiles").update({ iptv_expiry: end }).eq("id", referrerId);
+        await emitClientProfileUpdated(supabaseAdmin, referrerId, { iptv_expiry: end });
+      }
+
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from("referrals")
+        .update(updatePayload)
+        .eq("id", referralId)
+        .select("*")
+        .single();
+      if (updateError) throw new Error(updateError.message);
+
+      await emitReferralsUpdated(supabaseAdmin, [String(previous.referrer_id), referrerId], {
+        action: "referral_updated",
+        referral_id: referralId,
+        referred_id: referredId,
+      });
+
+      return new Response(JSON.stringify({ success: true, referral: updated }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "referral_delete") {
+      const referralId = String(data?.id || "");
+      if (!referralId) throw new Error("Indicação não informada.");
+
+      const { data: previous, error: previousError } = await supabaseAdmin
+        .from("referrals")
+        .select("id,referrer_id,referred_id")
+        .eq("id", referralId)
+        .single();
+      if (previousError || !previous) throw new Error(previousError?.message || "Indicação não encontrada.");
+
+      const { error: deleteError } = await supabaseAdmin.from("referrals").delete().eq("id", referralId);
+      if (deleteError) throw new Error(deleteError.message);
+
+      await emitReferralsUpdated(supabaseAdmin, [String(previous.referrer_id)], {
+        action: "referral_deleted",
+        referral_id: referralId,
+        referred_id: previous.referred_id,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "referral_set_promotion") {
+      const isActive = Boolean(data?.is_active);
+      const rewardMonths = Math.max(1, Math.min(120, Number(data?.default_reward_months || 1)));
+      const { data: saved, error: settingsError } = await supabaseAdmin
+        .from("referral_settings")
+        .upsert(
+          {
+            id: 1,
+            is_active: isActive,
+            default_reward_months: rewardMonths,
+            updated_at: new Date().toISOString(),
+            updated_by: caller.id,
+          },
+          { onConflict: "id" },
+        )
+        .select("*")
+        .single();
+      if (settingsError) throw new Error(settingsError.message);
+
+      const { data: clientRoles } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "client");
+      const targetIds = ((clientRoles || []) as any[]).map((row) => String(row.user_id)).filter(Boolean);
+      const sentAt = Date.now();
+      const messages = targetIds.map((id) => ({
+        topic: `wmcplayer-client-${id}`,
+        event: "referrals-updated",
+        payload: { user_id: id, sentAt, action: "promotion_updated", promotion_active: isActive },
+      }));
+      messages.push({
+        topic: "wmcplayer-admin",
+        event: "referrals-updated",
+        payload: { sentAt, action: "promotion_updated", promotion_active: isActive },
+      });
+      await sendRealtimeBatch(messages);
+
+      return new Response(JSON.stringify({ success: true, settings: saved }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1341,6 +1688,10 @@ Deno.serve(async (req) => {
           .single();
         if (insertPaymentError) throw new Error(insertPaymentError.message);
 
+        if (insertedPayment?.id) {
+          await processReferralRewardForPayment(supabaseAdmin, user_id, insertedPayment.id);
+        }
+
         const { error: updatePaymentProfileError } = await supabaseAdmin
           .from("profiles")
           .update({
@@ -1968,6 +2319,8 @@ Deno.serve(async (req) => {
 
           if (confirmPaymentsError) throw confirmPaymentsError;
         }
+
+        await processReferralRewardForPayment(supabaseAdmin, user_id, payment_id);
 
         // A confirmação usa sempre: vencimento anterior + quantidade de meses pagos.
         // Nunca usa o dia em que o admin confirmou e nunca usa uma data padrão diferente.

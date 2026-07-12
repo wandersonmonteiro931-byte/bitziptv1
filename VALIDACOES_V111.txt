@@ -1,0 +1,33 @@
+VALIDACOES WMCPLAYER V111
+
+EXECUTADAS
+- npm ci
+- npx tsc --noEmit
+- npm test
+- npm run audit
+- npm run check:tdz
+- npm run build:app
+- esbuild de sintaxe das Edge Functions alteradas
+- parser PostgreSQL pglast no SQL completo
+
+RESULTADOS
+- TypeScript: aprovado
+- Testes automatizados: 10 de 10 aprovados
+- Auditoria: 127 arquivos verificados
+- Canal Realtime: somente 1 canal compartilhado no frontend
+- Verificacao TDZ: aprovada
+- Build de producao: aprovado
+- Modulos processados: 3055
+- PWA: 21 arquivos no precache
+- JavaScript principal: app-BCCmD61j.js
+- CSS principal: index-BwBSRPft.css
+- Edge admin-create-user: sintaxe aprovada
+- Edge admin-manage-user: sintaxe aprovada
+- Edge pix-efi: sintaxe aprovada
+- SQL: 57 comandos reconhecidos pelo parser PostgreSQL
+- Polling novo: nenhum
+
+LIMITES DA VALIDACAO
+- O SQL nao foi executado no banco real do usuario nesta sessao.
+- As Edge Functions nao foram publicadas no Supabase real nesta sessao.
+- O webhook real da Efi e a permissao RLS real precisam ser confirmados depois da publicacao.

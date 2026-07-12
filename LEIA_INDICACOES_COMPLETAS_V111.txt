@@ -1,0 +1,82 @@
+WMCPLAYER V111 - SISTEMA COMPLETO DE INDICACOES
+
+BASE USADA
+- WMCPLAYER_V110_NOTIFICACOES_OBRIGATORIAS_ATUALIZACAO_E_PLANOS_LEVES_PACOTE_COMPLETO.zip
+
+O QUE FOI CORRIGIDO
+
+1. VALIDACAO DO CODIGO
+- Ao digitar o codigo no cadastro normal, cadastro automatico ou edicao do cliente, o painel localiza o dono do codigo.
+- Mostra nome e codigo encontrado antes de salvar.
+- Impede autoindicacao.
+- Impede vincular um indicado que ja possui outra indicacao.
+- Quando a promocao estiver desativada, retorna exatamente: Promocao encerrada.
+
+2. PAGINA INDICACOES DO CLIENTE
+- Consulta a tabela referrals pelo referrer_id do cliente conectado.
+- Funciona com RLS ativada por meio de RPC SECURITY DEFINER.
+- Mostra indicacoes pendentes, convertidas, premiadas e recusadas.
+- Calcula Total, Convertidas e Meses gratis corretamente.
+- Nao depende apenas de profiles.referred_by.
+- Mostra o pagamento gerador, periodo gratis e a mensagem completa do beneficio.
+- Quando a promocao estiver desligada, mostra Promocao encerrada.
+
+3. PAINEL ADMINISTRATIVO
+- Lista todas as indicacoes.
+- Adiciona indicacao escolhendo indicador e indicado.
+- Edita indicador, indicado, status, meses e observacoes.
+- Exclui indicacao.
+- Ativa ou encerra a promocao.
+- Sincroniza automaticamente profiles.referred_by.
+- Mostra no cadastro e na lista de clientes quem indicou cada cliente.
+
+4. PRIMEIRO PAGAMENTO
+- O webhook PIX e o pagamento manual chamam a mesma funcao atomica.
+- A indicacao passa de pending para rewarded, com converted_at e rewarded_at.
+- Cada indicado premiado adiciona a quantidade configurada de meses ao vencimento do indicador.
+- Doze indicados com um mes cada acumulam doze meses gratis.
+- Registra first_payment_id, periodo inicial, periodo final e mensagem do beneficio.
+- O mesmo webhook reenviado nao gera premio duplicado.
+- Mensagem enviada ao indicador:
+  Seu indicado realizou o 1° pagamento e voce ganhou o proximo periodo de xx/xx/xxxx a xx/xx/xxxx gratuitamente! Obrigado por apoiar esse projeto!
+
+5. PROMOCAO
+- O admin pode ativar ou encerrar a promocao na tela Admin > Indicacoes.
+- Encerrada: novos codigos nao sao aceitos.
+- Indicacoes ja registradas continuam no historico e continuam sendo honradas no primeiro pagamento.
+
+ORDEM OBRIGATORIA DE PUBLICACAO
+
+PASSO 1 - SQL
+1. Execute ABRIR_SQL_INDICACOES_V111.bat.
+2. O BAT abre o SQL Editor do projeto e o arquivo completo.
+3. Copie TODO o conteudo do arquivo APLICAR_CORRECAO_COMPLETA_INDICACOES_V111.sql.
+4. Cole no SQL Editor e clique em RUN.
+5. Aguarde concluir sem erro.
+
+PASSO 2 - EDGE FUNCTIONS
+1. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+2. O BAT reutiliza a sessao/token fixo existente.
+3. Ele publica admin-create-user, admin-manage-user e pix-efi, alem das demais funcoes ja existentes.
+
+PASSO 3 - SITE PRINCIPAL
+- Publique todo o conteudo de SITE_CENTRAL_PUBLICAR no projeto principal wmcplayer.pages.dev.
+- Nao publique apenas o JavaScript, porque index.html, service worker e version.json tambem foram atualizados.
+
+SQL NECESSARIO
+- SIM. Execute o arquivo APLICAR_CORRECAO_COMPLETA_INDICACOES_V111.sql.
+
+EDGE FUNCTIONS NECESSARIAS
+- SIM. Execute CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat.
+- Funcoes alteradas: admin-create-user, admin-manage-user e pix-efi.
+
+BANCO E SEGURANCA
+- RLS continua ativada.
+- Clientes nao podem alterar indicacoes diretamente.
+- O cliente le somente as indicacoes em que ele e o referrer_id.
+- O painel usa Edge Function autenticada com verificacao de administrador.
+- O processamento da recompensa usa funcao SECURITY DEFINER liberada somente para service_role.
+
+SEM POLLING
+- Nenhum setInterval ou consulta continua foi criado.
+- Atualizacoes usam o canal Realtime unico ja existente e eventos gerados por acoes/pagamentos.

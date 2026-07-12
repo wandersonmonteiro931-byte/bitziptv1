@@ -127,7 +127,61 @@ Deno.serve(async (req) => {
     const userEmail = loginIdentifier.includes("@") ? loginIdentifier : `${loginIdentifier}@iptv.bitz`;
     const userPassword = String(password || iptv_password || loginIdentifier);
 
-    // Create auth user
+    let referredById: string | null = null;
+    let referredByName: string | null = null;
+    let referralRewardMonths = 1;
+    const cleanReferredCode = String(referred_by_code || "")
+      .trim()
+      .toUpperCase();
+
+    if (cleanReferredCode) {
+      const { data: referralSettings, error: settingsError } = await supabaseAdmin
+        .from("referral_settings")
+        .select("is_active, default_reward_months")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (settingsError) {
+        return new Response(JSON.stringify({ error: settingsError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (referralSettings?.is_active === false) {
+        return new Response(JSON.stringify({ error: "Promoção encerrada." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      referralRewardMonths = Math.max(1, Number(referralSettings?.default_reward_months || 1));
+
+      const { data: referrer, error: referrerError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, name, username, referral_code")
+        .ilike("referral_code", cleanReferredCode)
+        .maybeSingle();
+
+      if (referrerError) {
+        return new Response(JSON.stringify({ error: referrerError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!referrer) {
+        return new Response(JSON.stringify({ error: "Código de indicação não encontrado" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      referredById = referrer.id;
+      referredByName = referrer.name || referrer.username || null;
+    }
+
+    // Create auth user somente depois de validar integralmente o código de indicação.
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: userEmail,
       password: userPassword,
@@ -143,34 +197,12 @@ Deno.serve(async (req) => {
 
     const userId = newUser.user.id;
 
-    let referredById: string | null = null;
-    const cleanReferredCode = String(referred_by_code || "")
-      .trim()
-      .toUpperCase();
-    if (cleanReferredCode) {
-      const { data: referrer, error: referrerError } = await supabaseAdmin
-        .from("profiles")
-        .select("id, name, username, referral_code")
-        .ilike("referral_code", cleanReferredCode)
-        .maybeSingle();
-
-      if (referrerError) {
-        await supabaseAdmin.auth.admin.deleteUser(userId);
-        return new Response(JSON.stringify({ error: referrerError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (!referrer) {
-        await supabaseAdmin.auth.admin.deleteUser(userId);
-        return new Response(JSON.stringify({ error: "Código de indicação não encontrado" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      referredById = referrer.id;
+    if (referredById === userId) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      return new Response(JSON.stringify({ error: "O cliente não pode indicar a si mesmo." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     let billingDueDateId = billing_due_date_id || null;
@@ -297,7 +329,7 @@ Deno.serve(async (req) => {
           reward_amount: 0,
           status: "pending",
           reward_type: "free_month",
-          reward_months: 1,
+          reward_months: referralRewardMonths,
           notes: "Aguardando o primeiro pagamento do indicado",
         });
 
@@ -336,6 +368,8 @@ Deno.serve(async (req) => {
         referral_code: createdProfile?.referral_code || null,
         login_email: userEmail,
         referral_registered: !!referredById,
+        referrer_name: referredByName,
+        referred_by_code: cleanReferredCode || null,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

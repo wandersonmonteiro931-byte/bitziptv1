@@ -1,0 +1,8 @@
+VALIDACOES V112
+
+- SQL completo analisado com pglast/PostgreSQL parser: aprovado.
+- Ocorrencias problematicas texto <> uuid removidas.
+- Arquivo principal e migration possuem o mesmo SQL corrigido.
+- BAT V112: sem BOM e com CRLF.
+- Nenhum frontend, Edge Function, banco real ou segredo foi alterado durante a geracao do pacote.
+- O SQL nao foi executado no Supabase real nesta sessao.
