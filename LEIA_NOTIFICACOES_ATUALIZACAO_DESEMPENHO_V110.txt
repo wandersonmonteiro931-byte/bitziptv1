@@ -1,0 +1,58 @@
+WMCPLAYER V110
+
+BASE OFICIAL UTILIZADA
+- WMCPLAYER_V109_CORRECAO_SUPABASE_URL_TELA_PRETA_PACOTE_COMPLETO.zip
+
+ALTERACOES DESTA VERSAO
+
+1. NOTIFICACOES OBRIGATORIAS NO ANDROID
+- Ao abrir o aplicativo no Android, a permissao de notificacoes e verificada.
+- Depois do login, o aplicativo tambem confirma se existe uma inscricao Push ativa.
+- Se a permissao ou a inscricao nao estiver ativa, o aplicativo inteiro fica bloqueado.
+- O cliente precisa tocar em ATIVAR NOTIFICACOES para continuar.
+- A obrigatoriedade continua apenas no Android.
+- iPhone, iPad e computador continuam sem bloqueio obrigatorio.
+
+2. BOTAO ATIVAR NAS CONFIGURACOES
+- O botao Ativar notificacoes agora faz a ativacao completa.
+- Solicita a permissao do aparelho.
+- Cria ou recupera a inscricao Push do navegador.
+- Registra a inscricao no servidor pela Edge Function push-notification.
+- Atualiza o estado da tela sem depender de recarregar a pagina.
+
+3. VERIFICAR ATUALIZACOES NAS CONFIGURACOES
+- Foi incluido o botao Verificar atualizacoes.
+- A consulta acontece apenas quando o cliente toca no botao.
+- Se o app estiver atualizado, aparece a confirmacao.
+- Se existir uma versao nova, a tela obrigatoria de atualizacao e aberta.
+- Nao foi adicionado polling, setInterval ou consulta automatica repetitiva.
+
+4. DESEMPENHO DA SECAO DE PLANOS
+- Removidas animacoes infinitas de sombra e escala dos cards de planos.
+- Efeitos pesados de blur e brilho ficam desativados em aparelhos touch/celulares.
+- Os cards usam isolamento de renderizacao para reduzir o peso durante a rolagem.
+- O visual dos planos, valores, descontos e botoes foi preservado.
+
+ARQUIVOS PRINCIPAIS ALTERADOS
+- bitziptv1-main/src/components/NotificationGate.tsx
+- bitziptv1-main/src/components/PWAUpdatePrompt.tsx
+- bitziptv1-main/src/pages/ClientSettingsPage.tsx
+- bitziptv1-main/src/pages/ClientDashboard.tsx
+- bitziptv1-main/src/hooks/usePushNotifications.ts
+- bitziptv1-main/src/lib/pushNotifications.ts
+- bitziptv1-main/src/lib/appVersion.ts
+- bitziptv1-main/src/index.css
+- bitziptv1-main/dist/*
+- SITE_CENTRAL_PUBLICAR/app/*
+
+COMO PUBLICAR
+- Publique todo o conteudo da pasta SITE_CENTRAL_PUBLICAR no projeto principal do Cloudflare Pages.
+- Nao publique apenas o JavaScript, porque index.html, version.json, Service Worker e CSS tambem mudaram.
+- Para guardar ou atualizar o codigo-fonte, use a pasta bitziptv1-main completa.
+
+SQL
+- Nao precisa executar SQL.
+
+EDGE FUNCTIONS
+- Nao precisa republicar Edge Functions.
+- A Edge Function push-notification ja existente apenas e chamada pelo novo fluxo.

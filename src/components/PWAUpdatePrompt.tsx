@@ -3,13 +3,13 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import { motion } from "framer-motion";
 import { AlertTriangle, Loader2, RefreshCw, WifiOff } from "lucide-react";
 import { useAppBranding } from "@/hooks/useAppBranding";
-
-declare const __BUILD_TIMESTAMP__: number;
+import {
+  APP_UPDATE_CHECK_EVENT,
+  checkForAppUpdate,
+  type AppUpdateCheckResult,
+} from "@/lib/appVersion";
 
 type VersionGateState = "checking" | "current" | "update-required" | "verification-error";
-
-const getLocalBuildId = () =>
-  String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : "development");
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
@@ -86,40 +86,43 @@ export function PWAUpdatePrompt() {
   );
 
   const verifyLatestVersion = useCallback(async () => {
-    if (import.meta.env.DEV) {
-      setGateState("current");
-      return;
-    }
-
     setGateState("checking");
     setErrorMessage("");
 
     try {
-      const response = await fetch(`/app/version.json?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
-      });
-
-      if (!response.ok) throw new Error(`Não foi possível consultar a versão publicada (${response.status}).`);
-
-      const remote = (await response.json()) as {
-        buildId?: string;
-        buildTimestamp?: number;
-        version?: string;
-      };
-      const latestBuildId = String(remote.buildId || remote.buildTimestamp || remote.version || "").trim();
-      if (!latestBuildId) throw new Error("A versão publicada não foi identificada.");
-
-      setRemoteBuildId(latestBuildId);
-      setGateState(latestBuildId === getLocalBuildId() ? "current" : "update-required");
+      const result = await checkForAppUpdate();
+      setRemoteBuildId(result.publishedBuildId);
+      setGateState(result.updateAvailable ? "update-required" : "current");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Não foi possível verificar a versão mais recente.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível verificar a versão mais recente.",
+      );
       setGateState("verification-error");
     }
   }, []);
 
   useEffect(() => {
     void verifyLatestVersion();
+  }, [verifyLatestVersion]);
+
+  useEffect(() => {
+    const onManualUpdateCheck = (event: Event) => {
+      const result = (event as CustomEvent<AppUpdateCheckResult>).detail;
+
+      if (result?.publishedBuildId) {
+        setRemoteBuildId(result.publishedBuildId);
+        setErrorMessage("");
+        setGateState(result.updateAvailable ? "update-required" : "current");
+        return;
+      }
+
+      void verifyLatestVersion();
+    };
+
+    window.addEventListener(APP_UPDATE_CHECK_EVENT, onManualUpdateCheck);
+    return () => window.removeEventListener(APP_UPDATE_CHECK_EVENT, onManualUpdateCheck);
   }, [verifyLatestVersion]);
 
   useEffect(() => {
@@ -173,16 +176,15 @@ export function PWAUpdatePrompt() {
         }
       }
 
-      // Dá um pequeno tempo para o novo Service Worker assumir a página.
-      // Se não houver troca de controlador, a navegação versionada força o
-      // navegador a buscar o HTML novo, que aponta para um arquivo JS com hash.
       await delay(500);
       navigateToUpdatedBuild(remoteBuildId);
     } catch (error) {
       updateLockRef.current = false;
       updateRequestedRef.current = false;
       setUpdating(false);
-      setErrorMessage(error instanceof Error ? error.message : "Não foi possível aplicar a atualização.");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Não foi possível aplicar a atualização.",
+      );
       setGateState("verification-error");
     }
   };

@@ -2,8 +2,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// As credenciais abaixo são públicas por definição no frontend do Supabase.
+// Os valores de ambiente continuam tendo prioridade, mas o fallback impede
+// que um build do Cloudflare/GitHub seja publicado com tela preta quando as
+// variáveis VITE_* não estiverem configuradas no ambiente de compilação.
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL || "https://vywtzzrvpdjqpcnixskz.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "sb_publishable_sdV_208NVt_5D4Wo8VlJxw_7EX_uIJT";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

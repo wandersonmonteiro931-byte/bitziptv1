@@ -1,0 +1,29 @@
+WMCPLAYER V109
+
+BASE USADA
+- WMCPLAYER_V108_BANNER_ALTURA_CONFIGURACOES_MENSALIDADES_PACOTE_COMPLETO.zip
+
+PROBLEMA CORRIGIDO
+- Tela preta em /app/admin e demais rotas do aplicativo.
+- Erro do console: Uncaught Error: supabaseUrl is required.
+
+CAUSA
+- A compilacao anterior foi gerada sem as variaveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.
+- O JavaScript foi publicado sem o endereco do projeto Supabase.
+
+CORRECAO
+- O cliente Supabase agora usa as variaveis VITE_* quando elas existem.
+- Foi adicionado fallback publico do mesmo projeto para impedir tela preta em builds do GitHub/Cloudflare sem variaveis configuradas.
+- Nenhuma chave privada, service role, certificado ou segredo foi adicionado.
+
+PUBLICACAO
+1. Publique todo o conteudo de SITE_CENTRAL_PUBLICAR no projeto principal wmcplayer.pages.dev.
+2. Nao publique somente o arquivo JavaScript.
+3. Depois do deploy, abra /app/admin novamente.
+4. Se o navegador mantiver o cache antigo, feche a aba e abra o link novamente. O novo arquivo JavaScript possui nome versionado.
+
+SQL
+- Nao precisa executar SQL.
+
+EDGE FUNCTIONS
+- Nao precisa executar Edge Functions.

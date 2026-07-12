@@ -2047,36 +2047,19 @@ const ClientDashboard = () => {
               : "Você está em dias!";
   const mainRenewalLabel = isRenewPlanWindow ? "Renovar plano" : "Antecipar renovação";
   const renewalButtonMotion = {
-    initial: { scale: 1 },
-    animate: {
-      scale: [1, 1.01, 1],
-      y: [0, -1, 0],
-      boxShadow: [
-        "0 8px 18px rgba(239,68,68,0.18)",
-        "0 12px 28px rgba(239,68,68,0.28)",
-        "0 8px 18px rgba(239,68,68,0.18)",
-      ],
-    },
-    transition: {
-      duration: 2.8,
-      repeat: Infinity,
-      ease: "easeInOut" as const,
-    },
-    whileHover: { scale: 1.018, y: -1 },
+    initial: { opacity: 0, y: 6 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.24, ease: "easeOut" as const },
+    whileHover: { scale: 1.01, y: -1 },
     whileTap: { scale: 0.98, y: 0 },
   };
 
   const renewalOptionMotion = {
-    initial: { opacity: 0.96, y: 2 },
-    animate: {
-      opacity: 1,
-      y: 0,
-      boxShadow: ["0 8px 24px rgba(0,0,0,0.22)", "0 10px 30px rgba(239,68,68,0.08)", "0 8px 24px rgba(0,0,0,0.22)"],
-    },
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
     transition: {
-      duration: 4.8,
-      repeat: Infinity,
-      ease: "easeInOut" as const,
+      duration: 0.28,
+      ease: "easeOut" as const,
     },
     whileHover: {
       y: -1,
@@ -2219,11 +2202,9 @@ const ClientDashboard = () => {
             }
             className="group relative mt-5 w-full overflow-hidden rounded-xl bg-red-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/25 transition-colors hover:bg-red-500"
           >
-            <motion.span
+            <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-              animate={{ x: ["0%", "430%"] }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.8 }}
+              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.06] to-transparent"
             />
             <span className="relative z-10 inline-flex items-center justify-center gap-2">
               <CreditCard size={16} />
@@ -2380,9 +2361,9 @@ const ClientDashboard = () => {
                   key={plan.id || `${plan.months}-${index}`}
                   type="button"
                   {...renewalOptionMotion}
-                  transition={{ ...renewalOptionMotion.transition, delay: 0.35 + index * 0.05 }}
+                  transition={{ ...renewalOptionMotion.transition, delay: index * 0.04 }}
                   onClick={() => openRenewalPlan(plan)}
-                  className={`group relative isolate overflow-hidden rounded-[30px] border text-left transition-all duration-300 hover:-translate-y-1 ${
+                  className={`wmc-renewal-plan-card group relative isolate overflow-hidden rounded-[30px] border text-left transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 ${
                     isHighlight
                       ? "border-[#d9ab64]/80 bg-[linear-gradient(135deg,#1d1513_0%,#38231c_52%,#1a0f0c_100%)] shadow-[0_0_0_1px_rgba(217,171,100,0.15),0_20px_60px_rgba(217,171,100,0.16)]"
                       : "border-white/16 bg-[linear-gradient(135deg,#1a1d2a_0%,#241719_44%,#1b1114_100%)] shadow-[0_16px_48px_rgba(0,0,0,0.32)]"
@@ -2390,8 +2371,8 @@ const ClientDashboard = () => {
                 >
                   <div className="pointer-events-none absolute inset-0 opacity-[0.22]" style={{ backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)`, backgroundSize: '24px 24px' }} />
                   <div className={`pointer-events-none absolute inset-0 ${isHighlight ? "bg-[radial-gradient(circle_at_14%_10%,rgba(255,210,130,0.20),transparent_22%),radial-gradient(circle_at_82%_24%,rgba(214,94,33,0.14),transparent_28%),radial-gradient(circle_at_42%_90%,rgba(255,94,0,0.08),transparent_26%)]" : "bg-[radial-gradient(circle_at_14%_10%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_82%_20%,rgba(193,30,56,0.18),transparent_26%),radial-gradient(circle_at_50%_100%,rgba(255,120,0,0.06),transparent_28%)]"}`} />
-                  <div className={`pointer-events-none absolute left-[8%] top-[8%] h-16 w-20 rounded-full blur-2xl ${isHighlight ? "bg-[#d89a42]/18" : "bg-[#ff2c55]/12"}`} />
-                  <div className={`pointer-events-none absolute bottom-[7%] left-[12%] h-14 w-24 rounded-full blur-3xl ${isHighlight ? "bg-[#ff7a00]/12" : "bg-[#ff4b5c]/10"}`} />
+                  <div className={`wmc-plan-decor pointer-events-none absolute left-[8%] top-[8%] h-16 w-20 rounded-full blur-2xl ${isHighlight ? "bg-[#d89a42]/18" : "bg-[#ff2c55]/12"}`} />
+                  <div className={`wmc-plan-decor pointer-events-none absolute bottom-[7%] left-[12%] h-14 w-24 rounded-full blur-3xl ${isHighlight ? "bg-[#ff7a00]/12" : "bg-[#ff4b5c]/10"}`} />
                   <div className={`wmc-plan-shimmer ${isHighlight ? "wmc-plan-shimmer-gold" : "wmc-plan-shimmer-red"}`} />
 
                   <div className="relative flex h-full min-h-[305px] flex-col p-5 sm:p-5">

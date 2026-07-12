@@ -343,3 +343,35 @@ img[alt*="Preview" i] {
 .wmc-button-shimmer-gold {
   background: linear-gradient(90deg, transparent 0%, rgba(255, 208, 128, 0.10) 18%, rgba(255, 228, 158, 0.34) 50%, rgba(255, 208, 128, 0.10) 82%, transparent 100%);
 }
+
+/* Desempenho da seção de planos: mantém o visual no desktop e reduz
+   filtros/animações pesadas durante a rolagem em celulares e TVs touch. */
+.wmc-renewal-plan-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 305px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .wmc-plan-shimmer,
+  .wmc-button-shimmer,
+  .wmc-plan-decor {
+    display: none !important;
+    animation: none !important;
+    filter: none !important;
+    mix-blend-mode: normal !important;
+  }
+
+  .wmc-renewal-plan-card {
+    transition-duration: 120ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wmc-plan-shimmer,
+  .wmc-button-shimmer,
+  .wmc-plan-decor {
+    display: none !important;
+    animation: none !important;
+  }
+}
