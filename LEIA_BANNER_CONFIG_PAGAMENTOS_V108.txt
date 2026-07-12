@@ -1,0 +1,26 @@
+WMCPLAYER V108
+
+BASE USADA
+- WMCPLAYER_V107_ATIVACAO_VOLTAR_UMA_ETAPA_PACOTE_COMPLETO.zip
+
+CORRECOES APLICADAS
+1. Home do cliente: banner com altura maior para parar de ficar achatado.
+2. Engrenagem do cabecalho: agora abre uma tela exclusiva de Configuracoes do aplicativo.
+3. Nova tela /app/settings com opcoes do cliente:
+   - ativar notificacoes;
+   - desativar notificacoes;
+   - ver versao atual do app;
+   - ver build atual.
+4. A engrenagem nao abre mais Minha TV. Minha TV continua no menu inferior.
+5. Secao Mensalidades pagas movida para cima dos cards de planos/renovacao na tela inicial.
+6. Ao desativar notificacoes, o app grava a preferencia local e nao refaz a inscricao automaticamente ate o cliente ativar novamente.
+
+COMO PUBLICAR
+1. Publique o conteudo da pasta SITE_CENTRAL_PUBLICAR no projeto principal do Cloudflare Pages (wmcplayer.pages.dev).
+2. Se for atualizar o GitHub conectado, use o conteudo da pasta bitziptv1-main e execute o BAT apropriado.
+
+SQL
+- Nao precisa executar SQL.
+
+EDGE FUNCTIONS
+- Nao precisa publicar Edge Functions nesta versao.

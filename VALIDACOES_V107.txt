@@ -1,0 +1,13 @@
+VALIDACOES REALMENTE EXECUTADAS - WMCPLAYER V107
+
+- Sintaxe JavaScript de SITE_CENTRAL_PUBLICAR/script.js: aprovada com node --check.
+- Teste simulado em JSDOM do fluxo Nome -> Lista -> MAC -> Voltar: aprovado.
+- Teste simulado em JSDOM do fluxo Nome -> Lista -> Planos -> botao Voltar: aprovado.
+- Auditoria do projeto: 124 arquivos verificados; apenas 1 canal Realtime no frontend.
+- Verificacao TDZ: nenhuma variavel lexical usada antes da inicializacao.
+- TypeScript: aprovado com npx tsc --noEmit.
+- Testes automatizados: 10 de 10 aprovados.
+- Build de producao do aplicativo: concluido com 3052 modulos processados.
+- PWA: 21 arquivos no precache; Service Worker gerado corretamente.
+- Nenhum polling, setInterval ou consulta continua foi adicionado.
+- Nenhum SQL ou Edge Function foi alterado.

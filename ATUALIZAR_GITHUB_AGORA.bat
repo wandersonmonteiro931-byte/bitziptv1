@@ -4,7 +4,7 @@ title WMCPLAYER - ATUALIZAR GITHUB E REDIRECIONAMENTO
 
 set "REPO_URL=https://github.com/wandersonmonteiro931-byte/bitziptv1.git"
 set "BRANCH=main"
-set "COMMIT_MSG=WMCPLAYER V105 redirecionamento automatico do dominio antigo"
+set "COMMIT_MSG=WMCPLAYER V106 correcao da atualizacao obrigatoria sem loop"
 
 for %%I in ("%~dp0.") do set "SOURCE_DIR=%%~fI"
 for %%I in ("%USERPROFILE%\Desktop\bitziptv1-github") do set "WORK_DIR=%%~fI"
@@ -83,7 +83,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [4/8] Copiando o projeto completo V105...
+echo [4/8] Copiando o projeto completo V106...
 robocopy "%SOURCE_DIR%" "%WORK_DIR%" /E /R:2 /W:1 /XD ".git" "node_modules" "dist" ".wrangler" ".vercel" ".netlify" /XF ".env" ".env.local" "SECRETS_SUPABASE_PIX.env" "EFI_CERTIFICATE_BASE64.txt" "SUPABASE_CLI_TOKEN.txt" "SUPABASE_CLI_TOKEN.env"
 set "ROBO=!ERRORLEVEL!"
 if !ROBO! GEQ 8 (

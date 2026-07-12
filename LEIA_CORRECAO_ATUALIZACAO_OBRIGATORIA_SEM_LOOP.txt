@@ -1,0 +1,33 @@
+WMCPLAYER V106 - CORRECAO DA ATUALIZACAO OBRIGATORIA SEM LOOP
+
+PROBLEMA CORRIGIDO
+
+O arquivo principal do aplicativo era publicado sempre com o mesmo nome:
+/app/assets/app.js
+
+Ao mesmo tempo, esse arquivo recebia cache imutavel por 1 ano. O navegador podia manter
+o JavaScript antigo enquanto o version.json ja informava uma versao nova. Por isso a tela
+"Atualizacao obrigatoria" voltava depois de clicar em "Atualizar agora".
+
+CORRECAO APLICADA
+
+- O JavaScript principal agora recebe um nome unico em cada build, por exemplo:
+  /app/assets/app-ABC123.js
+- O Service Worker novo assume o controle imediatamente depois da instalacao.
+- O botao Atualizar agora aguarda a atualizacao do Service Worker e abre a mesma rota com
+  um identificador da nova versao.
+- O HTML e o version.json continuam sem cache.
+- O antigo /app/assets/app.js deixou de ser tratado como arquivo imutavel.
+- Nao foi adicionado polling, setInterval ou consulta continua.
+
+PUBLICACAO
+
+A correcao do loop pertence ao site principal:
+https://wmcplayer.pages.dev/app/
+
+Publique a pasta SITE_CENTRAL_PUBLICAR no projeto Cloudflare Pages do site principal.
+O BAT ATUALIZAR_GITHUB_AGORA.bat atualiza o repositorio ligado ao dominio antigo e mantem
+o redirecionamento automatico, mas esse BAT sozinho nao publica o site principal.
+
+NAO PRECISA EXECUTAR SQL.
+NAO PRECISA PUBLICAR EDGE FUNCTIONS.

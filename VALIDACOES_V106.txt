@@ -1,0 +1,22 @@
+WMCPLAYER V106 - VALIDACOES EXECUTADAS
+
+- TypeScript: npx tsc --noEmit aprovado.
+- Auditoria interna: 124 arquivos verificados.
+- Supabase Realtime: 1 canal compartilhado no frontend.
+- Verificacao TDZ: aprovada.
+- Testes automatizados: 10 de 10 aprovados.
+- Build de producao do aplicativo: aprovado.
+- Modulos processados no build: 3052.
+- Service Worker: gerado com skipWaiting e clientsClaim.
+- Precache PWA: 21 arquivos.
+- JavaScript principal: nome com hash; app.js fixo nao foi gerado.
+- Build ID do version.json: igual ao Build ID embutido no JavaScript.
+- Nenhum polling, setInterval de rede ou consulta continua foi adicionado.
+- Nenhum SQL foi alterado.
+- Nenhuma Edge Function foi alterada.
+
+AMBIENTE DE VALIDACAO
+
+Node instalado no ambiente: 22.16.0.
+O projeto declara Node 20.x. O npm exibiu apenas aviso de versao do engine e todas as
+validacoes acima foram concluidas com sucesso.

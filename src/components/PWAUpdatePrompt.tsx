@@ -8,21 +8,61 @@ declare const __BUILD_TIMESTAMP__: number;
 
 type VersionGateState = "checking" | "current" | "update-required" | "verification-error";
 
-let updateAlreadyRunning = false;
-
 const getLocalBuildId = () =>
   String(typeof __BUILD_TIMESTAMP__ !== "undefined" ? __BUILD_TIMESTAMP__ : "development");
+
+const delay = (milliseconds: number) =>
+  new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+
+const waitForWorkerActivation = (worker: ServiceWorker, timeoutMs = 12000) =>
+  new Promise<void>((resolve) => {
+    if (worker.state === "activated" || worker.state === "redundant") {
+      resolve();
+      return;
+    }
+    if (worker.state === "installed") {
+      worker.postMessage({ type: "SKIP_WAITING" });
+    }
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      worker.removeEventListener("statechange", onStateChange);
+      resolve();
+    };
+    const onStateChange = () => {
+      if (worker.state === "installed") {
+        worker.postMessage({ type: "SKIP_WAITING" });
+      }
+      if (worker.state === "activated" || worker.state === "redundant") finish();
+    };
+
+    worker.addEventListener("statechange", onStateChange);
+    window.setTimeout(finish, timeoutMs);
+  });
+
+const isAppRegistration = (registration: ServiceWorkerRegistration) => {
+  try {
+    const scopePath = new URL(registration.scope).pathname;
+    return scopePath === "/app/" || scopePath.startsWith("/app/");
+  } catch {
+    return registration.scope.includes("/app/");
+  }
+};
 
 export function PWAUpdatePrompt() {
   const [gateState, setGateState] = useState<VersionGateState>("checking");
   const [updating, setUpdating] = useState(false);
   const [remoteBuildId, setRemoteBuildId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const reloadScheduledRef = useRef(false);
+  const updateLockRef = useRef(false);
+  const updateRequestedRef = useRef(false);
+  const navigationStartedRef = useRef(false);
   const { appName, logoUrl } = useAppBranding();
   const appTitle = appName || "WMCPLAYER";
 
-  const { updateServiceWorker } = useRegisterSW({
+  useRegisterSW({
     immediate: true,
     onNeedRefresh() {
       setGateState("update-required");
@@ -31,6 +71,19 @@ export function PWAUpdatePrompt() {
       console.error("Falha ao registrar o aplicativo:", error);
     },
   });
+
+  const navigateToUpdatedBuild = useCallback(
+    (buildId?: string) => {
+      if (navigationStartedRef.current) return;
+      navigationStartedRef.current = true;
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete("pwa_auto_update");
+      url.searchParams.set("pwa_version", buildId || remoteBuildId || String(Date.now()));
+      window.location.replace(url.toString());
+    },
+    [remoteBuildId],
+  );
 
   const verifyLatestVersion = useCallback(async () => {
     if (import.meta.env.DEV) {
@@ -70,38 +123,64 @@ export function PWAUpdatePrompt() {
   }, [verifyLatestVersion]);
 
   useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
     const handleControllerChange = () => {
-      if (reloadScheduledRef.current) return;
-      reloadScheduledRef.current = true;
-      const url = new URL(window.location.href);
-      url.searchParams.set("pwa_auto_update", remoteBuildId || String(Date.now()));
-      window.location.replace(url.toString());
+      if (updateRequestedRef.current) navigateToUpdatedBuild();
     };
 
-    navigator.serviceWorker?.addEventListener("controllerchange", handleControllerChange);
-    return () => navigator.serviceWorker?.removeEventListener("controllerchange", handleControllerChange);
-  }, [remoteBuildId]);
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    return () => navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+  }, [navigateToUpdatedBuild]);
 
   const handleUpdate = async () => {
-    if (updateAlreadyRunning) return;
-    updateAlreadyRunning = true;
+    if (updateLockRef.current) return;
+    updateLockRef.current = true;
+    updateRequestedRef.current = true;
     setUpdating(true);
     setErrorMessage("");
 
     try {
-      const registration = await navigator.serviceWorker?.getRegistration("/app/");
-      await registration?.update().catch(() => undefined);
-      await updateServiceWorker(true);
+      if (!("serviceWorker" in navigator)) {
+        navigateToUpdatedBuild(remoteBuildId);
+        return;
+      }
 
-      window.setTimeout(() => {
-        if (reloadScheduledRef.current) return;
-        reloadScheduledRef.current = true;
-        const url = new URL(window.location.href);
-        url.searchParams.set("pwa_auto_update", remoteBuildId || String(Date.now()));
-        window.location.replace(url.toString());
-      }, 1200);
+      let registrations = (await navigator.serviceWorker.getRegistrations()).filter(isAppRegistration);
+
+      if (registrations.length === 0) {
+        const readyRegistration = await Promise.race([
+          navigator.serviceWorker.ready,
+          delay(4000).then(() => null),
+        ]);
+        if (readyRegistration && isAppRegistration(readyRegistration)) {
+          registrations = [readyRegistration];
+        }
+      }
+
+      for (const registration of registrations) {
+        await registration.update();
+
+        const installingWorker = registration.installing;
+        if (installingWorker) {
+          await waitForWorkerActivation(installingWorker);
+        }
+
+        const waitingWorker = registration.waiting;
+        if (waitingWorker) {
+          waitingWorker.postMessage({ type: "SKIP_WAITING" });
+          await waitForWorkerActivation(waitingWorker);
+        }
+      }
+
+      // Dá um pequeno tempo para o novo Service Worker assumir a página.
+      // Se não houver troca de controlador, a navegação versionada força o
+      // navegador a buscar o HTML novo, que aponta para um arquivo JS com hash.
+      await delay(500);
+      navigateToUpdatedBuild(remoteBuildId);
     } catch (error) {
-      updateAlreadyRunning = false;
+      updateLockRef.current = false;
+      updateRequestedRef.current = false;
       setUpdating(false);
       setErrorMessage(error instanceof Error ? error.message : "Não foi possível aplicar a atualização.");
       setGateState("verification-error");

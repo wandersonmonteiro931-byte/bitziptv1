@@ -1,0 +1,25 @@
+WMCPLAYER V107 - ATIVACAO VOLTAR UMA ETAPA
+
+BASE UTILIZADA
+WMCPLAYER_V106_CORRECAO_ATUALIZACAO_OBRIGATORIA_SEM_LOOP_PACOTE_COMPLETO.zip
+
+ALTERACAO
+A tela de ativacao continua com o mesmo fluxo e as mesmas funcoes.
+Foi corrigido somente o comportamento de navegacao entre as etapas.
+
+NOVO COMPORTAMENTO
+- Na etapa do MAC, o botao Voltar do navegador retorna para a pergunta sobre possuir uma lista.
+- Na escolha de planos, voltar retorna para a etapa imediatamente anterior.
+- Na pergunta sobre lista, voltar retorna para a etapa do nome.
+- Somente ao voltar a partir da primeira etapa a pagina sai da tela de ativacao.
+- O botao Voltar existente na tela de planos tambem retorna apenas uma etapa.
+- Os dados digitados permanecem na tela enquanto o usuario navega entre as etapas.
+
+ARQUIVOS ALTERADOS
+- SITE_CENTRAL_PUBLICAR/script.js
+- SITE_CENTRAL_PUBLICAR/_headers
+
+PUBLICACAO
+Publique todo o conteudo da pasta SITE_CENTRAL_PUBLICAR no projeto principal wmcplayer.pages.dev.
+Nao precisa executar SQL.
+Nao precisa executar Edge Functions.

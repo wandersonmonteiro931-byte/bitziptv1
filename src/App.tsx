@@ -17,6 +17,7 @@ import ReferralsPage from "./pages/ReferralsPage";
 import WithdrawalsPage from "./pages/WithdrawalsPage";
 import HistoryPage from "./pages/HistoryPage";
 import IptvInfoPage from "./pages/IptvInfoPage";
+import ClientSettingsPage from "./pages/ClientSettingsPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminMissionsPage from "./pages/admin/AdminMissionsPage";
@@ -75,6 +76,7 @@ const App = () => (
             <Route path="/withdrawals" element={<ProtectedRoute><WithdrawalsPage /></ProtectedRoute>} />
             <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
             <Route path="/iptv-info" element={<ProtectedRoute><IptvInfoPage /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
             <Route path="/credits" element={<ProtectedRoute><CreditsStorePage /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><CreditsChallengesPage /></ProtectedRoute>} />
             <Route path="/scratch" element={<ProtectedRoute><ScratchCardPage /></ProtectedRoute>} />

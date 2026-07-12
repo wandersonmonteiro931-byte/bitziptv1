@@ -12,6 +12,11 @@
 
 /app/assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Compatibilidade: o arquivo fixo das versões antigas nunca mais pode ficar imutável.
+/app/assets/app.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /app/wmcplayer-share-20260711.png
   Cache-Control: public, max-age=31536000, immutable
 

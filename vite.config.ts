@@ -83,7 +83,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        entryFileNames: "assets/app.js",
+        entryFileNames: "assets/app-[hash].js",
       },
     },
   },
@@ -168,7 +168,7 @@ export default defineConfig(({ mode }) => ({
             },
           },
         ],
-        skipWaiting: false,
+        skipWaiting: true,
         clientsClaim: true,
       },
       manifest: false,

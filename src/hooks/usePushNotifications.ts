@@ -3,12 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 const PUSH_VAPID_KEY_STORAGE = "wmcflix_push_vapid_key";
 const PUSH_ENDPOINT_STORAGE = "wmcflix_push_endpoint";
+const PUSH_DISABLED_STORAGE = "wmcplayer_push_disabled_by_user";
 
 export function usePushNotifications(userId: string | undefined) {
   const runningRef = useRef(false);
 
   useEffect(() => {
     if (!userId) return;
+    if (typeof window !== "undefined" && localStorage.getItem(PUSH_DISABLED_STORAGE) === "1") return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 

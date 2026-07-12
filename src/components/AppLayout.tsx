@@ -141,7 +141,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               <Bell size={18} />
             </button>
             <button
-              onClick={() => navigate("/iptv-info")}
+              onClick={() => navigate("/settings")}
               className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             >
               <Settings size={18} />

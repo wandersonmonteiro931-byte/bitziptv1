@@ -1,4 +1,4 @@
-WMCPLAYER V105 - ATUALIZAR GITHUB E REDIRECIONAR DOMINIO ANTIGO
+WMCPLAYER V106 - ATUALIZAR GITHUB E REDIRECIONAR DOMINIO ANTIGO
 
 Este pacote foi preparado para o repositorio:
 https://github.com/wandersonmonteiro931-byte/bitziptv1.git
@@ -26,3 +26,9 @@ O codigo-fonte completo V104 continua preservado no repositorio.
 
 NAO PRECISA EXECUTAR SQL.
 NAO PRECISA PUBLICAR EDGE FUNCTIONS.
+
+IMPORTANTE V106
+
+O BAT acima publica somente o projeto antigo conectado ao GitHub.
+Para corrigir a tela de atualizacao obrigatoria do site principal, publique a pasta
+SITE_CENTRAL_PUBLICAR incluida no ZIP completo V106 no projeto wmcplayer.pages.dev.

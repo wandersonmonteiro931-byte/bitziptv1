@@ -385,7 +385,7 @@ function BannerCarousel() {
   if (!firstReady) {
     return (
       <div className="mx-4 mt-2 mb-4">
-        <div className="aspect-[5/4] w-full rounded-[20px] bg-transparent sm:aspect-[16/9] lg:aspect-[16/8]" />
+        <div className="aspect-[4/5] w-full rounded-[20px] bg-transparent sm:aspect-[4/3] lg:aspect-[16/10]" />
       </div>
     );
   }
@@ -431,7 +431,7 @@ function BannerCarousel() {
         className={`block w-full ${banner.redirect_url ? "cursor-pointer" : "cursor-default"}`}
       >
         <div
-          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black aspect-[5/4] sm:aspect-[16/9] lg:aspect-[16/8]"
+          className="relative flex w-full items-center justify-center overflow-hidden rounded-[20px] bg-black aspect-[4/5] sm:aspect-[4/3] lg:aspect-[16/10]"
           style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}
         >
           <AnimatePresence mode="sync" initial={false}>
@@ -2341,6 +2341,9 @@ const ClientDashboard = () => {
           </motion.div>
         )}
 
+        {/* PAYMENT HISTORY (collapsible) */}
+        <PaymentHistory user={user} billingDueDay={billingDueDay} />
+
         {/* RENEWAL OPTIONS */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -2450,9 +2453,6 @@ const ClientDashboard = () => {
           </div>
           )}
         </motion.div>
-
-        {/* PAYMENT HISTORY (collapsible) */}
-        <PaymentHistory user={user} billingDueDay={billingDueDay} />
 
         {/* TV APP */}
         <TvAppIcons tvApps={tvApps} userApp={user?.iptv_tv_app} />
