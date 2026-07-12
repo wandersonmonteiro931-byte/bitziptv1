@@ -1,0 +1,33 @@
+VALIDACOES WMCPLAYER V117
+
+BASE USADA
+- WMCPLAYER_V116_PREMIO_INDICACAO_FATURA_PAGA_ADMIN_TV_PACOTE_COMPLETO.zip
+
+ARQUIVOS ALTERADOS
+- bitziptv1-main/supabase/functions/admin-create-user/index.ts
+- bitziptv1-main/supabase/functions/admin-manage-user/index.ts
+- bitziptv1-main/CONFIGURAR_PIX_E_FUNCOES_SUPABASE.bat
+
+ARQUIVOS NOVOS
+- bitziptv1-main/APLICAR_CORRECAO_ELEGIBILIDADE_INDICACAO_V117.sql
+- bitziptv1-main/supabase/migrations/202607120005_referral_eligibility_v117.sql
+- bitziptv1-main/ABRIR_SQL_INDICACOES_V117.bat
+- bitziptv1-main/ATUALIZAR_FUNCOES_INDICACOES_V117.bat
+- bitziptv1-main/LEIA_ELEGIBILIDADE_INDICACAO_V117.txt
+
+VALIDACOES EXECUTADAS
+- npx tsc --noEmit: aprovado
+- npm test: 10 de 10 testes aprovados
+- npm run audit: aprovado; 127 arquivos verificados; 1 canal Realtime no frontend
+- npm run check:tdz: aprovado
+- Bundle admin-create-user com esbuild: aprovado
+- Bundle admin-manage-user com esbuild: aprovado
+- SQL V117 analisado pelo parser PostgreSQL pglast: aprovado; 6 comandos reconhecidos
+- BATs V117: sem UTF-8 BOM e com CRLF
+- Nenhum polling, setInterval ou consulta continua foi adicionado
+- Nenhum secret novo foi incluido
+
+NAO EXECUTADO
+- O SQL nao foi executado no Supabase real.
+- As Edge Functions nao foram publicadas no Supabase real.
+- O site nao foi recompilado porque nenhum arquivo do frontend foi alterado.

@@ -1,0 +1,68 @@
+WMCPLAYER V116 - PREMIO DE INDICACAO COMPLETO
+
+BASE OFICIAL USADA
+- WMCPLAYER_V115_INDICACOES_PRAZO_10_DIAS_REVERSAO_AUTOMATICA_PACOTE_COMPLETO.zip
+
+CORRECOES DESTA VERSAO
+
+1. PAGAMENTO CONVERTIDO SEM MES GRATIS
+- O pagamento elegivel agora e o primeiro pagamento realizado APOS a indicacao e dentro dos 10 dias.
+- Nao importa se o cliente ja teve pagamentos antigos antes de ser indicado.
+- O SQL repara automaticamente indicacoes que ficaram como CONVERTIDAS sem premio.
+- O premio continua protegido contra duplicidade do webhook.
+
+2. VALIDADE E FATURA DO INDICADOR
+- Soma a quantidade de meses do premio diretamente na validade atual do indicador.
+- Atualiza profiles.iptv_expiry e o status da TV no banco.
+- Cria uma fatura confirmada do periodo com forma de pagamento referral_reward.
+- Quando existir uma fatura pendente sem PIX ativo, ela pode ser quitada pelo premio.
+- No historico do cliente, o valor aparece como PREMIO, sem valor em reais.
+
+3. MENSAGEM DE PARABENS
+- A pagina Indique e ganhe exibe um card verde de Parabens.
+- Mostra o periodo gratuito e informa que a mensalidade foi quitada como Premio.
+
+4. AVISO FIXO NO ADMIN > TV
+- Cada premio cria um aviso fixo para atualizar a validade no servidor externo.
+- O aviso mostra cliente, servidor, usuario da TV e nova validade.
+- O aviso so desaparece quando o administrador confirmar a atualizacao no servidor.
+- Se o pagamento for revertido, aparece aviso fixo para reverter a validade no servidor.
+
+5. REVERSAO
+- Pagamento revertido, excluido ou alterado para nao pago remove o premio.
+- A validade do indicador e recalculada.
+- A fatura de Premio sai do historico de faturas pagas.
+- Dentro do prazo, a indicacao volta para Aguardando 1 pagamento.
+- Fora do prazo, a indicacao fica Nao pago.
+
+6. SOMENTE USUARIOS ATIVOS
+- Indique e ganhe fica bloqueado para teste gratis.
+- Tambem fica bloqueado para bloqueado, aguardando ativacao, desativado ou qualquer status diferente de ativo.
+- Codigos de clientes nao ativos deixam de ser aceitos em novos cadastros.
+
+ORDEM OBRIGATORIA PARA PUBLICAR
+
+PASSO 1 - SQL
+- Execute ABRIR_SQL_INDICACOES_V116.bat.
+- Copie todo o arquivo APLICAR_CORRECAO_INDICACOES_PREMIO_FATURA_V116.sql.
+- Cole em uma nova consulta no SQL Editor do Supabase.
+- Clique em RUN e aguarde terminar sem erro.
+
+PASSO 2 - EDGE FUNCTIONS
+- Execute ATUALIZAR_FUNCOES_INDICACOES_V116.bat.
+- Ele publica apenas pix-efi e admin-manage-user.
+- Nenhum secret e alterado ou reenviado.
+
+PASSO 3 - SITE PRINCIPAL
+- Publique todo o conteudo de SITE_CENTRAL_PUBLICAR no projeto principal wmcplayer.pages.dev.
+- Nao publique somente o JavaScript.
+
+SQL NECESSARIO
+- Sim.
+
+EDGE FUNCTIONS NECESSARIAS
+- pix-efi
+- admin-manage-user
+
+OBSERVACAO
+- O SQL e as funcoes nao foram executados no Supabase real durante a criacao do pacote.

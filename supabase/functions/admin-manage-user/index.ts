@@ -68,6 +68,40 @@ const isAccessDisabled = (profile: any) =>
   DISABLED_ACCOUNT_STATUSES.has(normalizeStatus(profile?.status)) ||
   ["disabled", "inactive", "deactivated", "desativado"].includes(normalizeStatus(profile?.iptv_status));
 
+const REFERRAL_PAID_INVOICE_STATUSES = ["paid_pending_activation", "confirmed", "paid"];
+
+const ensureReferralEligibility = async (
+  supabaseAdmin: any,
+  referrerId: string,
+  referredId: string,
+) => {
+  const [referrerResult, paidInvoiceResult] = await Promise.all([
+    supabaseAdmin
+      .from("profiles")
+      .select("id,status,iptv_status,trial_enabled")
+      .eq("id", referrerId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("iptv_payments")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", referredId)
+      .in("status", REFERRAL_PAID_INVOICE_STATUSES),
+  ]);
+
+  if (referrerResult.error) throw new Error(referrerResult.error.message);
+  if (paidInvoiceResult.error) throw new Error(paidInvoiceResult.error.message);
+
+  const referrer = referrerResult.data;
+  const referrerIsActive =
+    !!referrer &&
+    normalizeStatus(referrer.status) === "active" &&
+    normalizeStatus(referrer.iptv_status) === "active" &&
+    referrer.trial_enabled !== true;
+
+  if (!referrerIsActive) throw new Error("Código inválido");
+  if (Number(paidInvoiceResult.count || 0) > 0) throw new Error("Cliente não elegível.");
+};
+
 const TV_STATUS_ALIASES: Record<string, string> = {
   inactive: "disabled",
   deactivated: "disabled",
@@ -331,24 +365,54 @@ const processReferralRewardForPayment = async (supabaseAdmin: any, referredId: s
     }
 
     const result = data || {};
-    if (!result.rewarded) return result;
+    if (!result.rewarded && !result.already_rewarded) return result;
 
     const referrerId = String(result.referrer_id || "");
     if (!referrerId) return result;
+
+    let rewardPayment: any = result.reward_payment || null;
+    if (!rewardPayment && result.reward_payment_id) {
+      const { data: storedRewardPayment } = await supabaseAdmin
+        .from("iptv_payments")
+        .select("*")
+        .eq("id", result.reward_payment_id)
+        .maybeSingle();
+      rewardPayment = storedRewardPayment || null;
+    }
+
+    const profilePatch = result.new_expiry
+      ? {
+          iptv_expiry: result.new_expiry,
+          ...(result.new_iptv_status ? { iptv_status: result.new_iptv_status } : {}),
+        }
+      : undefined;
 
     await emitReferralsUpdated(supabaseAdmin, [referrerId], {
       action: "referral_rewarded",
       referral_id: result.referral_id,
       referred_id: referredId,
       first_payment_id: paymentId,
+      reward_payment_id: result.reward_payment_id,
       reward_months: result.reward_months,
       reward_period_start: result.reward_period_start,
       reward_period_end: result.reward_period_end,
       reward_message: result.reward_message,
+      profile_patch: profilePatch,
+      payment: rewardPayment || undefined,
+      server_activation_required: result.server_activation_required === true,
     });
 
-    if (result.new_expiry) {
-      await emitClientProfileUpdated(supabaseAdmin, referrerId, { iptv_expiry: result.new_expiry });
+    await emitFinanceUpdated(supabaseAdmin, referrerId, {
+      action: "referral_rewarded",
+      source: "referrals",
+      referral_id: result.referral_id,
+      reward_payment_id: result.reward_payment_id,
+      profile_patch: profilePatch,
+      payment: rewardPayment || undefined,
+    });
+
+    if (profilePatch) {
+      await emitClientProfileUpdated(supabaseAdmin, referrerId, profilePatch);
     }
 
     try {
@@ -840,6 +904,12 @@ Deno.serve(async (req) => {
       if (referrerId === referredId) throw new Error("O cliente não pode indicar a si mesmo.");
       if (!["pending", "converted", "rewarded", "rejected"].includes(status)) throw new Error("Status inválido.");
 
+      // Uma nova indicação pendente só pode ser criada para cliente realmente novo
+      // e com um indicador totalmente ativo.
+      if (status === "pending") {
+        await ensureReferralEligibility(supabaseAdmin, referrerId, referredId);
+      }
+
       const { data: existing } = await supabaseAdmin.from("referrals").select("id").eq("referred_id", referredId).maybeSingle();
       if (existing) throw new Error("Este cliente já possui uma indicação vinculada.");
 
@@ -914,6 +984,13 @@ Deno.serve(async (req) => {
 
       if (referrerId === referredId) throw new Error("O cliente não pode indicar a si mesmo.");
       if (!["pending", "converted", "rewarded", "rejected"].includes(status)) throw new Error("Status inválido.");
+
+      if (
+        status === "pending" &&
+        (referrerId !== String(previous.referrer_id) || referredId !== String(previous.referred_id))
+      ) {
+        await ensureReferralEligibility(supabaseAdmin, referrerId, referredId);
+      }
 
       if (referredId !== previous.referred_id) {
         const { data: duplicate } = await supabaseAdmin
@@ -1046,8 +1123,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "complete_referral_server_activation") {
+      const referralId = String(data?.referral_id || "");
+      if (!referralId) throw new Error("Indicação não informada.");
+
+      const { data: completed, error: completeError } = await supabaseAdmin.rpc(
+        "complete_referral_server_activation",
+        { p_referral_id: referralId },
+      );
+      if (completeError) throw new Error(completeError.message);
+
+      await emitReferralsUpdated(supabaseAdmin, [String(completed?.referrer_id || "")], {
+        action: "referral_server_activation_completed",
+        referral_id: referralId,
+        target_expiry: completed?.target_expiry,
+      });
+
+      return new Response(JSON.stringify(completed || { success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "list_pending_admin_requests") {
-      const [{ data: trustRows, error: trustError }, { data: pendingPaymentRows, error: paymentError }] = await Promise.all([
+      const [
+        { data: trustRows, error: trustError },
+        { data: pendingPaymentRows, error: paymentError },
+        { data: referralServerRows, error: referralServerError },
+      ] = await Promise.all([
         supabaseAdmin
           .from("iptv_trust_requests")
           .select("*")
@@ -1058,10 +1160,11 @@ Deno.serve(async (req) => {
           .select("*")
           .eq("status", "paid_pending_activation")
           .order("payment_date", { ascending: false }),
+        supabaseAdmin.rpc("get_pending_referral_server_activations"),
       ]);
 
-      if (trustError || paymentError) {
-        return new Response(JSON.stringify({ error: trustError?.message || paymentError?.message }), {
+      if (trustError || paymentError || referralServerError) {
+        return new Response(JSON.stringify({ error: trustError?.message || paymentError?.message || referralServerError?.message }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -1139,6 +1242,7 @@ Deno.serve(async (req) => {
             profiles: profilesById.get(item.user_id) || null,
           })),
           pending_activations: normalizedPending,
+          referral_server_activations: referralServerRows || [],
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -1658,15 +1762,20 @@ Deno.serve(async (req) => {
         if (targetError) throw new Error(targetError.message);
         if (!targetProfile) throw new Error("Cliente não encontrado.");
 
-        const { data: referrer, error: referrerError } = await supabaseAdmin
-          .from("profiles")
-          .select("id, name, username, referral_code")
-          .ilike("referral_code", cleanCode)
-          .maybeSingle();
+        const { data: resolvedCode, error: resolveCodeError } = await supabaseAdmin.rpc("resolve_referral_code", {
+          p_referral_code: cleanCode,
+          p_referred_user_id: user_id,
+        });
 
-        if (referrerError) throw new Error(referrerError.message);
-        if (!referrer) throw new Error("Código de indicação não encontrado.");
-        if (referrer.id === user_id) throw new Error("O cliente não pode indicar ele mesmo.");
+        if (resolveCodeError) throw new Error(resolveCodeError.message);
+        if (!resolvedCode?.valid) throw new Error(String(resolvedCode?.error || "Código inválido"));
+
+        const referrer = {
+          id: String(resolvedCode.referrer_id),
+          name: String(resolvedCode.referrer_name || ""),
+          username: String(resolvedCode.referrer_username || ""),
+          referral_code: String(resolvedCode.referral_code || cleanCode),
+        };
 
         const { data: existingBefore } = await supabaseAdmin
           .from("referrals")
@@ -2085,11 +2194,7 @@ Deno.serve(async (req) => {
         }).select("*").single();
         if (manualPaymentError) throw new Error(manualPaymentError.message);
 
-        const { data: referralResult, error: referralError } = await supabaseAdmin.rpc("process_referral_first_payment", {
-          p_referred_id: user_id,
-          p_payment_id: manualPayment.id,
-        });
-        if (referralError) console.warn("Falha ao processar indicação do pagamento manual:", referralError.message);
+        const referralResult = await processReferralRewardForPayment(supabaseAdmin, user_id, manualPayment.id);
 
         await supabaseAdmin.from("balance_history").insert({
           user_id,

@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { CalendarCheck, CheckCircle, Clock, Copy, Gift, Share2, Users, XCircle } from "lucide-react";
+import { CalendarCheck, CheckCircle, Clock, Copy, Gift, LockKeyhole, Share2, Users, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,13 +50,13 @@ const ReferralsPage = () => {
   const [referrals, setReferrals] = useState<ReferralRow[]>([]);
   const [settings, setSettings] = useState<ReferralSettings>({ is_active: true, default_reward_months: 1 });
   const [loadError, setLoadError] = useState("");
+  const [access, setAccess] = useState({ allowed: true, message: "" });
 
   const loadReferrals = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     setLoadError("");
 
-    await (supabase as any).rpc("refresh_my_referral_deadlines");
     const { data, error } = await (supabase as any).rpc("get_my_referral_dashboard");
 
     if (error) {
@@ -72,6 +72,10 @@ const ReferralsPage = () => {
       is_active: payload?.settings?.is_active !== false,
       default_reward_months: Math.max(1, Number(payload?.settings?.default_reward_months || 1)),
       updated_at: payload?.settings?.updated_at || null,
+    });
+    setAccess({
+      allowed: payload?.access?.allowed !== false,
+      message: String(payload?.access?.message || ""),
     });
     setReferrals(Array.isArray(payload?.referrals) ? payload.referrals : []);
     setLoading(false);
@@ -97,7 +101,7 @@ const ReferralsPage = () => {
   }, [user?.id, loadReferrals]);
 
   const copyCode = () => {
-    if (!settings.is_active || !user?.referral_code) return;
+    if (!access.allowed || !settings.is_active || !user?.referral_code) return;
     navigator.clipboard.writeText(user.referral_code);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
@@ -115,6 +119,31 @@ const ReferralsPage = () => {
       months,
     };
   }, [referrals]);
+
+  if (!loading && !loadError && !access.allowed) {
+    return (
+      <AppLayout>
+        <div className="mb-6">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <Users className="text-red-500" /> Indicações
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Indique e ganhe</p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-8 text-center">
+          <LockKeyhole size={42} className="mx-auto mb-4 text-amber-400" />
+          <h2 className="text-xl font-bold text-foreground">Seção bloqueada</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            {access.message || "A promoção Indique e ganhe está disponível somente para usuários ativos."}
+          </p>
+          <p className="mx-auto mt-3 max-w-xl text-xs leading-relaxed text-muted-foreground/80">
+            Clientes em teste grátis, bloqueados, aguardando ativação, desativados ou com outro status diferente de ativo não podem utilizar códigos de indicação.
+          </p>
+        </div>
+      </AppLayout>
+    );
+  }
+
 
   return (
     <AppLayout>
@@ -143,7 +172,7 @@ const ReferralsPage = () => {
             <p className="mb-2 font-display text-3xl font-bold text-red-500">{user?.referral_code || "—"}</p>
             <button
               onClick={copyCode}
-              disabled={!user?.referral_code}
+              disabled={!access.allowed || !user?.referral_code}
               className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-red-500 active:scale-[0.98] disabled:opacity-50"
             >
               {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
@@ -242,7 +271,7 @@ const ReferralsPage = () => {
                       {rewarded
                         ? `+${Math.max(1, Number(ref.reward_months || 1))} mês grátis`
                         : converted
-                          ? "1º pagamento convertido"
+                          ? "Pagamento localizado — processando prêmio"
                           : expired
                             ? "Não pago"
                             : rejected
@@ -262,13 +291,17 @@ const ReferralsPage = () => {
                   )}
 
                   {rewarded && (
-                    <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
-                      <p className="text-xs font-semibold leading-relaxed text-emerald-300">
+                    <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                      <p className="text-base font-extrabold text-emerald-300">🎉 Parabéns!</p>
+                      <p className="mt-1 text-xs font-semibold leading-relaxed text-emerald-200">
                         {ref.reward_message ||
                           `Seu indicado realizou o 1° pagamento e você ganhou o próximo período de ${formatDateOnlyBR(ref.reward_period_start)} a ${formatDateOnlyBR(ref.reward_period_end)} gratuitamente! Obrigado por apoiar esse projeto!`}
                       </p>
+                      <p className="mt-2 text-[11px] text-emerald-300/90">
+                        A mensalidade deste período foi quitada como <strong>Prêmio</strong> e a sua validade foi atualizada no sistema até {formatDateOnlyBR(ref.reward_period_end)}.
+                      </p>
                       {ref.first_payment_id && (
-                        <p className="mt-1 text-[10px] text-muted-foreground">Pagamento gerador registrado no sistema.</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">Pagamento gerador registrado no sistema sem possibilidade de prêmio duplicado.</p>
                       )}
                     </div>
                   )}

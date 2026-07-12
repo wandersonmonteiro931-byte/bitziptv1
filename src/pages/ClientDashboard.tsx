@@ -763,12 +763,16 @@ function PaymentHistory({
                     const date = new Date(p.payment_date);
                     const formatted = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
                     const isPendingActivation = p.status === "paid_pending_activation";
+                    const isReferralReward =
+                      String(p.payment_method || "").toLowerCase() === "referral_reward" ||
+                      String(p.notes || "").toLowerCase().includes("prêmio de indicação") ||
+                      String(p.notes || "").toLowerCase().includes("premio de indicacao");
                     let displayedPeriodEnd = String(p.period_end || "");
 
                     // Enquanto aguarda ativação, a data exibida deve ser calculada
                     // a partir do vencimento efetivo do perfil, nunca do dia do pagamento
                     // nem de uma data padrão arbitrária.
-                    if (isPendingActivation && user?.iptv_expiry) {
+                    if (isPendingActivation && !isReferralReward && user?.iptv_expiry) {
                       const fixedStart = getFixedBillingCycleStartDate(user, billingDueDay);
                       displayedPeriodEnd = toDateOnlyString(
                         addBillingMonthsByFixedDay(
@@ -794,16 +798,18 @@ function PaymentHistory({
                         </div>
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-foreground">
-                              R$ {Number(p.amount).toFixed(2)}
+                            <span className={`text-sm font-semibold ${isReferralReward ? "text-emerald-300" : "text-foreground"}`}>
+                              {isReferralReward ? "Prêmio" : `R$ ${Number(p.amount).toFixed(2)}`}
                             </span>
                             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
                               Pago
                             </span>
                           </div>
-                          {isPendingActivation && (
+                          {isReferralReward ? (
+                            <span className="text-[9px] text-emerald-400">Mensalidade quitada por indicação</span>
+                          ) : isPendingActivation ? (
                             <span className="text-[9px] text-blue-400">Aguardando liberação do suporte</span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     );

@@ -535,17 +535,37 @@ async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: a
     const rewardMessage = String(result.reward_message || "");
     if (!referrerId) return result;
 
+    let rewardPayment: any = result.reward_payment || null;
+    if (!rewardPayment && result.reward_payment_id) {
+      const { data: storedRewardPayment } = await adminSupa
+        .from("iptv_payments")
+        .select("*")
+        .eq("id", result.reward_payment_id)
+        .maybeSingle();
+      rewardPayment = storedRewardPayment || null;
+    }
+
+    const profilePatch = result.new_expiry
+      ? {
+          iptv_expiry: result.new_expiry,
+          ...(result.new_iptv_status ? { iptv_status: result.new_iptv_status } : {}),
+        }
+      : undefined;
+
     const payload = {
       action: "referral_rewarded",
       referral_id: result.referral_id,
       referrer_id: referrerId,
       referred_id: payment.user_id,
       first_payment_id: payment.id,
+      reward_payment_id: result.reward_payment_id,
       reward_months: result.reward_months,
       reward_period_start: result.reward_period_start,
       reward_period_end: result.reward_period_end,
       reward_message: rewardMessage,
-      profile_patch: result.new_expiry ? { iptv_expiry: result.new_expiry } : undefined,
+      profile_patch: profilePatch,
+      payment: rewardPayment || undefined,
+      server_activation_required: result.server_activation_required === true,
       sentAt: Date.now(),
     };
 
@@ -555,6 +575,14 @@ async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: a
         ...payload,
       }),
       sendRealtimeBroadcast(adminSupa, "wmcplayer-admin", "referrals-updated", payload),
+      emitFinanceUpdated(adminSupa, referrerId, {
+        action: "referral_rewarded",
+        source: "referrals",
+        referral_id: result.referral_id,
+        reward_payment_id: result.reward_payment_id,
+        profile_patch: profilePatch,
+        payment: rewardPayment || undefined,
+      }),
     ]).catch((err) => {
       console.warn("Falha ao emitir recompensa de indicação em tempo real:", err instanceof Error ? err.message : String(err));
     });
@@ -584,7 +612,7 @@ async function processReferralRewardAfterFirstPayment(adminSupa: any, payment: a
             user_id: admin.user_id,
             title: "Ativar mês grátis no servidor",
             body: `Uma indicação foi premiada. Atualize a validade do indicador para ${result.reward_period_end || result.new_expiry || "a nova data"}.`,
-            url: "/admin/referrals",
+            url: "/admin/iptv",
           }),
         });
       }

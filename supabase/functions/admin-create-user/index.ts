@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
 
       const { data: referrer, error: referrerError } = await supabaseAdmin
         .from("profiles")
-        .select("id, name, username, referral_code")
+        .select("id, name, username, referral_code, status, iptv_status, trial_enabled")
         .ilike("referral_code", cleanReferredCode)
         .maybeSingle();
 
@@ -170,8 +170,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (!referrer) {
-        return new Response(JSON.stringify({ error: "Código de indicação não encontrado" }), {
+      const referrerIsActive =
+        !!referrer &&
+        String(referrer.status || "").trim().toLowerCase() === "active" &&
+        String(referrer.iptv_status || "").trim().toLowerCase() === "active" &&
+        referrer.trial_enabled !== true;
+
+      if (!referrerIsActive) {
+        return new Response(JSON.stringify({ error: "Código inválido" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

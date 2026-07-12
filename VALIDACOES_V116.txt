@@ -1,0 +1,17 @@
+VALIDACOES WMCPLAYER V116
+
+- npm ci: executado.
+- npx tsc --noEmit: aprovado.
+- npm test: 10 de 10 testes aprovados.
+- npm run audit: aprovado; 127 arquivos e somente 1 canal Realtime.
+- npm run check:tdz: aprovado.
+- npm run build:app: aprovado.
+- Vite: 3055 modulos processados.
+- PWA: 21 arquivos no precache.
+- Edge Function pix-efi: sintaxe/bundle esbuild aprovado.
+- Edge Function admin-manage-user: sintaxe/bundle esbuild aprovado.
+- SQL V116: parser PostgreSQL pglast aprovou 50 comandos.
+- Nenhum polling ou setInterval de rede foi adicionado.
+- BATs V116: ASCII, sem BOM e com CRLF.
+- Nenhum secret, certificado ou token foi incluido.
+- O SQL nao foi executado no banco real nesta sessao.

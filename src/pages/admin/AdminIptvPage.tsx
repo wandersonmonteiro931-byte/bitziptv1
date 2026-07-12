@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  Gift,
+  RotateCcw,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -106,6 +108,8 @@ const AdminIptvPage = () => {
   const [processingTrust, setProcessingTrust] = useState<string | null>(null);
   const [cancelRequests, setCancelRequests] = useState<any[]>([]);
   const [processingCancel, setProcessingCancel] = useState<string | null>(null);
+  const [referralServerActivations, setReferralServerActivations] = useState<any[]>([]);
+  const [processingReferralActivation, setProcessingReferralActivation] = useState<string | null>(null);
 
   // Advanced filters
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -189,7 +193,7 @@ const AdminIptvPage = () => {
   };
 
   const loadData = async () => {
-    const [u, s, a, pa, tr, cr, adminPending] = await Promise.all([
+    const [u, s, a, pa, tr, cr, referralQueue, adminPending] = await Promise.all([
       supabase.from("profiles").select("*").order("name"),
       supabase.from("iptv_servers").select("*").eq("is_active", true).order("sort_order"),
       supabase.from("iptv_tv_apps").select("*").eq("is_active", true).order("sort_order"),
@@ -208,6 +212,7 @@ const AdminIptvPage = () => {
         .select("*, profiles!iptv_cancellation_requests_user_id_fkey(name, role, status, iptv_server, iptv_expiry)")
         .eq("status", "pending")
         .order("created_at", { ascending: true }),
+      (supabase as any).rpc("get_pending_referral_server_activations"),
       supabase.functions
         .invoke("admin-manage-user", {
           body: { action: "list_pending_admin_requests", user_id: "system", data: {} },
@@ -248,6 +253,11 @@ const AdminIptvPage = () => {
     setPendingActivations(pendingRows);
     setTrustRequests(trustRows);
     setCancelRequests(((cr.data as any[]) || []).filter((item) => isVisibleTvClient(item.profiles)));
+    const directReferralQueue = Array.isArray((referralQueue as any)?.data) ? (referralQueue as any).data : [];
+    const edgeReferralQueue = Array.isArray((adminPending as any)?.data?.referral_server_activations)
+      ? (adminPending as any).data.referral_server_activations
+      : [];
+    setReferralServerActivations(directReferralQueue.length > 0 ? directReferralQueue : edgeReferralQueue);
     setSelectedUsers((current) => new Set(Array.from(current).filter((id) => visibleProfiles.some((client) => client.id === id))));
   };
 
@@ -290,12 +300,15 @@ const AdminIptvPage = () => {
 
     const onFinanceCommand = (event: Event) => applyAdminFinanceCommand((event as CustomEvent)?.detail);
     const onAdminRefresh = () => void loadData();
+    const onReferralsUpdated = () => void loadData();
     window.addEventListener("wmcplayer-finance-updated", onFinanceCommand);
     window.addEventListener("wmcplayer-admin-refresh", onAdminRefresh);
+    window.addEventListener("wmcplayer-referrals-updated", onReferralsUpdated);
 
     return () => {
       window.removeEventListener("wmcplayer-finance-updated", onFinanceCommand);
       window.removeEventListener("wmcplayer-admin-refresh", onAdminRefresh);
+      window.removeEventListener("wmcplayer-referrals-updated", onReferralsUpdated);
     };
   }, []);
 
@@ -321,6 +334,26 @@ const AdminIptvPage = () => {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
     } finally {
       setConfirmingPayment(null);
+    }
+  };
+
+  const completeReferralServerActivation = async (referralId: string) => {
+    setProcessingReferralActivation(referralId);
+    try {
+      const { data, error } = await (supabase as any).rpc("complete_referral_server_activation", {
+        p_referral_id: referralId,
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Não foi possível concluir o aviso.");
+
+      setReferralServerActivations((current) => current.filter((item) => item.referral_id !== referralId));
+      toast({
+        title: "✅ Servidor atualizado",
+        description: "O aviso fixo do prêmio foi concluído.",
+      });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    } finally {
+      setProcessingReferralActivation(null);
     }
   };
 
@@ -636,6 +669,74 @@ const AdminIptvPage = () => {
 
       {/* Stats Cards */}
       <StatsCards users={users} />
+
+      {/* Fixed referral reward server activation queue */}
+      {referralServerActivations.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 rounded-2xl border-2 border-red-500/40 bg-red-500/5 p-4 shadow-[0_0_30px_rgba(239,68,68,0.08)]"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <Gift size={17} className="text-red-400" />
+            <h3 className="text-sm font-bold text-red-400">
+              Prêmios de indicação para atualizar no servidor ({referralServerActivations.length})
+            </h3>
+          </div>
+          <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+            Este aviso permanece fixo até você atualizar a validade no servidor externo e confirmar abaixo.
+          </p>
+          <div className="space-y-2">
+            {referralServerActivations.map((item) => {
+              const targetDate = item.target_expiry
+                ? String(item.target_expiry).split("-").reverse().join("/")
+                : "—";
+              const isReversal = item.action === "revert";
+
+              return (
+                <div
+                  key={item.referral_id}
+                  className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${
+                    isReversal
+                      ? "border-amber-500/25 bg-amber-500/5"
+                      : "border-red-500/20 bg-card/80"
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{item.referrer_name || "Cliente indicador"}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Servidor: {item.referrer_server || "—"} · Usuário TV: {item.referrer_iptv_user || "—"}
+                    </p>
+                    <p className={`mt-1 text-xs font-semibold ${isReversal ? "text-amber-400" : "text-red-300"}`}>
+                      {isReversal ? "Reverter validade no servidor para" : "Estender validade no servidor até"} {targetDate}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Indicado: {item.referred_name || "—"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => completeReferralServerActivation(item.referral_id)}
+                    disabled={processingReferralActivation === item.referral_id}
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                      isReversal
+                        ? "bg-amber-500/15 text-amber-400 hover:bg-amber-500/25"
+                        : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                    }`}
+                  >
+                    {processingReferralActivation === item.referral_id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : isReversal ? (
+                      <><RotateCcw size={12} className="mr-1 inline" /> Confirmar reversão no servidor</>
+                    ) : (
+                      <><CheckCircle size={12} className="mr-1 inline" /> Confirmar ativação no servidor</>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Awaiting Support Section */}
       {pendingActivations.length > 0 && (

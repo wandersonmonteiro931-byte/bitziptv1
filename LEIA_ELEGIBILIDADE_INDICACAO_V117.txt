@@ -1,0 +1,25 @@
+WMCPLAYER V117 - ELEGIBILIDADE DO CODIGO DE INDICACAO
+
+BASE OFICIAL
+WMCPLAYER_V116_PREMIO_INDICACAO_FATURA_PAGA_ADMIN_TV_PACOTE_COMPLETO.zip
+
+REGRAS APLICADAS
+1. Se o indicado ja possuir qualquer fatura paga, o codigo nao e aceito.
+   Mensagem: Cliente nao elegivel.
+2. Se o dono do codigo nao estiver totalmente ativo, ou estiver em teste gratis, o codigo nao e aceito.
+   Mensagem: Codigo invalido
+3. Faturas pendentes, removidas, revertidas ou canceladas nao tornam o cliente inelegivel.
+4. A validacao e feita no banco e nas Edge Functions, inclusive com RLS ativa.
+
+ORDEM PARA ATUALIZAR
+1. Execute ABRIR_SQL_INDICACOES_V117.bat e rode todo o SQL no Supabase.
+2. Execute ATUALIZAR_FUNCOES_INDICACOES_V117.bat.
+3. Nao precisa publicar o site, pois nenhum arquivo visual foi alterado.
+
+SQL
+Precisa executar: SIM.
+
+EDGE FUNCTIONS
+Precisa publicar: SIM.
+- admin-create-user
+- admin-manage-user

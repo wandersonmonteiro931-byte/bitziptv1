@@ -76,7 +76,11 @@ export function useRealtimeBalance() {
 
       if (!isAdmin && payload?.user_id && payload.user_id !== user.id) return;
 
-      if (eventName === "finance-updated" || eventName === "client-profile-updated") {
+      if (
+        eventName === "finance-updated" ||
+        eventName === "client-profile-updated" ||
+        (eventName === "referrals-updated" && (payload?.profile_patch || payload?.profile))
+      ) {
         applyProfileCommand(payload);
       }
 
